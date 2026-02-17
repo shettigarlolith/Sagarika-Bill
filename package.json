@@ -1,0 +1,14 @@
+{
+  "name": "store-bill-generator",
+  "version": "1.0.0",
+  "description": "Store bill generator with Google Sheets/Excel persistence",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "googleapis": "^140.0.1",
+    "xlsx": "^0.18.5"
+  }
+}

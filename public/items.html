@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Item List Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles-v2.css" />
+    <style>
+      .items-wrap {
+        margin-top: 12px;
+      }
+
+      .items-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .items-table th,
+      .items-table td {
+        border: 1px solid #dce5ec;
+        padding: 10px;
+      }
+
+      .items-table input {
+        width: 100%;
+      }
+
+      .items-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+
+      .top-link {
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+
+    <main class="container">
+      <section class="card">
+        <div class="title-row">
+          <div>
+            <p class="kicker">Catalog Manager</p>
+            <h1>Item List</h1>
+          </div>
+          <a class="btn btn-secondary top-link" href="/" target="_blank" rel="noopener">Open Billing Page</a>
+        </div>
+
+        <div class="items-wrap">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 65%">Item Name</th>
+                <th style="width: 25%">Price</th>
+                <th style="width: 10%">Action</th>
+              </tr>
+            </thead>
+            <tbody id="itemsEditorBody"></tbody>
+          </table>
+        </div>
+
+        <div class="items-actions">
+          <button id="addItemRowBtn" class="btn" type="button">+ Add Item</button>
+          <button id="saveItemListBtn" class="btn btn-primary" type="button">Save Item List</button>
+        </div>
+
+        <p id="itemStatus" class="status"></p>
+      </section>
+    </main>
+
+    <script src="items.js"></script>
+  </body>
+</html>

@@ -1,0 +1,4 @@
+node_modules/
+credentials/google-service-account.json
+data/.~bills.xlsx
+.DS_Store

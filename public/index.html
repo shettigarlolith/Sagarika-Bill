@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Store Bill Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Montserrat:wght@700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles-v2.css" />
+  </head>
+  <body>
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+
+    <main class="container">
+      <section class="card bill-card">
+        <div class="title-row">
+          <div>
+            <p class="kicker">Event Billing Desk</p>
+            <h1 class="page-title">
+              <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="title-logo" />
+              <span>Sagarika Bill</span>
+            </h1>
+          </div>
+          <div class="search-row">
+            <input type="tel" id="searchPhone" placeholder="Search by phone number" />
+            <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
+            <button id="prevBillBtn" class="btn btn-secondary" type="button" disabled>Previous</button>
+            <button id="nextBillBtn" class="btn btn-secondary" type="button" disabled>Next</button>
+            <button id="editBillBtn" class="btn btn-secondary" type="button" disabled>Edit</button>
+            <button id="clearSearchBtn" class="btn" type="button">Clear</button>
+            <a id="manageItemsBtn" class="btn btn-secondary" href="/items.html" target="_blank" rel="noopener">Item List</a>
+          </div>
+        </div>
+
+        <form id="billForm">
+          <div class="meta-grid">
+            <label>
+              Bill Date
+              <input type="date" id="billDate" required />
+            </label>
+            <label>
+              Customer Name
+              <input type="text" id="customerName" placeholder="Walk-in Customer" />
+            </label>
+            <label>
+              Phone Number
+              <input type="tel" id="phoneNumber" placeholder="10-digit phone" pattern="[0-9]{10}" required />
+            </label>
+            <label>
+              Address
+              <input type="text" id="address" placeholder="Customer address" />
+            </label>
+          </div>
+
+          <div class="table-wrap">
+            <table id="itemsTable">
+              <thead>
+                <tr>
+                  <th>Sl No</th>
+                  <th>Item</th>
+                  <th>Quantity</th>
+                  <th>Amount</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="itemsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="actions-row">
+            <button type="button" id="addItemBtn" class="btn">+ Add Item</button>
+          </div>
+
+          <div class="totals-grid">
+            <label>
+              Total
+              <input type="number" id="total" readonly />
+            </label>
+            <label>
+              GST (%)
+              <input type="number" id="gst" min="0" step="0.01" value="0" />
+            </label>
+            <label>
+              Discount (%)
+              <input type="number" id="discount" min="0" step="0.01" value="0" />
+            </label>
+            <label>
+              Amount Payable
+              <input type="number" id="amountPayable" readonly />
+            </label>
+          </div>
+
+          <div class="submit-wrap">
+            <button type="submit" id="saveBillBtn" class="btn btn-primary">Save Bill to Excel</button>
+            <button type="button" id="printBillBtn" class="btn btn-secondary">Print</button>
+          </div>
+        </form>
+
+        <p id="statusMsg" class="status"></p>
+      </section>
+    </main>
+
+    <section id="printTemplate" class="print-template">
+      <div class="print-page">
+        <div class="print-header">
+          <div class="print-company-box">
+            <div class="print-brand">SAGARIKA</div>
+            <div class="print-subbrand">E-Bill</div>
+          </div>
+          <div class="print-logo-box">
+            <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="print-logo" />
+          </div>
+        </div>
+
+        <div class="print-party-row">
+          <div class="party-box">
+            <div><strong>M/s.</strong> <span id="ptCustomer"></span></div>
+            <div>Phone: <span id="ptPhone"></span></div>
+            <div>Address: <span id="ptAddress"></span></div>
+          </div>
+          <div class="bill-info-box">
+            <div><strong>No:</strong> <span id="ptBillNo"></span></div>
+            <div><strong>Date:</strong> <span id="ptDate"></span></div>
+          </div>
+        </div>
+
+        <table class="print-items-table">
+          <thead>
+            <tr>
+              <th>S.No</th>
+              <th>Particulars</th>
+              <th>Qty</th>
+              <th>Unit Price</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody id="ptRows"></tbody>
+        </table>
+
+        <div class="print-totals">
+          <div class="rupees-line">Rupees: <span id="ptAmountWords"></span></div>
+          <div class="totals-list">
+            <div class="total-row">
+              <span>Net Total</span>
+              <span class="total-value" id="ptNetTotal"></span>
+            </div>
+            <div class="total-row">
+              <span>Add: SGST <span id="ptSgstRate"></span>%</span>
+              <span class="total-value" id="ptSgstAmt"></span>
+            </div>
+            <div class="total-row">
+              <span>Add: CGST <span id="ptCgstRate"></span>%</span>
+              <span class="total-value" id="ptCgstAmt"></span>
+            </div>
+            <div class="total-row">
+              <span>Discount</span>
+              <span class="total-value" id="ptDiscount"></span>
+            </div>
+            <div class="total-row grand-row">
+              <span>Grand Total</span>
+              <span class="total-value" id="ptGrandTotal"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="print-footer">
+          <div>E.&amp;O.E.</div>
+          <div>Authorised Signatory</div>
+        </div>
+      </div>
+    </section>
+
+    <script src="script-v2.js"></script>
+  </body>
+</html>
