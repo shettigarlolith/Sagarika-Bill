@@ -33,7 +33,7 @@ const ptDiscount = document.getElementById('ptDiscount');
 const ptGrandTotal = document.getElementById('ptGrandTotal');
 const ptAmountWords = document.getElementById('ptAmountWords');
 const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbwQqhRwyx1kNBYYeYtCVqCstovMrWc0YAzI4UbTHLWeN5rSJgIqsEaHOsa9gJzzPzfw2Q/exec';
+  'https://script.google.com/macros/s/AKfycbyXsrmf03lRwPEckONqGi19QHW1pBRsHd0LgLUHlpBeWVdoyfl8vnlFDZ_mw6OwbuxFug/exec';
 
 let productPrices = {};
 let storeItems = [];
