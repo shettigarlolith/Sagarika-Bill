@@ -516,7 +516,8 @@ async function loadItemsFromExcel() {
     const data = await parseJsonResponse(response);
 
     if (!response.ok || !Array.isArray(data)) {
-      throw new Error('Failed to load item list.');
+      const details = data && typeof data === 'object' ? (data.details || data.error || '') : '';
+      throw new Error(details ? `Failed to load item list: ${details}` : 'Failed to load item list.');
     }
 
     productPrices = data.reduce((acc, entry) => {
