@@ -32,6 +32,8 @@ const ptCgstAmt = document.getElementById('ptCgstAmt');
 const ptDiscount = document.getElementById('ptDiscount');
 const ptGrandTotal = document.getElementById('ptGrandTotal');
 const ptAmountWords = document.getElementById('ptAmountWords');
+const APPS_SCRIPT_URL =
+  'https://script.google.com/macros/s/AKfycbxwweF8iszXTGvO1bHFiRK9MD701kGIkGQY5wxKLdyTameWdsLCWrpstlVEfe9YXgMzBA/exec';
 
 let productPrices = {};
 let storeItems = [];
@@ -48,18 +50,20 @@ function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
-async function parseJsonResponse(response) {
-  const contentType = response.headers.get('content-type') || '';
-  const raw = await response.text();
+function apiUrl(resource, query = '') {
+  return `${APPS_SCRIPT_URL}?resource=${encodeURIComponent(resource)}${query}`;
+}
 
-  if (!contentType.includes('application/json')) {
-    throw new Error('API did not return JSON. Start the app server and open it via localhost URL.');
-  }
+async function parseJsonResponse(response) {
+  const raw = await response.text();
 
   try {
     return JSON.parse(raw);
   } catch {
-    throw new Error('Invalid JSON response from server.');
+    const preview = raw.slice(0, 120).replace(/\s+/g, ' ').trim();
+    throw new Error(
+      `API did not return JSON. Check Apps Script deploy access ("Anyone") and URL. Response preview: ${preview}`
+    );
   }
 }
 
@@ -470,7 +474,7 @@ async function saveCurrentBill(saveLabel = 'Saving...') {
   setSavingState(true, saveLabel);
 
   try {
-    const response = await fetch('/api/bills', {
+    const response = await fetch(apiUrl('bills'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -508,7 +512,7 @@ function unlockSaveOnChange() {
 
 async function loadItemsFromExcel() {
   try {
-    const response = await fetch('/api/items');
+    const response = await fetch(apiUrl('items'));
     const data = await parseJsonResponse(response);
 
     if (!response.ok || !Array.isArray(data)) {
@@ -546,8 +550,8 @@ async function searchBillsByPhone(phoneNumber) {
   }
 
   try {
-    const query = `?phoneNumber=${encodeURIComponent(cleanedPhone)}`;
-    const response = await fetch(`/api/bills${query}`);
+    const query = `&phoneNumber=${encodeURIComponent(cleanedPhone)}`;
+    const response = await fetch(apiUrl('bills', query));
     const data = await parseJsonResponse(response);
 
     if (!Array.isArray(data) || data.length === 0) {

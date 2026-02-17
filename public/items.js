@@ -2,6 +2,24 @@ const itemsEditorBody = document.getElementById('itemsEditorBody');
 const addItemRowBtn = document.getElementById('addItemRowBtn');
 const saveItemListBtn = document.getElementById('saveItemListBtn');
 const itemStatus = document.getElementById('itemStatus');
+const APPS_SCRIPT_URL =
+  'https://script.google.com/macros/s/AKfycbxwweF8iszXTGvO1bHFiRK9MD701kGIkGQY5wxKLdyTameWdsLCWrpstlVEfe9YXgMzBA/exec';
+
+function apiUrl(resource) {
+  return `${APPS_SCRIPT_URL}?resource=${encodeURIComponent(resource)}`;
+}
+
+async function parseJsonResponse(response) {
+  const raw = await response.text();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const preview = raw.slice(0, 120).replace(/\s+/g, ' ').trim();
+    throw new Error(
+      `API did not return JSON. Check Apps Script deploy access ("Anyone") and URL. Response preview: ${preview}`
+    );
+  }
+}
 
 function createRow(entry = { item: '', price: '' }) {
   const tr = document.createElement('tr');
@@ -20,8 +38,8 @@ async function loadItems() {
   itemStatus.style.color = '#355062';
 
   try {
-    const res = await fetch('/api/items');
-    const data = await res.json();
+    const res = await fetch(apiUrl('items'));
+    const data = await parseJsonResponse(res);
 
     if (!res.ok || !Array.isArray(data)) {
       throw new Error('Failed to load item list.');
@@ -68,13 +86,13 @@ async function saveItems() {
     saveItemListBtn.disabled = true;
     saveItemListBtn.textContent = 'Saving...';
 
-    const res = await fetch('/api/items', {
+    const res = await fetch(apiUrl('items'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items })
     });
 
-    const data = await res.json();
+    const data = await parseJsonResponse(res);
     if (!res.ok) {
       throw new Error(data.error || 'Failed to save item list.');
     }
