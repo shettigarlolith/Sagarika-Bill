@@ -13,7 +13,7 @@ function redirectAfterLogin() {
   location.replace(getNextPage());
 }
 
-if (localStorage.getItem('sagarika_auth') === 'ok') {
+if (sessionStorage.getItem('sagarika_auth') === 'ok') {
   redirectAfterLogin();
 }
 
@@ -24,7 +24,7 @@ loginForm.addEventListener('submit', (event) => {
   const password = passwordInput.value.trim().toLowerCase();
 
   if (username === 'sagarika' && password === 'sagarika') {
-    localStorage.setItem('sagarika_auth', 'ok');
+    sessionStorage.setItem('sagarika_auth', 'ok');
     redirectAfterLogin();
     return;
   }

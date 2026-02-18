@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="styles-v2.css" />
     <script>
       (function () {
-        if (localStorage.getItem('sagarika_auth') === 'ok') return;
+        if (sessionStorage.getItem('sagarika_auth') === 'ok') return;
         const page = location.pathname.split('/').pop() || 'index.html';
         location.replace(`login.html?next=${encodeURIComponent(page)}`);
       })();
