@@ -429,7 +429,8 @@ input[readonly] {
   grid-template-columns: 1fr 1fr;
 }
 
-.print-footer > div {
+.print-footer-left,
+.print-footer-right {
   min-height: 10mm;
   padding: 1.2mm;
   font-size: 2.6mm;
@@ -437,8 +438,15 @@ input[readonly] {
   align-items: flex-end;
 }
 
-.print-footer > div:first-child {
+.print-footer-left {
   border-right: 2px solid #111;
+}
+
+.print-footer-right {
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  text-align: right;
 }
 
 @media (max-width: 768px) {
