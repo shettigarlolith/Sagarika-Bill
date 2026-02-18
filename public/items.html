@@ -11,6 +11,13 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles-v2.css" />
+    <script>
+      (function () {
+        if (localStorage.getItem('sagarika_auth') === 'ok') return;
+        const page = location.pathname.split('/').pop() || 'items.html';
+        location.replace(`login.html?next=${encodeURIComponent(page)}`);
+      })();
+    </script>
     <style>
       .items-wrap {
         margin-top: 12px;
@@ -54,7 +61,7 @@
             <p class="kicker">Catalog Manager</p>
             <h1>Item List</h1>
           </div>
-          <a class="btn btn-secondary top-link" href="/" target="_blank" rel="noopener">Open Billing Page</a>
+          <a class="btn btn-secondary top-link" href="index.html" target="_blank" rel="noopener">Open Billing Page</a>
         </div>
 
         <div class="items-wrap">

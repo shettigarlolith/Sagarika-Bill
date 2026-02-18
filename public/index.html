@@ -11,6 +11,13 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles-v2.css" />
+    <script>
+      (function () {
+        if (localStorage.getItem('sagarika_auth') === 'ok') return;
+        const page = location.pathname.split('/').pop() || 'index.html';
+        location.replace(`login.html?next=${encodeURIComponent(page)}`);
+      })();
+    </script>
   </head>
   <body>
     <div class="bg-shape shape-1"></div>
@@ -110,7 +117,7 @@
         <div class="print-header">
           <div class="print-company-box">
             <div class="print-brand">SAGARIKA</div>
-            <div class="print-subbrand">E-Bill</div>
+            <div class="print-subbrand">SHAMIYANA &amp; DECORATORS</div>
           </div>
           <div class="print-logo-box">
             <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="print-logo" />
@@ -126,6 +133,7 @@
           <div class="bill-info-box">
             <div><strong>No:</strong> <span id="ptBillNo"></span></div>
             <div><strong>Date:</strong> <span id="ptDate"></span></div>
+            <div><strong>GSTIN: 29AJQPR8127A1ZV</strong></div>
           </div>
         </div>
 
@@ -169,7 +177,7 @@
         </div>
 
         <div class="print-footer">
-          <div>Sagarika events, Pakshikere, Sagara</div>
+          <div>Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist.</div>
           <div>Authorised Signatory</div>
         </div>
       </div>
