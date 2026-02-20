@@ -67,8 +67,22 @@ async function parseJsonResponse(response) {
   }
 }
 
-function createRow(item = { slNo: '', item: '', quantity: 1, amount: 0 }) {
+function isManualQuantity(value) {
+  return String(value || '').trim() === '#';
+}
+
+function toNumericQuantity(value) {
+  const raw = String(value || '').trim();
+  if (!raw || raw === '#') {
+    return NaN;
+  }
+  return Number(raw);
+}
+
+function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
   const row = document.createElement('tr');
+  const quantityValue = item.quantity === undefined || item.quantity === null || item.quantity === '' ? '#' : item.quantity;
+  const manualMode = isManualQuantity(quantityValue);
   const optionsHtml = storeItems
     .map((name) => `<option value="${name}" ${item.item === name ? 'selected' : ''}>${name}</option>`)
     .join('');
@@ -81,8 +95,8 @@ function createRow(item = { slNo: '', item: '', quantity: 1, amount: 0 }) {
         ${optionsHtml}
       </select>
     </td>
-    <td><input type="number" class="quantity" min="0" step="1" value="${item.quantity}" required /></td>
-    <td><input type="number" class="amount" min="0" step="0.01" value="${Number(item.amount || 0).toFixed(2)}" readonly /></td>
+    <td><input type="text" class="quantity" value="${quantityValue}" placeholder="#" required /></td>
+    <td><input type="number" class="amount" min="0" step="0.01" value="${Number(item.amount || 0).toFixed(2)}" ${manualMode ? '' : 'readonly'} /></td>
     <td><button type="button" class="btn btn-danger remove-btn">Remove</button></td>
   `;
 
@@ -95,6 +109,7 @@ function createRow(item = { slNo: '', item: '', quantity: 1, amount: 0 }) {
 
   row.querySelector('.item').addEventListener('change', recalculate);
   row.querySelector('.quantity').addEventListener('input', recalculate);
+  row.querySelector('.amount').addEventListener('input', recalculate);
   row.querySelector('.slNo').addEventListener('input', recalculate);
 
   return row;
@@ -116,11 +131,25 @@ function recalculate() {
 
   rows.forEach((row) => {
     const selectedItem = row.querySelector('.item').value;
-    const quantity = Number(row.querySelector('.quantity').value || 0);
+    const quantityRaw = row.querySelector('.quantity').value;
+    const quantity = toNumericQuantity(quantityRaw);
     const unitPrice = Number(productPrices[selectedItem] || 0);
-    const amount = quantity * unitPrice;
+    const amountInput = row.querySelector('.amount');
 
-    row.querySelector('.amount').value = amount.toFixed(2);
+    let amount = Number(amountInput.value || 0);
+    if (isManualQuantity(quantityRaw)) {
+      amountInput.readOnly = isFormReadOnly;
+      amount = Number(amountInput.value || 0);
+    } else {
+      amountInput.readOnly = true;
+      amount = Number.isFinite(quantity) ? quantity * unitPrice : 0;
+      amountInput.value = amount.toFixed(2);
+    }
+
+    if (!Number.isFinite(amount)) {
+      amount = 0;
+      amountInput.value = '0.00';
+    }
     total += amount;
   });
 
@@ -139,14 +168,14 @@ function getItems() {
   return [...itemsBody.querySelectorAll('tr')].map((row) => ({
     slNo: Number(row.querySelector('.slNo').value),
     item: row.querySelector('.item').value.trim(),
-    quantity: Number(row.querySelector('.quantity').value),
+    quantity: String(row.querySelector('.quantity').value || '').trim(),
     amount: Number(row.querySelector('.amount').value)
   }));
 }
 
 function addDefaultRow() {
   const rowCount = itemsBody.querySelectorAll('tr').length;
-  itemsBody.appendChild(createRow({ slNo: rowCount + 1, item: '', quantity: 1, amount: 0 }));
+  itemsBody.appendChild(createRow({ slNo: rowCount + 1, item: '', quantity: '#', amount: 0 }));
 }
 
 function setFormReadOnly(readOnly) {
@@ -175,6 +204,7 @@ function setFormReadOnly(readOnly) {
     row.querySelector('.slNo').readOnly = readOnly;
     row.querySelector('.item').disabled = readOnly;
     row.querySelector('.quantity').readOnly = readOnly;
+    row.querySelector('.amount').readOnly = readOnly || !isManualQuantity(row.querySelector('.quantity').value);
     row.querySelector('.remove-btn').disabled = readOnly;
   });
 
@@ -208,7 +238,7 @@ function populateBillForm(bill) {
         createRow({
           slNo: Number(entry.slNo || index + 1),
           item: String(entry.item || ''),
-          quantity: Number(entry.quantity || 0),
+          quantity: String(entry.quantity ?? '#'),
           amount: Number(entry.amount || 0)
         })
       );
@@ -328,10 +358,17 @@ function buildPrintRows() {
   const rows = [...itemsBody.querySelectorAll('tr')].map((row) => {
     const slNo = Number(row.querySelector('.slNo').value || 0);
     const item = row.querySelector('.item').value || '';
-    const quantity = Number(row.querySelector('.quantity').value || 0);
+    const quantityRaw = String(row.querySelector('.quantity').value || '').trim();
+    const quantity = toNumericQuantity(quantityRaw);
     const amount = Number(row.querySelector('.amount').value || 0);
-    const unitPrice = quantity > 0 ? amount / quantity : Number(productPrices[item] || 0);
-    return { slNo, item, quantity, unitPrice, amount };
+    const unitPrice = Number.isFinite(quantity) && quantity > 0 ? amount / quantity : Number(productPrices[item] || 0);
+    return {
+      slNo,
+      item,
+      quantityLabel: isManualQuantity(quantityRaw) ? '#' : quantityRaw,
+      unitPrice,
+      amount
+    };
   });
 
   return rows.filter((row) => row.item);
@@ -364,7 +401,7 @@ function renderPrintTemplate() {
     tr.innerHTML = `
       <td>${row ? row.slNo : ''}</td>
       <td>${row ? row.item : ''}</td>
-      <td>${row ? row.quantity : ''}</td>
+      <td>${row ? row.quantityLabel : ''}</td>
       <td>${row ? formatMoney(row.unitPrice) : ''}</td>
       <td>${row ? formatMoney(row.amount) : ''}</td>
     `;
@@ -434,13 +471,21 @@ function validateBillAndGetPayload() {
     return null;
   }
 
-  const hasInvalid = items.some(
-    (item) =>
-      !item.item ||
-      !Object.prototype.hasOwnProperty.call(productPrices, item.item) ||
-      Number.isNaN(item.quantity) ||
-      Number.isNaN(item.amount)
-  );
+  const hasInvalid = items.some((item) => {
+    if (!item.item || !Object.prototype.hasOwnProperty.call(productPrices, item.item)) {
+      return true;
+    }
+
+    const numericQty = toNumericQuantity(item.quantity);
+    const amount = Number(item.amount);
+    const unitPrice = Number(productPrices[item.item] || 0);
+
+    if (isManualQuantity(item.quantity)) {
+      return !Number.isFinite(amount) || amount < 0 || unitPrice <= 0;
+    }
+
+    return !Number.isFinite(numericQty) || numericQty < 0 || !Number.isFinite(amount);
+  });
 
   if (hasInvalid) {
     statusMsg.textContent = 'Select valid items from Item List and enter quantity.';
@@ -453,7 +498,22 @@ function validateBillAndGetPayload() {
     customerName: customerNameInput.value.trim() || 'Walk-in Customer',
     phoneNumber,
     address: addressInput.value.trim(),
-    items,
+    items: items.map((item) => {
+      if (isManualQuantity(item.quantity)) {
+        const unitPrice = Number(productPrices[item.item] || 0);
+        const manualAmount = Number(item.amount || 0);
+        const derivedQuantity = unitPrice > 0 ? manualAmount / unitPrice : 0;
+        return {
+          ...item,
+          quantity: derivedQuantity
+        };
+      }
+
+      return {
+        ...item,
+        quantity: toNumericQuantity(item.quantity)
+      };
+    }),
     gst: Number(gstInput.value || 0),
     discount: Number(discountInput.value || 0)
   };
