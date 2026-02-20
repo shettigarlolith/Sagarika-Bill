@@ -102,6 +102,11 @@
             </label>
           </div>
 
+          <label class="note-wrap" for="billNote">
+            Note (optional)
+            <textarea id="billNote" rows="2" placeholder="Write note for this bill"></textarea>
+          </label>
+
           <div class="submit-wrap">
             <button type="submit" id="saveBillBtn" class="btn btn-primary">Save Bill to Excel</button>
             <button type="button" id="printBillBtn" class="btn btn-secondary">Print</button>
@@ -188,6 +193,7 @@
           </div>
         </div>
       </div>
+      <div id="ptNoteLine" class="print-note-line">Note: <span id="ptNote"></span></div>
     </section>
 
     <script src="script-v2.js"></script>

@@ -124,6 +124,15 @@ input {
   font-family: inherit;
 }
 
+textarea {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+}
+
 select {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -134,6 +143,12 @@ select {
 }
 
 input:focus {
+  outline: none;
+  border-color: #78abff;
+  box-shadow: 0 0 0 3px rgba(120, 171, 255, 0.16);
+}
+
+textarea:focus {
   outline: none;
   border-color: #78abff;
   box-shadow: 0 0 0 3px rgba(120, 171, 255, 0.16);
@@ -184,6 +199,10 @@ input[readonly] {
 
 .actions-row,
 .submit-wrap {
+  margin-top: 14px;
+}
+
+.note-wrap {
   margin-top: 14px;
 }
 
@@ -451,6 +470,16 @@ input[readonly] {
   grid-template-columns: 1fr 1fr;
 }
 
+.print-note-line {
+  display: none;
+  margin-top: 2mm;
+  font-size: 2.8mm;
+  line-height: 1.35;
+  min-height: 4mm;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .print-footer-left,
 .print-footer-right {
   min-height: 10mm;
@@ -503,7 +532,8 @@ input[readonly] {
   }
 
   .print-template {
-    display: block !important;
+    display: flex !important;
+    flex-direction: column;
     padding: 0;
   }
 
@@ -511,6 +541,10 @@ input[readonly] {
     width: 100%;
     min-height: auto;
     margin: 0;
+  }
+
+  .print-note-line {
+    margin-top: 2mm;
   }
 
   .print-watermark {

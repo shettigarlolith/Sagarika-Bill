@@ -18,6 +18,7 @@ const editBillBtn = document.getElementById('editBillBtn');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
 const saveBillBtn = document.getElementById('saveBillBtn');
 const printBillBtn = document.getElementById('printBillBtn');
+const billNoteInput = document.getElementById('billNote');
 const ptBillNo = document.getElementById('ptBillNo');
 const ptDate = document.getElementById('ptDate');
 const ptCustomer = document.getElementById('ptCustomer');
@@ -32,6 +33,8 @@ const ptCgstAmt = document.getElementById('ptCgstAmt');
 const ptDiscount = document.getElementById('ptDiscount');
 const ptGrandTotal = document.getElementById('ptGrandTotal');
 const ptAmountWords = document.getElementById('ptAmountWords');
+const ptNoteLine = document.getElementById('ptNoteLine');
+const ptNote = document.getElementById('ptNote');
 const APPS_SCRIPT_URL =
   'https://script.google.com/macros/s/AKfycbyXsrmf03lRwPEckONqGi19QHW1pBRsHd0LgLUHlpBeWVdoyfl8vnlFDZ_mw6OwbuxFug/exec';
 
@@ -449,6 +452,10 @@ function renderPrintTemplate() {
   ptDiscount.textContent = formatMoney(discountAmount);
   ptGrandTotal.textContent = formatMoney(grandTotal);
   ptAmountWords.textContent = numberToWordsIndian(grandTotal);
+
+  const noteText = billNoteInput.value.trim();
+  ptNote.textContent = noteText;
+  ptNoteLine.style.display = noteText ? 'block' : 'none';
 }
 
 function setSavingState(saving, label = 'Saving...') {
@@ -591,7 +598,11 @@ async function saveCurrentBill(saveLabel = 'Saving...') {
   }
 }
 
-function unlockSaveOnChange() {
+function unlockSaveOnChange(event) {
+  if (event && event.target && event.target.id === 'billNote') {
+    return;
+  }
+
   if (isSaving || !isSaveLocked) {
     return;
   }
@@ -755,6 +766,7 @@ clearSearchBtn.addEventListener('click', () => {
   addressInput.value = '';
   gstInput.value = 0;
   discountInput.value = 0;
+  billNoteInput.value = '';
   itemsBody.innerHTML = '';
   addDefaultRow();
   currentBillId = '';
