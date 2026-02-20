@@ -46,6 +46,7 @@ let isFormReadOnly = false;
 let matchedBills = [];
 let currentBillIndex = -1;
 let currentBillId = '';
+const DRAFT_STORAGE_KEY = 'sagarika_bill_draft_v1';
 
 billDateInput.value = new Date().toISOString().slice(0, 10);
 
@@ -110,6 +111,7 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
     unlockSaveOnChange();
     recalculate();
     renumberRows();
+    saveDraftToStorage();
   });
 
   row.querySelector('.item').addEventListener('change', recalculate);
@@ -214,6 +216,76 @@ function addDefaultRow() {
   itemsBody.appendChild(createRow({ slNo: rowCount + 1, item: '', quantity: '#', amount: 0 }));
 }
 
+function saveDraftToStorage() {
+  try {
+    const draft = {
+      billDate: billDateInput.value || '',
+      customerName: customerNameInput.value || '',
+      phoneNumber: phoneNumberInput.value || '',
+      address: addressInput.value || '',
+      billNote: billNoteInput.value || '',
+      gst: gstInput.value || '0',
+      discount: discountInput.value || '0',
+      items: getItems(),
+      currentBillId: currentBillId || ''
+    };
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function clearDraftFromStorage() {
+  try {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function restoreDraftFromStorage() {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return false;
+
+    const draft = JSON.parse(raw);
+    if (!draft || typeof draft !== 'object') return false;
+
+    billDateInput.value = draft.billDate || new Date().toISOString().slice(0, 10);
+    customerNameInput.value = String(draft.customerName || '');
+    phoneNumberInput.value = onlyDigits(draft.phoneNumber || '').slice(0, 10);
+    addressInput.value = String(draft.address || '');
+    billNoteInput.value = String(draft.billNote || '');
+    gstInput.value = Number(draft.gst || 0);
+    discountInput.value = Number(draft.discount || 0);
+    currentBillId = String(draft.currentBillId || '');
+
+    itemsBody.innerHTML = '';
+    const rows = Array.isArray(draft.items) ? draft.items : [];
+    if (rows.length === 0) {
+      addDefaultRow();
+    } else {
+      rows.forEach((entry, index) => {
+        itemsBody.appendChild(
+          createRow({
+            slNo: Number(entry.slNo || index + 1),
+            item: String(entry.item || ''),
+            quantity: String(entry.quantity ?? '#'),
+            amount: Number(entry.amount || 0)
+          })
+        );
+      });
+    }
+
+    isSaveLocked = false;
+    setFormReadOnly(false);
+    recalculate();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function setFormReadOnly(readOnly) {
   isFormReadOnly = readOnly;
 
@@ -286,6 +358,7 @@ function populateBillForm(bill) {
   recalculate();
   isSaveLocked = false;
   setFormReadOnly(true);
+  saveDraftToStorage();
 }
 
 function lockSaveAfterSuccess() {
@@ -591,6 +664,7 @@ async function saveCurrentBill(saveLabel = 'Saving...') {
     statusMsg.style.color = '#0c7a6b';
     currentBillId = String(result.billId || currentBillId);
     lockSaveAfterSuccess();
+    saveDraftToStorage();
     setSavingState(false);
     return result;
   } catch (error) {
@@ -637,10 +711,13 @@ async function loadItemsFromExcel() {
       statusMsg.style.color = '#b42a2a';
     }
 
-    itemsBody.innerHTML = '';
-    addDefaultRow();
-    recalculate();
-    setFormReadOnly(false);
+    const restored = restoreDraftFromStorage();
+    if (!restored) {
+      itemsBody.innerHTML = '';
+      addDefaultRow();
+      recalculate();
+      setFormReadOnly(false);
+    }
   } catch (error) {
     statusMsg.textContent = error.message;
     statusMsg.style.color = '#b42a2a';
@@ -694,6 +771,7 @@ addItemBtn.addEventListener('click', () => {
   unlockSaveOnChange();
   addDefaultRow();
   recalculate();
+  saveDraftToStorage();
 });
 
 [gstInput, discountInput].forEach((input) => {
@@ -718,8 +796,15 @@ searchPhoneInput.addEventListener('input', () => {
   searchPhoneInput.value = onlyDigits(searchPhoneInput.value).slice(0, 10);
 });
 
-billForm.addEventListener('input', unlockSaveOnChange);
-billForm.addEventListener('change', unlockSaveOnChange);
+billForm.addEventListener('input', () => {
+  unlockSaveOnChange();
+  saveDraftToStorage();
+});
+
+billForm.addEventListener('change', () => {
+  unlockSaveOnChange();
+  saveDraftToStorage();
+});
 
 searchBtn.addEventListener('click', () => {
   searchBillsByPhone(searchPhoneInput.value.trim());
@@ -777,6 +862,7 @@ clearSearchBtn.addEventListener('click', () => {
   updateBillNavigationButtons();
   editBillBtn.disabled = true;
   statusMsg.textContent = '';
+  clearDraftFromStorage();
 });
 
 billForm.addEventListener('submit', async (event) => {
