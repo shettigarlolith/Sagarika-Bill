@@ -18,6 +18,7 @@ const editBillBtn = document.getElementById('editBillBtn');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
 const saveBillBtn = document.getElementById('saveBillBtn');
 const printBillBtn = document.getElementById('printBillBtn');
+const themeToggleInput = document.getElementById('themeToggle');
 const billNoteInput = document.getElementById('billNote');
 const ptBillNo = document.getElementById('ptBillNo');
 const ptDate = document.getElementById('ptDate');
@@ -47,6 +48,7 @@ let matchedBills = [];
 let currentBillIndex = -1;
 let currentBillId = '';
 const DRAFT_STORAGE_KEY = 'sagarika_bill_draft_v1';
+const THEME_STORAGE_KEY = 'sagarika_theme_v1';
 
 billDateInput.value = new Date().toISOString().slice(0, 10);
 
@@ -56,6 +58,19 @@ function onlyDigits(value) {
 
 function apiUrl(resource, query = '') {
   return `${APPS_SCRIPT_URL}?resource=${encodeURIComponent(resource)}${query}`;
+}
+
+function applyTheme(theme) {
+  const normalized = theme === 'dark' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', normalized);
+  if (themeToggleInput) {
+    themeToggleInput.checked = normalized === 'dark';
+  }
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, normalized);
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
 async function parseJsonResponse(response) {
@@ -806,6 +821,12 @@ billForm.addEventListener('change', () => {
   saveDraftToStorage();
 });
 
+if (themeToggleInput) {
+  themeToggleInput.addEventListener('change', () => {
+    applyTheme(themeToggleInput.checked ? 'dark' : 'light');
+  });
+}
+
 searchBtn.addEventListener('click', () => {
   searchBillsByPhone(searchPhoneInput.value.trim());
 });
@@ -892,6 +913,13 @@ printBillBtn.addEventListener('click', async () => {
     window.print();
   }
 });
+
+try {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  applyTheme(savedTheme === 'dark' ? 'dark' : 'light');
+} catch {
+  applyTheme('light');
+}
 
 loadItemsFromExcel();
 updateBillNavigationButtons();
