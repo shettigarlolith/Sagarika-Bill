@@ -3,7 +3,7 @@ const addItemRowBtn = document.getElementById('addItemRowBtn');
 const saveItemListBtn = document.getElementById('saveItemListBtn');
 const itemStatus = document.getElementById('itemStatus');
 const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbyXsrmf03lRwPEckONqGi19QHW1pBRsHd0LgLUHlpBeWVdoyfl8vnlFDZ_mw6OwbuxFug/exec';
+  'https://script.google.com/macros/s/AKfycbycQP83g4Buo1D_KMohHbU10016skIRsQjhKvc4Rg5tMVgbtU6wCXubxqOEx_cMB0jwCQ/exec';
 
 function apiUrl(resource) {
   return `${APPS_SCRIPT_URL}?resource=${encodeURIComponent(resource)}`;

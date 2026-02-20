@@ -36,7 +36,7 @@ const ptAmountWords = document.getElementById('ptAmountWords');
 const ptNoteLine = document.getElementById('ptNoteLine');
 const ptNote = document.getElementById('ptNote');
 const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbyXsrmf03lRwPEckONqGi19QHW1pBRsHd0LgLUHlpBeWVdoyfl8vnlFDZ_mw6OwbuxFug/exec';
+  'https://script.google.com/macros/s/AKfycbycQP83g4Buo1D_KMohHbU10016skIRsQjhKvc4Rg5tMVgbtU6wCXubxqOEx_cMB0jwCQ/exec';
 
 let productPrices = {};
 let storeItems = [];
@@ -221,6 +221,7 @@ function setFormReadOnly(readOnly) {
   customerNameInput.readOnly = readOnly;
   phoneNumberInput.readOnly = readOnly;
   addressInput.readOnly = readOnly;
+  billNoteInput.readOnly = readOnly;
   gstInput.disabled = readOnly;
   discountInput.disabled = readOnly;
   addItemBtn.disabled = readOnly;
@@ -259,6 +260,7 @@ function populateBillForm(bill) {
   customerNameInput.value = bill.customerName || '';
   phoneNumberInput.value = onlyDigits(bill.phoneNumber || '').slice(0, 10);
   addressInput.value = String(bill.address || '');
+  billNoteInput.value = String(bill.note || '');
   gstInput.value = Number(bill.gst || 0);
   discountInput.value = Number(bill.discount || 0);
 
@@ -537,6 +539,7 @@ function validateBillAndGetPayload() {
     customerName: customerNameInput.value.trim() || 'Walk-in Customer',
     phoneNumber,
     address: addressInput.value.trim(),
+    note: billNoteInput.value.trim(),
     items: items.map((item) => {
       if (isManualQuantity(item.quantity)) {
         const unitPrice = Number(productPrices[item.item] || 0);
@@ -598,11 +601,7 @@ async function saveCurrentBill(saveLabel = 'Saving...') {
   }
 }
 
-function unlockSaveOnChange(event) {
-  if (event && event.target && event.target.id === 'billNote') {
-    return;
-  }
-
+function unlockSaveOnChange() {
   if (isSaving || !isSaveLocked) {
     return;
   }
