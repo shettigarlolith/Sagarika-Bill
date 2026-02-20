@@ -724,6 +724,18 @@ editBillBtn.addEventListener('click', () => {
 
 clearSearchBtn.addEventListener('click', () => {
   searchPhoneInput.value = '';
+  billDateInput.value = new Date().toISOString().slice(0, 10);
+  customerNameInput.value = '';
+  phoneNumberInput.value = '';
+  addressInput.value = '';
+  gstInput.value = 0;
+  discountInput.value = 0;
+  itemsBody.innerHTML = '';
+  addDefaultRow();
+  currentBillId = '';
+  isSaveLocked = false;
+  setFormReadOnly(false);
+  recalculate();
   matchedBills = [];
   currentBillIndex = -1;
   updateBillNavigationButtons();
