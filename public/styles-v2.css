@@ -264,6 +264,28 @@ input[readonly] {
   color: #111;
   font-family: 'Times New Roman', serif;
   background: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.print-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 32mm;
+  font-weight: 700;
+  color: #000;
+  opacity: 0.05;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.print-page > *:not(.print-watermark) {
+  position: relative;
+  z-index: 1;
 }
 
 .print-header {
@@ -489,5 +511,12 @@ input[readonly] {
     width: 100%;
     min-height: auto;
     margin: 0;
+  }
+
+  .print-watermark {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-45deg);
   }
 }

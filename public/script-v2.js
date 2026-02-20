@@ -68,7 +68,8 @@ async function parseJsonResponse(response) {
 }
 
 function isManualQuantity(value) {
-  return String(value || '').trim() === '#';
+  const raw = String(value || '').trim();
+  return raw === '#' || raw === '';
 }
 
 function toNumericQuantity(value) {
@@ -81,10 +82,11 @@ function toNumericQuantity(value) {
 
 function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
   const row = document.createElement('tr');
+  const selectedItemValue = String(item.item || '').trim();
   const quantityValue = item.quantity === undefined || item.quantity === null || item.quantity === '' ? '#' : item.quantity;
   const manualMode = isManualQuantity(quantityValue);
   const optionsHtml = storeItems
-    .map((name) => `<option value="${name}" ${item.item === name ? 'selected' : ''}>${name}</option>`)
+    .map((name) => `<option value="${name}" ${selectedItemValue === name ? 'selected' : ''}>${name}</option>`)
     .join('');
 
   row.innerHTML = `
@@ -509,17 +511,16 @@ function validateBillAndGetPayload() {
 
     const numericQty = toNumericQuantity(item.quantity);
     const amount = Number(item.amount);
-    const unitPrice = Number(productPrices[item.item] || 0);
 
     if (isManualQuantity(item.quantity)) {
-      return !Number.isFinite(amount) || amount < 0 || unitPrice <= 0;
+      return !Number.isFinite(amount) || amount < 0;
     }
 
     return !Number.isFinite(numericQty) || numericQty < 0 || !Number.isFinite(amount);
   });
 
   if (hasInvalid) {
-    statusMsg.textContent = 'Select valid items from Item List and enter quantity.';
+    statusMsg.textContent = 'Select valid items from Item List.';
     statusMsg.style.color = '#b42a2a';
     return null;
   }
@@ -611,7 +612,11 @@ async function loadItemsFromExcel() {
     }
 
     productPrices = data.reduce((acc, entry) => {
-      acc[entry.item] = Number(entry.price || 0);
+      const name = String(entry.item || '').trim();
+      if (!name) {
+        return acc;
+      }
+      acc[name] = Number(entry.price || 0);
       return acc;
     }, {});
 
