@@ -120,6 +120,26 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
     }
   });
   row.querySelector('.quantity').addEventListener('input', recalculate);
+  row.querySelector('.amount').addEventListener('focus', (event) => {
+    if (event.target.readOnly) {
+      return;
+    }
+
+    const amountValue = Number(event.target.value || 0);
+    if (amountValue === 0) {
+      event.target.value = '';
+    }
+  });
+  row.querySelector('.amount').addEventListener('blur', (event) => {
+    if (event.target.readOnly) {
+      return;
+    }
+
+    if (!event.target.value.trim()) {
+      event.target.value = '0.00';
+      recalculate();
+    }
+  });
   row.querySelector('.amount').addEventListener('input', recalculate);
   row.querySelector('.slNo').addEventListener('input', recalculate);
 
