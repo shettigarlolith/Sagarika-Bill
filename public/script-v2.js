@@ -108,6 +108,17 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
   });
 
   row.querySelector('.item').addEventListener('change', recalculate);
+  row.querySelector('.quantity').addEventListener('focus', (event) => {
+    if (event.target.value.trim() === '#') {
+      event.target.value = '';
+    }
+  });
+  row.querySelector('.quantity').addEventListener('blur', (event) => {
+    if (!event.target.value.trim()) {
+      event.target.value = '#';
+      recalculate();
+    }
+  });
   row.querySelector('.quantity').addEventListener('input', recalculate);
   row.querySelector('.amount').addEventListener('input', recalculate);
   row.querySelector('.slNo').addEventListener('input', recalculate);
