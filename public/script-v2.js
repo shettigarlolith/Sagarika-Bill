@@ -263,49 +263,6 @@ function clearDraftFromStorage() {
   }
 }
 
-function restoreDraftFromStorage() {
-  try {
-    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
-    if (!raw) return false;
-
-    const draft = JSON.parse(raw);
-    if (!draft || typeof draft !== 'object') return false;
-
-    billDateInput.value = draft.billDate || new Date().toISOString().slice(0, 10);
-    customerNameInput.value = String(draft.customerName || '');
-    phoneNumberInput.value = onlyDigits(draft.phoneNumber || '').slice(0, 10);
-    addressInput.value = String(draft.address || '');
-    billNoteInput.value = String(draft.billNote || '');
-    gstInput.value = Number(draft.gst || 0);
-    discountInput.value = Number(draft.discount || 0);
-    currentBillId = String(draft.currentBillId || '');
-
-    itemsBody.innerHTML = '';
-    const rows = Array.isArray(draft.items) ? draft.items : [];
-    if (rows.length === 0) {
-      addDefaultRow();
-    } else {
-      rows.forEach((entry, index) => {
-        itemsBody.appendChild(
-          createRow({
-            slNo: Number(entry.slNo || index + 1),
-            item: String(entry.item || ''),
-            quantity: String(entry.quantity ?? '#'),
-            amount: Number(entry.amount || 0)
-          })
-        );
-      });
-    }
-
-    isSaveLocked = false;
-    setFormReadOnly(false);
-    recalculate();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function setFormReadOnly(readOnly) {
   isFormReadOnly = readOnly;
 
@@ -771,13 +728,12 @@ async function loadItemsFromExcel() {
       statusMsg.style.color = '#b42a2a';
     }
 
-    const restored = restoreDraftFromStorage();
-    if (!restored) {
-      itemsBody.innerHTML = '';
-      addDefaultRow();
-      recalculate();
-      setFormReadOnly(false);
-    }
+    // Always start Billing Desk with a fresh form on page load.
+    clearDraftFromStorage();
+    itemsBody.innerHTML = '';
+    addDefaultRow();
+    recalculate();
+    setFormReadOnly(false);
   } catch (error) {
     statusMsg.textContent = error.message;
     statusMsg.style.color = '#b42a2a';
