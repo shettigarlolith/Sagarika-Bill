@@ -1,4 +1,5 @@
 const itemsBody = document.getElementById('itemsBody');
+const billItemOptions = document.getElementById('billItemOptions');
 const addItemBtn = document.getElementById('addItemBtn');
 const billForm = document.getElementById('billForm');
 const customerNameInput = document.getElementById('customerName');
@@ -12,8 +13,9 @@ const billDateInput = document.getElementById('billDate');
 const phoneNumberInput = document.getElementById('phoneNumber');
 const searchPhoneInput = document.getElementById('searchPhone');
 const searchBtn = document.getElementById('searchBtn');
-const prevBillBtn = document.getElementById('prevBillBtn');
-const nextBillBtn = document.getElementById('nextBillBtn');
+const loadBookingBtn = document.getElementById('loadBookingBtn');
+const bookingSelect = document.getElementById('bookingSelect');
+const billSelect = document.getElementById('billSelect');
 const editBillBtn = document.getElementById('editBillBtn');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
 const saveBillBtn = document.getElementById('saveBillBtn');
@@ -47,6 +49,7 @@ let isFormReadOnly = false;
 let matchedBills = [];
 let currentBillIndex = -1;
 let currentBillId = '';
+let matchedBookingsForImport = [];
 const DRAFT_STORAGE_KEY = 'sagarika_bill_draft_v1';
 const THEME_STORAGE_KEY = 'sagarika_theme_v1';
 
@@ -104,17 +107,11 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
   const selectedItemValue = String(item.item || '').trim();
   const quantityValue = item.quantity === undefined || item.quantity === null || item.quantity === '' ? '#' : item.quantity;
   const manualMode = isManualQuantity(quantityValue);
-  const optionsHtml = storeItems
-    .map((name) => `<option value="${name}" ${selectedItemValue === name ? 'selected' : ''}>${name}</option>`)
-    .join('');
 
   row.innerHTML = `
     <td><input type="number" class="slNo" min="1" value="${item.slNo}" required /></td>
     <td>
-      <select class="item" required>
-        <option value="">Select item</option>
-        ${optionsHtml}
-      </select>
+      <input type="text" class="item" list="billItemOptions" placeholder="Type item name" value="${selectedItemValue}" required />
     </td>
     <td><input type="text" class="quantity" value="${quantityValue}" placeholder="#" required /></td>
     <td><input type="number" class="amount" min="0" step="0.01" value="${Number(item.amount || 0).toFixed(2)}" ${manualMode ? '' : 'readonly'} /></td>
@@ -129,7 +126,7 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
     saveDraftToStorage();
   });
 
-  row.querySelector('.item').addEventListener('change', recalculate);
+  row.querySelector('.item').addEventListener('input', recalculate);
   row.querySelector('.quantity').addEventListener('focus', (event) => {
     if (event.target.value.trim() === '#') {
       event.target.value = '';
@@ -166,6 +163,14 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
   row.querySelector('.slNo').addEventListener('input', recalculate);
 
   return row;
+}
+
+function renderItemSuggestions() {
+  if (!billItemOptions) {
+    return;
+  }
+
+  billItemOptions.innerHTML = storeItems.map((name) => `<option value="${name}"></option>`).join('');
 }
 
 function renumberRows() {
@@ -320,7 +325,7 @@ function setFormReadOnly(readOnly) {
   } else if (isSaveLocked) {
     saveBillBtn.textContent = 'Saved';
   } else if (!isSaving) {
-    saveBillBtn.textContent = 'Save Bill to Excel';
+    saveBillBtn.textContent = 'SAVE';
   }
 
   const rows = itemsBody.querySelectorAll('tr');
@@ -335,10 +340,49 @@ function setFormReadOnly(readOnly) {
   editBillBtn.disabled = !readOnly;
 }
 
-function updateBillNavigationButtons() {
-  const hasMatches = matchedBills.length > 0;
-  prevBillBtn.disabled = !hasMatches || currentBillIndex <= 0;
-  nextBillBtn.disabled = !hasMatches || currentBillIndex >= matchedBills.length - 1;
+function hideBillSelector() {
+  if (!billSelect) {
+    return;
+  }
+  billSelect.style.display = 'none';
+  billSelect.innerHTML = '';
+}
+
+function formatBillDateForSelector(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return raw.slice(0, 10);
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw;
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function showBillSelector(bills) {
+  if (!billSelect) {
+    return;
+  }
+
+  billSelect.innerHTML = bills
+    .map((bill, index) => {
+      const billId = String(bill.billId || `Bill ${index + 1}`);
+      const billDate = formatBillDateForSelector(bill.billDate);
+      const customerName = String(bill.customerName || '').trim();
+      const suffix = [billDate, customerName].filter(Boolean).join(' | ');
+      const label = suffix ? `${billId} | ${suffix}` : billId;
+      return `<option value="${index}">${label}</option>`;
+    })
+    .join('');
+
+  billSelect.style.display = 'inline-flex';
 }
 
 function populateBillForm(bill) {
@@ -571,7 +615,7 @@ function setSavingState(saving, label = 'Saving...') {
   }
 
   saveBillBtn.disabled = false;
-  saveBillBtn.textContent = 'Save Bill to Excel';
+  saveBillBtn.textContent = 'SAVE';
 }
 
 function validateBillAndGetPayload() {
@@ -697,7 +741,7 @@ function unlockSaveOnChange() {
 
   isSaveLocked = false;
   saveBillBtn.disabled = isFormReadOnly;
-  saveBillBtn.textContent = 'Save Bill to Excel';
+  saveBillBtn.textContent = 'SAVE';
 }
 
 async function loadItemsFromExcel() {
@@ -720,6 +764,7 @@ async function loadItemsFromExcel() {
     }, {});
 
     storeItems = Object.keys(productPrices);
+    renderItemSuggestions();
 
     if (storeItems.length === 0) {
       statusMsg.textContent = 'No items found in Excel "Item List" sheet. Please add items and prices there.';
@@ -748,6 +793,9 @@ async function searchBillsByPhone(phoneNumber) {
   }
 
   try {
+    matchedBookingsForImport = [];
+    hideBookingSelector();
+
     const query = `&phoneNumber=${encodeURIComponent(cleanedPhone)}`;
     const response = await fetch(apiUrl('bills', query));
     const data = await parseJsonResponse(response);
@@ -755,7 +803,7 @@ async function searchBillsByPhone(phoneNumber) {
     if (!Array.isArray(data) || data.length === 0) {
       matchedBills = [];
       currentBillIndex = -1;
-      updateBillNavigationButtons();
+      hideBillSelector();
       editBillBtn.disabled = true;
       statusMsg.textContent = `No bills found for phone ${cleanedPhone}.`;
       statusMsg.style.color = '#b42a2a';
@@ -764,17 +812,151 @@ async function searchBillsByPhone(phoneNumber) {
 
     matchedBills = data;
     currentBillIndex = 0;
-    updateBillNavigationButtons();
+    showBillSelector(matchedBills);
+    billSelect.value = '0';
 
     const latestBill = matchedBills[currentBillIndex];
     populateBillForm(latestBill);
-    statusMsg.textContent = `Found ${matchedBills.length} bill(s). Showing 1/${matchedBills.length}: ${latestBill.billId}.`;
-    statusMsg.style.color = '#0c7a6b';
+    statusMsg.textContent = `Found ${matchedBills.length} bill(s). Showing 1/${matchedBills.length}`;
+    statusMsg.style.color = '#ff1493';
   } catch (error) {
     matchedBills = [];
     currentBillIndex = -1;
-    updateBillNavigationButtons();
+    hideBillSelector();
     statusMsg.textContent = 'Failed to search bills.';
+    statusMsg.style.color = '#b42a2a';
+  }
+}
+
+async function fetchBookEventsByPhone(cleanedPhone) {
+  const localQuery = `?phoneNumber=${encodeURIComponent(cleanedPhone)}`;
+  const scriptQuery = `&phoneNumber=${encodeURIComponent(cleanedPhone)}`;
+  const candidates = [`/api/book-events${localQuery}`, apiUrl('book-events', scriptQuery)];
+
+  let lastError = new Error('Failed to load booking data.');
+
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url);
+      const data = await parseJsonResponse(response);
+      if (!response.ok) {
+        throw new Error((data && (data.error || data.details)) || 'Failed to search bookings.');
+      }
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid booking response.');
+      }
+      return data;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
+function loadBookingIntoBillForm(booking) {
+  const items = Array.isArray(booking.items) ? booking.items : [];
+  const noteParts = [];
+  const eventName = String(booking.event || '').trim();
+  const eventNote = String(booking.note || '').trim();
+  if (eventName) {
+    noteParts.push(`Event: ${eventName}`);
+  }
+  if (eventNote) {
+    noteParts.push(eventNote);
+  }
+
+  billDateInput.value = new Date().toISOString().slice(0, 10);
+  customerNameInput.value = String(booking.name || '').trim();
+  phoneNumberInput.value = onlyDigits(booking.phoneNumber || '').slice(0, 10);
+  addressInput.value = String(booking.address || '').trim();
+  billNoteInput.value = noteParts.join('\n');
+  gstInput.value = 0;
+  discountInput.value = 0;
+
+  itemsBody.innerHTML = '';
+  if (items.length === 0) {
+    addDefaultRow();
+  } else {
+    items.forEach((entry, index) => {
+      itemsBody.appendChild(
+        createRow({
+          slNo: index + 1,
+          item: String(entry.item || '').trim(),
+          quantity: Number(entry.quantity || 0) || '#',
+          amount: 0
+        })
+      );
+    });
+  }
+
+  currentBillId = '';
+  isSaveLocked = false;
+  setFormReadOnly(false);
+  recalculate();
+  saveDraftToStorage();
+}
+
+function hideBookingSelector() {
+  if (!bookingSelect) {
+    return;
+  }
+  bookingSelect.style.display = 'none';
+  bookingSelect.innerHTML = '';
+}
+
+function showBookingSelector(bookings) {
+  if (!bookingSelect) {
+    return;
+  }
+
+  bookingSelect.innerHTML = bookings
+    .map((booking, index) => {
+      const bookingId = String(booking.bookingId || `Booking ${index + 1}`);
+      const eventDay = String(booking.eventDay || '').trim();
+      const event = String(booking.event || '').trim();
+      const suffix = [eventDay, event].filter(Boolean).join(' | ');
+      const label = suffix ? `${bookingId} | ${suffix}` : bookingId;
+      return `<option value="${index}">${label}</option>`;
+    })
+    .join('');
+
+  bookingSelect.style.display = 'inline-flex';
+}
+
+async function importBookingByPhone(phoneNumber) {
+  const cleanedPhone = onlyDigits(phoneNumber).slice(0, 10);
+  if (!cleanedPhone) {
+    statusMsg.textContent = 'Enter phone number to load booking.';
+    statusMsg.style.color = '#b42a2a';
+    return;
+  }
+
+  try {
+    matchedBills = [];
+    currentBillIndex = -1;
+    hideBillSelector();
+
+    const bookings = await fetchBookEventsByPhone(cleanedPhone);
+    if (bookings.length === 0) {
+      matchedBookingsForImport = [];
+      hideBookingSelector();
+      statusMsg.textContent = `No bookings found for phone ${cleanedPhone}.`;
+      statusMsg.style.color = '#b42a2a';
+      return;
+    }
+
+    matchedBookingsForImport = bookings;
+    showBookingSelector(bookings);
+    bookingSelect.value = '0';
+    const selectedBooking = matchedBookingsForImport[0];
+    loadBookingIntoBillForm(selectedBooking);
+    statusMsg.textContent = `${bookings.length} booking found.`;
+    statusMsg.style.color = '#ff1493';
+  } catch (error) {
+    matchedBookingsForImport = [];
+    hideBookingSelector();
+    statusMsg.textContent = error.message || 'Failed to load booking.';
     statusMsg.style.color = '#b42a2a';
   }
 }
@@ -828,34 +1010,47 @@ if (themeToggleInput) {
 }
 
 searchBtn.addEventListener('click', () => {
+  matchedBookingsForImport = [];
+  hideBookingSelector();
   searchBillsByPhone(searchPhoneInput.value.trim());
 });
 
-prevBillBtn.addEventListener('click', () => {
-  if (currentBillIndex <= 0 || matchedBills.length === 0) {
-    return;
-  }
+if (loadBookingBtn) {
+  loadBookingBtn.addEventListener('click', () => {
+    matchedBills = [];
+    currentBillIndex = -1;
+    hideBillSelector();
+    importBookingByPhone(searchPhoneInput.value.trim());
+  });
+}
 
-  currentBillIndex -= 1;
-  updateBillNavigationButtons();
-  const bill = matchedBills[currentBillIndex];
-  populateBillForm(bill);
-  statusMsg.textContent = `Showing ${currentBillIndex + 1}/${matchedBills.length}: ${bill.billId}.`;
-  statusMsg.style.color = '#0c7a6b';
-});
+if (bookingSelect) {
+  bookingSelect.addEventListener('change', () => {
+    const selectedIndex = Number(bookingSelect.value);
+    const selectedBooking = matchedBookingsForImport[selectedIndex];
+    if (!selectedBooking) {
+      return;
+    }
+    loadBookingIntoBillForm(selectedBooking);
+    statusMsg.textContent = `Loaded booking ${selectedBooking.bookingId || ''} into bill.`;
+    statusMsg.style.color = '#0c7a6b';
+  });
+}
 
-nextBillBtn.addEventListener('click', () => {
-  if (matchedBills.length === 0 || currentBillIndex >= matchedBills.length - 1) {
-    return;
-  }
+if (billSelect) {
+  billSelect.addEventListener('change', () => {
+    const selectedIndex = Number(billSelect.value);
+    const selectedBill = matchedBills[selectedIndex];
+    if (!selectedBill) {
+      return;
+    }
 
-  currentBillIndex += 1;
-  updateBillNavigationButtons();
-  const bill = matchedBills[currentBillIndex];
-  populateBillForm(bill);
-  statusMsg.textContent = `Showing ${currentBillIndex + 1}/${matchedBills.length}: ${bill.billId}.`;
-  statusMsg.style.color = '#0c7a6b';
-});
+    currentBillIndex = selectedIndex;
+    populateBillForm(selectedBill);
+    statusMsg.textContent = `Found ${matchedBills.length} bill(s). Showing ${currentBillIndex + 1}/${matchedBills.length}`;
+    statusMsg.style.color = '#ff1493';
+  });
+}
 
 editBillBtn.addEventListener('click', () => {
   setFormReadOnly(false);
@@ -880,9 +1075,11 @@ clearSearchBtn.addEventListener('click', () => {
   recalculate();
   matchedBills = [];
   currentBillIndex = -1;
-  updateBillNavigationButtons();
+  hideBillSelector();
   editBillBtn.disabled = true;
   statusMsg.textContent = '';
+  matchedBookingsForImport = [];
+  hideBookingSelector();
   clearDraftFromStorage();
 });
 
@@ -922,4 +1119,4 @@ try {
 }
 
 loadItemsFromExcel();
-updateBillNavigationButtons();
+hideBillSelector();

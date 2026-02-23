@@ -124,6 +124,29 @@ h2 {
   color: #ec108d;
 }
 
+.title-actions {
+  margin-top: 10px;
+}
+
+.book-event-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: #27f5f5;
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(39, 245, 245, 0.4);
+}
+
+.book-event-btn:hover {
+  background: #27f5f5;
+}
+
 .title-logo {
   width: 24px;
   height: 24px;

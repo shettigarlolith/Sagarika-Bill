@@ -106,6 +106,11 @@ function ensureWorkbook() {
     changed = true;
   }
 
+  if (!workbook.SheetNames.includes('BookEvent')) {
+    writeSheet(workbook, 'BookEvent', []);
+    changed = true;
+  }
+
   if (changed) {
     XLSX.writeFile(workbook, excelPath);
   }
@@ -259,7 +264,7 @@ async function ensureGoogleSheetsWorkbook() {
   });
 
   const existing = new Set((meta.data.sheets || []).map((s) => s.properties?.title).filter(Boolean));
-  const required = ['Bills', 'BillItems', 'Item List'];
+  const required = ['Bills', 'BillItems', 'Item List', 'BookEvent'];
 
   const requests = required
     .filter((title) => !existing.has(title))
@@ -334,19 +339,22 @@ async function getAllData() {
     const billsRaw = await readGoogleRows('Bills');
     const itemListRaw = await readGoogleRows('Item List');
     const billItemsRaw = await readGoogleRows('BillItems');
+    const bookEventsRaw = await readGoogleRows('BookEvent');
 
     const bills = normalizeNumericFields(billsRaw, ['total', 'gst', 'discount', 'amountPayable']);
     const billItems = normalizeNumericFields(billItemsRaw, ['slNo', 'quantity', 'unitPrice', 'amount']);
     const itemList = normalizeNumericFields(itemListRaw, ['price']);
+    const bookEvents = normalizeNumericFields(bookEventsRaw, ['quantity']);
 
-    return { mode, bills, billItems, itemList };
+    return { mode, bills, billItems, itemList, bookEvents };
   }
 
   const workbook = ensureWorkbook();
   const bills = normalizeNumericFields(readSheet(workbook, 'Bills'), ['total', 'gst', 'discount', 'amountPayable']);
   const billItems = normalizeNumericFields(readSheet(workbook, 'BillItems'), ['slNo', 'quantity', 'unitPrice', 'amount']);
   const itemList = normalizeNumericFields(readSheet(workbook, 'Item List'), ['price']);
-  return { mode, bills, billItems, itemList };
+  const bookEvents = normalizeNumericFields(readSheet(workbook, 'BookEvent'), ['quantity']);
+  return { mode, bills, billItems, itemList, bookEvents };
 }
 
 async function saveItemList(itemList) {
@@ -373,6 +381,72 @@ async function saveBillsAndItems(bills, billItems) {
   writeSheet(workbook, 'Bills', bills);
   writeSheet(workbook, 'BillItems', billItems);
   XLSX.writeFile(workbook, excelPath);
+}
+
+async function saveBookEvents(bookEvents) {
+  const mode = await getStorageMode();
+  if (mode === 'google') {
+    await writeGoogleRows('BookEvent', bookEvents);
+    return;
+  }
+
+  const workbook = ensureWorkbook();
+  writeSheet(workbook, 'BookEvent', bookEvents);
+  XLSX.writeFile(workbook, excelPath);
+}
+
+function getNextBookEventSequence(bookEvents) {
+  let maxSeq = 0;
+
+  bookEvents.forEach((row) => {
+    const id = String(row.bookingId || '');
+    const match = id.match(/^BE(\d{4})$/);
+    if (match) {
+      const seq = Number(match[1]);
+      if (!Number.isNaN(seq) && seq > maxSeq) {
+        maxSeq = seq;
+      }
+    }
+  });
+
+  return maxSeq + 1;
+}
+
+function parseBookEventItemsFromRow(row) {
+  const selectedItemsRaw = String(row.selectedItems || '').trim();
+  const itemRaw = String(row.item || '').trim();
+  const qtyRaw = Number(row.quantity || 0);
+
+  const parseCombined = (text) =>
+    text
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const match = part.match(/^(.*)\sx([0-9]+(?:\.[0-9]+)?)$/i);
+        if (!match) {
+          return { item: part, quantity: 1 };
+        }
+
+        return {
+          item: String(match[1] || '').trim(),
+          quantity: Number(match[2] || 0)
+        };
+      });
+
+  if (selectedItemsRaw) {
+    return parseCombined(selectedItemsRaw);
+  }
+
+  if (itemRaw && Number.isFinite(qtyRaw) && qtyRaw > 0) {
+    return [{ item: itemRaw, quantity: qtyRaw }];
+  }
+
+  if (itemRaw && itemRaw.includes('x')) {
+    return parseCombined(itemRaw);
+  }
+
+  return [];
 }
 
 app.get('/api/items', async (req, res) => {
@@ -499,6 +573,132 @@ app.post('/api/bills', async (req, res) => {
     res.status(201).json({ message: 'Bill saved successfully.', billId });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save bill.', details: error.message });
+  }
+});
+
+app.post('/api/book-events', async (req, res) => {
+  try {
+    const { eventDay, eventName, customerName, phoneNumber, address, note, items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'At least one item is required.' });
+    }
+
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    if (normalizedPhone.length !== 10) {
+      return res.status(400).json({ error: 'Phone number must be a valid 10-digit number.' });
+    }
+
+    const { itemList, bookEvents } = await getAllData();
+    const priceMap = getItemPriceMap(itemList);
+
+    const normalizedItems = items.map((entry) => ({
+      item: String(entry.item || '').trim(),
+      quantity: Number(entry.quantity || 0)
+    }));
+
+    const hasInvalidItem = normalizedItems.some(
+      (entry) =>
+        !entry.item ||
+        !Object.prototype.hasOwnProperty.call(priceMap, entry.item) ||
+        Number.isNaN(entry.quantity) ||
+        entry.quantity <= 0
+    );
+
+    if (hasInvalidItem) {
+      return res.status(400).json({ error: 'Select valid items from "Item List" and enter quantity.' });
+    }
+
+    const bookingId = `BE${String(getNextBookEventSequence(bookEvents)).padStart(4, '0')}`;
+    const createdAt = new Date().toISOString();
+    const safeEventDay = eventDay || new Date().toISOString().slice(0, 10);
+    const safeEventName = String(eventName || '').trim();
+    const safeCustomerName = String(customerName || '').trim() || 'Walk-in Customer';
+    const safeAddress = String(address || '').trim();
+    const safeNote = String(note || '').trim();
+
+    const selectedItems = normalizedItems.map((entry) => `${entry.item} x${entry.quantity}`).join(', ');
+
+    bookEvents.push({
+      bookingId,
+      eventDay: safeEventDay,
+      event: safeEventName,
+      name: safeCustomerName,
+      phoneNumber: normalizedPhone,
+      address: safeAddress,
+      note: safeNote,
+      item: selectedItems,
+      quantity: '',
+      selectedItems,
+      createdAt
+    });
+
+    await saveBookEvents(bookEvents);
+    res.status(201).json({ message: 'Book event saved successfully.', bookingId });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save book event.', details: error.message });
+  }
+});
+
+app.get('/api/book-events/next-booking-number', async (req, res) => {
+  try {
+    const { bookEvents } = await getAllData();
+    const nextBookingId = `BE${String(getNextBookEventSequence(bookEvents)).padStart(4, '0')}`;
+    res.json({ bookingId: nextBookingId });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get next booking number.', details: error.message });
+  }
+});
+
+app.get('/api/book-events', async (req, res) => {
+  try {
+    const { bookEvents } = await getAllData();
+    const phoneFilter = normalizePhoneNumber(req.query.phoneNumber || '');
+
+    const grouped = new Map();
+
+    bookEvents.forEach((row) => {
+      const bookingId = String(row.bookingId || '').trim();
+      if (!bookingId) {
+        return;
+      }
+
+      const phoneNumber = normalizePhoneNumber(row.phoneNumber || '');
+      if (phoneFilter && !phoneNumber.includes(phoneFilter)) {
+        return;
+      }
+
+      if (!grouped.has(bookingId)) {
+        grouped.set(bookingId, {
+          bookingId,
+          eventDay: String(row.eventDay || ''),
+          event: String(row.event || ''),
+          name: String(row.name || ''),
+          phoneNumber,
+          address: String(row.address || ''),
+          note: String(row.note || ''),
+          createdAt: String(row.createdAt || ''),
+          items: []
+        });
+      }
+
+      const entry = grouped.get(bookingId);
+      const parsedItems = parseBookEventItemsFromRow(row);
+      parsedItems.forEach((item) => {
+        entry.items.push(item);
+      });
+    });
+
+    const result = [...grouped.values()]
+      .map((entry) => ({
+        ...entry,
+        items: entry.items.filter((item) => item.item && Number.isFinite(item.quantity) && item.quantity > 0)
+      }))
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to read book events.', details: error.message });
   }
 });
 

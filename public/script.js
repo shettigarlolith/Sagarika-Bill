@@ -1,4 +1,5 @@
 const itemsBody = document.getElementById('itemsBody');
+const billItemOptions = document.getElementById('billItemOptions');
 const addItemBtn = document.getElementById('addItemBtn');
 const billForm = document.getElementById('billForm');
 const customerNameInput = document.getElementById('customerName');
@@ -62,17 +63,12 @@ async function parseJsonResponse(response) {
 
 function createRow(item = { slNo: '', item: '', quantity: 1, amount: 0 }) {
   const row = document.createElement('tr');
-  const optionsHtml = storeItems
-    .map((name) => `<option value="${name}" ${item.item === name ? 'selected' : ''}>${name}</option>`)
-    .join('');
+  const selectedItemValue = String(item.item || '').trim();
 
   row.innerHTML = `
     <td><input type="number" class="slNo" min="1" value="${item.slNo}" required /></td>
     <td>
-      <select class="item" required>
-        <option value="">Select item</option>
-        ${optionsHtml}
-      </select>
+      <input type="text" class="item" list="billItemOptions" placeholder="Type item name" value="${selectedItemValue}" required />
     </td>
     <td><input type="number" class="quantity" min="0" step="1" value="${item.quantity}" required /></td>
     <td><input type="number" class="amount" min="0" step="0.01" value="${Number(item.amount || 0).toFixed(2)}" readonly /></td>
@@ -86,11 +82,18 @@ function createRow(item = { slNo: '', item: '', quantity: 1, amount: 0 }) {
     renumberRows();
   });
 
-  row.querySelector('.item').addEventListener('change', recalculate);
+  row.querySelector('.item').addEventListener('input', recalculate);
   row.querySelector('.quantity').addEventListener('input', recalculate);
   row.querySelector('.slNo').addEventListener('input', recalculate);
 
   return row;
+}
+
+function renderItemSuggestions() {
+  if (!billItemOptions) {
+    return;
+  }
+  billItemOptions.innerHTML = storeItems.map((name) => `<option value="${name}"></option>`).join('');
 }
 
 function renumberRows() {
@@ -159,7 +162,7 @@ function setFormReadOnly(readOnly) {
   } else if (isSaveLocked) {
     saveBillBtn.textContent = 'Saved';
   } else if (!isSaving) {
-    saveBillBtn.textContent = 'Save Bill to Excel';
+    saveBillBtn.textContent = 'SAVE';
   }
 
   const rows = itemsBody.querySelectorAll('tr');
@@ -312,7 +315,7 @@ function setSavingState(saving, label = 'Saving...') {
   }
 
   saveBillBtn.disabled = false;
-  saveBillBtn.textContent = 'Save Bill to Excel';
+  saveBillBtn.textContent = 'SAVE';
 }
 
 function validateBillAndGetPayload() {
@@ -414,7 +417,7 @@ function unlockSaveOnChange() {
 
   isSaveLocked = false;
   saveBillBtn.disabled = isFormReadOnly;
-  saveBillBtn.textContent = 'Save Bill to Excel';
+  saveBillBtn.textContent = 'SAVE';
 }
 
 async function loadItemsFromExcel() {
@@ -432,6 +435,7 @@ async function loadItemsFromExcel() {
     }, {});
 
     storeItems = Object.keys(productPrices);
+    renderItemSuggestions();
 
     if (storeItems.length === 0) {
       statusMsg.textContent = 'No items found in Excel "Item List" sheet. Please add items and prices there.';

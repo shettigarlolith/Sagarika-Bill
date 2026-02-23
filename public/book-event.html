@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Book Event</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Montserrat:wght@700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles-v2.css" />
+    <script>
+      (function () {
+        if (sessionStorage.getItem('sagarika_auth') === 'ok') return;
+        const page = location.pathname.split('/').pop() || 'book-event.html';
+        location.replace(`login.html?next=${encodeURIComponent(page)}`);
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+
+    <main class="container">
+      <section class="card bill-card">
+        <div class="title-row">
+          <div>
+            <p class="kicker">Event Booking</p>
+            <h1 class="page-title">Book Event</h1>
+          </div>
+          <a class="btn btn-secondary" href="index.html">BILLING</a>
+          <div class="search-row">
+            <input type="tel" id="searchPhone" placeholder="Search by phone number" />
+            <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
+            <button id="prevBookingBtn" class="btn btn-secondary" type="button" disabled>Previous</button>
+            <button id="nextBookingBtn" class="btn btn-secondary" type="button" disabled>Next</button>
+            <button id="clearSearchBtn" class="btn" type="button">Clear</button>
+          </div>
+        </div>
+
+        <form id="bookEventForm">
+          <div class="meta-grid">
+            <label>
+              Today
+              <input type="date" id="currentDateView" readonly disabled />
+            </label>
+            <label>
+              Booking Number
+              <input type="text" id="bookingNumberView" value="To be generated" readonly disabled />
+            </label>
+          </div>
+
+          <div class="meta-grid">
+            <label>
+              Event Day
+              <input type="date" id="eventDay" required />
+            </label>
+            <label>
+              Event
+              <input type="text" id="eventName" placeholder="Event name" required />
+            </label>
+            <label>
+              Name
+              <input type="text" id="customerName" placeholder="Customer name" required />
+            </label>
+            <label>
+              Phone
+              <input type="tel" id="phoneNumber" placeholder="10-digit phone" pattern="[0-9]{10}" required />
+            </label>
+            <label>
+              Address
+              <input type="text" id="address" placeholder="Address" />
+            </label>
+          </div>
+
+          <div class="table-wrap">
+            <table id="eventItemsTable">
+              <thead>
+                <tr>
+                  <th>Item List</th>
+                  <th>Quantity</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="eventItemsBody"></tbody>
+            </table>
+          </div>
+          <datalist id="eventItemOptions"></datalist>
+
+          <div class="actions-row">
+            <button type="button" id="addEventItemBtn" class="btn">+ Add Item</button>
+          </div>
+
+          <label class="note-wrap" for="eventNote">
+            Note (optional)
+            <textarea id="eventNote" rows="3" placeholder="Write note for this booking"></textarea>
+          </label>
+
+          <div class="submit-wrap">
+            <button type="submit" id="saveEventBtn" class="btn btn-primary">SAVE</button>
+            <button type="button" id="printEventBtn" class="btn btn-secondary">Print</button>
+          </div>
+        </form>
+
+        <p id="statusMsg" class="status"></p>
+      </section>
+    </main>
+
+    <section id="printTemplate" class="print-template">
+      <div class="print-page">
+        <div class="print-watermark">SAGARIKA</div>
+        <div class="print-header">
+          <div class="print-company-box">
+            <div class="print-brand">SAGARIKA</div>
+            <div class="print-subbrand">SHAMIYANA &amp; DECORATORS</div>
+          </div>
+          <div class="print-logo-box">
+            <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="print-logo" />
+          </div>
+        </div>
+
+        <div class="print-party-row">
+          <div class="party-box">
+            <div><strong>M/s.</strong> <span id="ptCustomer"></span></div>
+            <div>Phone: <span id="ptPhone"></span></div>
+            <div>Address: <span id="ptAddress"></span></div>
+          </div>
+          <div class="bill-info-box">
+            <div><strong>No:</strong> <span id="ptBillNo"></span></div>
+            <div><strong>Booked on:</strong> <span id="ptDate"></span></div>
+            <div><strong>Event on:</strong> <span id="ptEventDate"></span></div>
+          </div>
+        </div>
+
+        <table class="print-items-table">
+          <thead>
+            <tr>
+              <th>S.No</th>
+              <th>Particulars</th>
+              <th>Qty</th>
+            </tr>
+          </thead>
+          <tbody id="ptRows"></tbody>
+        </table>
+
+        <div class="print-footer">
+          <div class="print-footer-left">
+            Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist. Phone:
+            9916279036, 9483399099
+          </div>
+        </div>
+      </div>
+      <div id="ptNoteLine" class="print-note-line">Note: <span id="ptNote"></span></div>
+    </section>
+
+    <script>
+      const bookEventForm = document.getElementById('bookEventForm');
+      const currentDateViewInput = document.getElementById('currentDateView');
+      const bookingNumberViewInput = document.getElementById('bookingNumberView');
+      const eventDayInput = document.getElementById('eventDay');
+      const eventNameInput = document.getElementById('eventName');
+      const customerNameInput = document.getElementById('customerName');
+      const phoneNumberInput = document.getElementById('phoneNumber');
+      const addressInput = document.getElementById('address');
+      const eventNoteInput = document.getElementById('eventNote');
+      const addEventItemBtn = document.getElementById('addEventItemBtn');
+      const eventItemsBody = document.getElementById('eventItemsBody');
+      const eventItemOptions = document.getElementById('eventItemOptions');
+      const saveEventBtn = document.getElementById('saveEventBtn');
+      const printEventBtn = document.getElementById('printEventBtn');
+      const searchPhoneInput = document.getElementById('searchPhone');
+      const searchBtn = document.getElementById('searchBtn');
+      const prevBookingBtn = document.getElementById('prevBookingBtn');
+      const nextBookingBtn = document.getElementById('nextBookingBtn');
+      const clearSearchBtn = document.getElementById('clearSearchBtn');
+      const statusMsg = document.getElementById('statusMsg');
+      const ptBillNo = document.getElementById('ptBillNo');
+      const ptDate = document.getElementById('ptDate');
+      const ptEventDate = document.getElementById('ptEventDate');
+      const ptCustomer = document.getElementById('ptCustomer');
+      const ptPhone = document.getElementById('ptPhone');
+      const ptAddress = document.getElementById('ptAddress');
+      const ptRows = document.getElementById('ptRows');
+      const ptNote = document.getElementById('ptNote');
+      const ptNoteLine = document.getElementById('ptNoteLine');
+      let productPrices = {};
+      let storeItems = [];
+      let currentBookingId = '';
+      let nextBookingId = '';
+      let isSaving = false;
+      let matchedBookings = [];
+      let currentBookingIndex = -1;
+
+      function onlyDigits(value) {
+        return String(value || '').replace(/\D/g, '');
+      }
+
+      async function parseJsonResponse(response) {
+        const contentType = response.headers.get('content-type') || '';
+        const raw = await response.text();
+
+        if (!contentType.includes('application/json')) {
+          throw new Error('API did not return JSON. Start the app server and open it via localhost URL.');
+        }
+
+        try {
+          return JSON.parse(raw);
+        } catch {
+          throw new Error('Invalid JSON response from server.');
+        }
+      }
+
+      function createRow(item = '', quantity = 1) {
+        const row = document.createElement('tr');
+        row.innerHTML =
+          `<td><input class="event-item" type="text" list="eventItemOptions" placeholder="Type item name" value="${item}" required /></td>` +
+          `<td><input class="event-qty" type="number" min="1" step="1" value="${quantity}" required /></td>` +
+          '<td><button type="button" class="btn btn-danger remove-item-btn">Remove</button></td>';
+        bindRemove(row.querySelector('.remove-item-btn'));
+        return row;
+      }
+
+      function renderItemSuggestions() {
+        eventItemOptions.innerHTML = storeItems
+          .map((item) => `<option value="${item}"></option>`)
+          .join('');
+      }
+
+      function bindRemove(button) {
+        button.addEventListener('click', () => {
+          if (eventItemsBody.children.length === 1) return;
+          button.closest('tr').remove();
+        });
+      }
+
+      function getItemsPayload() {
+        return [...eventItemsBody.querySelectorAll('tr')].map((row) => ({
+          item: row.querySelector('.event-item').value.trim(),
+          quantity: Number(row.querySelector('.event-qty').value || 0)
+        }));
+      }
+
+      function formatMoney(value) {
+        return Number(value || 0).toFixed(2);
+      }
+
+      function formatDateForPrint(isoDate) {
+        const d = new Date(isoDate || new Date().toISOString().slice(0, 10));
+        if (Number.isNaN(d.getTime())) {
+          return isoDate || '';
+        }
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+      }
+
+      function numberToWordsBelow1000(num) {
+        const ones = [
+          'Zero',
+          'One',
+          'Two',
+          'Three',
+          'Four',
+          'Five',
+          'Six',
+          'Seven',
+          'Eight',
+          'Nine',
+          'Ten',
+          'Eleven',
+          'Twelve',
+          'Thirteen',
+          'Fourteen',
+          'Fifteen',
+          'Sixteen',
+          'Seventeen',
+          'Eighteen',
+          'Nineteen'
+        ];
+        const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+        if (num < 20) return ones[num];
+        if (num < 100) {
+          const ten = Math.floor(num / 10);
+          const unit = num % 10;
+          return `${tens[ten]}${unit ? ` ${ones[unit]}` : ''}`;
+        }
+
+        const hundred = Math.floor(num / 100);
+        const rem = num % 100;
+        return `${ones[hundred]} Hundred${rem ? ` ${numberToWordsBelow1000(rem)}` : ''}`;
+      }
+
+      function numberToWordsIndian(value) {
+        const amount = Number(value || 0);
+        if (!Number.isFinite(amount) || amount < 0) return 'Zero Only';
+        const rupees = Math.floor(amount);
+        const paise = Math.round((amount - rupees) * 100);
+
+        if (rupees === 0 && paise === 0) return 'Zero Only';
+
+        let n = rupees;
+        const parts = [];
+
+        const crore = Math.floor(n / 10000000);
+        if (crore) {
+          parts.push(`${numberToWordsBelow1000(crore)} Crore`);
+          n %= 10000000;
+        }
+
+        const lakh = Math.floor(n / 100000);
+        if (lakh) {
+          parts.push(`${numberToWordsBelow1000(lakh)} Lakh`);
+          n %= 100000;
+        }
+
+        const thousand = Math.floor(n / 1000);
+        if (thousand) {
+          parts.push(`${numberToWordsBelow1000(thousand)} Thousand`);
+          n %= 1000;
+        }
+
+        if (n) {
+          parts.push(numberToWordsBelow1000(n));
+        }
+
+        const rupeesWords = parts.join(' ').trim() || 'Zero';
+        if (paise > 0) {
+          return `${rupeesWords} and ${numberToWordsBelow1000(paise)} Paise Only`;
+        }
+        return `${rupeesWords} Only`;
+      }
+
+      function buildPrintRows() {
+        const rows = getItemsPayload().map((entry, index) => {
+          const unitPrice = Number(productPrices[entry.item] || 0);
+          const quantity = Number(entry.quantity || 0);
+          return {
+            slNo: index + 1,
+            item: entry.item,
+            quantity,
+            unitPrice,
+            amount: quantity * unitPrice
+          };
+        });
+        return rows.filter((row) => row.item);
+      }
+
+      function renderPrintTemplate() {
+        const rows = buildPrintRows();
+
+        ptBillNo.textContent = currentBookingId || 'To be generated';
+        ptDate.textContent = formatDateForPrint(currentDateViewInput.value || new Date().toISOString().slice(0, 10));
+        ptEventDate.textContent = formatDateForPrint(eventDayInput.value);
+        ptCustomer.textContent = customerNameInput.value || 'Walk-in Customer';
+        ptPhone.textContent = phoneNumberInput.value || '-';
+        ptAddress.textContent = addressInput.value || '-';
+        ptRows.innerHTML = '';
+
+        const minRows = 12;
+        const rowsToRender = Math.max(minRows, rows.length);
+        for (let i = 0; i < rowsToRender; i += 1) {
+          const row = rows[i];
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${row ? row.slNo : ''}</td>
+            <td>${row ? row.item : ''}</td>
+            <td>${row ? row.quantity : ''}</td>
+          `;
+          ptRows.appendChild(tr);
+        }
+
+        const noteText = eventNoteInput.value.trim();
+        ptNote.textContent = noteText;
+        ptNoteLine.style.display = noteText ? 'block' : 'none';
+      }
+
+      function setSavingState(saving, label = 'Saving...') {
+        isSaving = saving;
+        printEventBtn.disabled = saving;
+
+        if (saving) {
+          saveEventBtn.disabled = true;
+          saveEventBtn.textContent = label;
+          return;
+        }
+
+        saveEventBtn.disabled = false;
+        saveEventBtn.textContent = 'SAVE';
+      }
+
+      function validatePayload() {
+        const eventName = eventNameInput.value.trim();
+        const customerName = customerNameInput.value.trim();
+        const phoneNumber = onlyDigits(phoneNumberInput.value).slice(0, 10);
+        const items = getItemsPayload();
+
+        if (!eventName) {
+          statusMsg.textContent = 'Enter event name.';
+          statusMsg.style.color = '#b42a2a';
+          return null;
+        }
+
+        if (!customerName) {
+          statusMsg.textContent = 'Enter customer name.';
+          statusMsg.style.color = '#b42a2a';
+          return null;
+        }
+
+        if (phoneNumber.length !== 10) {
+          statusMsg.textContent = 'Enter a valid 10-digit phone number.';
+          statusMsg.style.color = '#b42a2a';
+          return null;
+        }
+
+        const hasInvalidItems = items.length === 0 || items.some((entry) => !entry.item || entry.quantity <= 0);
+        if (hasInvalidItems) {
+          statusMsg.textContent = 'Select valid items from Item List and enter quantity.';
+          statusMsg.style.color = '#b42a2a';
+          return null;
+        }
+
+        return {
+          eventDay: eventDayInput.value,
+          eventName,
+          customerName,
+          phoneNumber,
+          address: addressInput.value.trim(),
+          note: eventNoteInput.value.trim(),
+          items
+        };
+      }
+
+      function updateBookingNavigationButtons() {
+        const hasMatches = matchedBookings.length > 0;
+        prevBookingBtn.disabled = !hasMatches || currentBookingIndex <= 0;
+        nextBookingBtn.disabled = !hasMatches || currentBookingIndex >= matchedBookings.length - 1;
+      }
+
+      function syncBookingHeader() {
+        bookingNumberViewInput.value = currentBookingId || nextBookingId || 'To be generated';
+      }
+
+      async function refreshNextBookingNumber() {
+        try {
+          const response = await fetch('/api/book-events/next-booking-number');
+          const data = await parseJsonResponse(response);
+
+          if (!response.ok || !data || !data.bookingId) {
+            throw new Error('Failed to load next booking number.');
+          }
+
+          nextBookingId = String(data.bookingId);
+          if (!currentBookingId) {
+            syncBookingHeader();
+          }
+        } catch {
+          nextBookingId = '';
+          if (!currentBookingId) {
+            syncBookingHeader();
+          }
+        }
+      }
+
+      function populateBookingForm(booking) {
+        currentBookingId = String(booking.bookingId || '');
+        syncBookingHeader();
+        eventDayInput.value = booking.eventDay || new Date().toISOString().slice(0, 10);
+        eventNameInput.value = booking.event || '';
+        customerNameInput.value = booking.name || '';
+        phoneNumberInput.value = onlyDigits(booking.phoneNumber || '').slice(0, 10);
+        addressInput.value = booking.address || '';
+        eventNoteInput.value = booking.note || '';
+
+        eventItemsBody.innerHTML = '';
+        const items = Array.isArray(booking.items) ? booking.items : [];
+        if (items.length === 0) {
+          eventItemsBody.appendChild(createRow('', 1));
+        } else {
+          items.forEach((entry) => {
+            eventItemsBody.appendChild(createRow(String(entry.item || ''), Number(entry.quantity || 1)));
+          });
+        }
+      }
+
+      async function searchBookingsByPhone(phoneNumber) {
+        const cleanedPhone = onlyDigits(phoneNumber).slice(0, 10);
+        if (!cleanedPhone) {
+          statusMsg.textContent = 'Enter phone number to search.';
+          statusMsg.style.color = '#b42a2a';
+          return;
+        }
+
+        try {
+          const query = `?phoneNumber=${encodeURIComponent(cleanedPhone)}`;
+          const response = await fetch(`/api/book-events${query}`);
+          const data = await parseJsonResponse(response);
+
+          if (!response.ok || !Array.isArray(data)) {
+            throw new Error('Failed to search bookings.');
+          }
+
+          if (data.length === 0) {
+            matchedBookings = [];
+            currentBookingIndex = -1;
+            updateBookingNavigationButtons();
+            statusMsg.textContent = `No bookings found for phone ${cleanedPhone}.`;
+            statusMsg.style.color = '#b42a2a';
+            return;
+          }
+
+          matchedBookings = data;
+          currentBookingIndex = 0;
+          updateBookingNavigationButtons();
+          populateBookingForm(matchedBookings[currentBookingIndex]);
+          statusMsg.textContent = `Found ${matchedBookings.length} booking(s). Showing 1/${matchedBookings.length}: ${currentBookingId}.`;
+          statusMsg.style.color = '#0c7a6b';
+        } catch (error) {
+          matchedBookings = [];
+          currentBookingIndex = -1;
+          updateBookingNavigationButtons();
+          statusMsg.textContent = error.message;
+          statusMsg.style.color = '#b42a2a';
+        }
+      }
+
+      async function saveCurrentEvent(saveLabel = 'Saving...') {
+        if (isSaving) {
+          statusMsg.textContent = 'Save already in progress.';
+          statusMsg.style.color = '#b42a2a';
+          return null;
+        }
+
+        const payload = validatePayload();
+        if (!payload) {
+          return null;
+        }
+
+        setSavingState(true, saveLabel);
+
+        try {
+          const response = await fetch('/api/book-events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const result = await parseJsonResponse(response);
+
+          if (!response.ok) {
+            throw new Error(result.error || 'Failed to save event booking.');
+          }
+
+          currentBookingId = String(result.bookingId || currentBookingId);
+          syncBookingHeader();
+          statusMsg.textContent = `Saved successfully. Booking ID: ${currentBookingId}`;
+          statusMsg.style.color = '#0c7a6b';
+          setSavingState(false);
+          return result;
+        } catch (error) {
+          statusMsg.textContent = error.message;
+          statusMsg.style.color = '#b42a2a';
+          setSavingState(false);
+          return null;
+        }
+      }
+
+      async function loadItemsFromSheet() {
+        const response = await fetch('/api/items');
+        const data = await parseJsonResponse(response);
+
+        if (!response.ok || !Array.isArray(data)) {
+          throw new Error('Failed to load item list.');
+        }
+
+        productPrices = data.reduce((acc, entry) => {
+          const itemName = String(entry.item || '').trim();
+          if (itemName) {
+            acc[itemName] = Number(entry.price || 0);
+          }
+          return acc;
+        }, {});
+        storeItems = Object.keys(productPrices);
+        renderItemSuggestions();
+      }
+
+      addEventItemBtn.addEventListener('click', () => {
+        eventItemsBody.appendChild(createRow('', 1));
+      });
+
+      phoneNumberInput.addEventListener('input', () => {
+        phoneNumberInput.value = onlyDigits(phoneNumberInput.value).slice(0, 10);
+      });
+
+      searchPhoneInput.addEventListener('input', () => {
+        searchPhoneInput.value = onlyDigits(searchPhoneInput.value).slice(0, 10);
+      });
+
+      searchBtn.addEventListener('click', () => {
+        searchBookingsByPhone(searchPhoneInput.value.trim());
+      });
+
+      prevBookingBtn.addEventListener('click', () => {
+        if (currentBookingIndex <= 0 || matchedBookings.length === 0) {
+          return;
+        }
+        currentBookingIndex -= 1;
+        updateBookingNavigationButtons();
+        populateBookingForm(matchedBookings[currentBookingIndex]);
+        statusMsg.textContent = `Showing ${currentBookingIndex + 1}/${matchedBookings.length}: ${currentBookingId}.`;
+        statusMsg.style.color = '#0c7a6b';
+      });
+
+      nextBookingBtn.addEventListener('click', () => {
+        if (matchedBookings.length === 0 || currentBookingIndex >= matchedBookings.length - 1) {
+          return;
+        }
+        currentBookingIndex += 1;
+        updateBookingNavigationButtons();
+        populateBookingForm(matchedBookings[currentBookingIndex]);
+        statusMsg.textContent = `Showing ${currentBookingIndex + 1}/${matchedBookings.length}: ${currentBookingId}.`;
+        statusMsg.style.color = '#0c7a6b';
+      });
+
+      clearSearchBtn.addEventListener('click', () => {
+        searchPhoneInput.value = '';
+        matchedBookings = [];
+        currentBookingIndex = -1;
+        updateBookingNavigationButtons();
+        currentBookingId = '';
+        syncBookingHeader();
+        refreshNextBookingNumber();
+        eventDayInput.value = new Date().toISOString().slice(0, 10);
+        eventNameInput.value = '';
+        customerNameInput.value = '';
+        phoneNumberInput.value = '';
+        addressInput.value = '';
+        eventNoteInput.value = '';
+        eventItemsBody.innerHTML = '';
+        eventItemsBody.appendChild(createRow('', 1));
+        statusMsg.textContent = '';
+      });
+
+      bookEventForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        await saveCurrentEvent('Saving...');
+      });
+
+      printEventBtn.addEventListener('click', async () => {
+        statusMsg.textContent = '';
+
+        if (isSaving) {
+          statusMsg.textContent = 'Save already in progress.';
+          statusMsg.style.color = '#b42a2a';
+          return;
+        }
+
+        if (currentBookingId) {
+          renderPrintTemplate();
+          window.print();
+          return;
+        }
+
+        const result = await saveCurrentEvent('Saving for Print...');
+        if (result) {
+          renderPrintTemplate();
+          window.print();
+        }
+      });
+
+      (async function init() {
+        currentDateViewInput.value = new Date().toISOString().slice(0, 10);
+        eventDayInput.value = new Date().toISOString().slice(0, 10);
+        await refreshNextBookingNumber();
+        syncBookingHeader();
+        try {
+          await loadItemsFromSheet();
+          eventItemsBody.innerHTML = '';
+          eventItemsBody.appendChild(createRow('', 1));
+          updateBookingNavigationButtons();
+          if (storeItems.length === 0) {
+            statusMsg.textContent = 'No items found in Item List sheet. Please add items first.';
+            statusMsg.style.color = '#b42a2a';
+          }
+        } catch (error) {
+          statusMsg.textContent = error.message;
+          statusMsg.style.color = '#b42a2a';
+          eventItemsBody.innerHTML = '';
+          eventItemsBody.appendChild(createRow('', 1));
+          updateBookingNavigationButtons();
+        }
+      })();
+    </script>
+  </body>
+</html>

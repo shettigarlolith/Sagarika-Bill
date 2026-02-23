@@ -32,6 +32,9 @@
               <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="title-logo" />
               <span>Sagarika Bill</span>
             </h1>
+            <div class="title-actions">
+              <a class="btn book-event-btn" href="book-event.html">Book Event</a>
+            </div>
           </div>
           <label class="theme-toggle" for="themeToggle">
             <input id="themeToggle" type="checkbox" />
@@ -40,12 +43,14 @@
           <div class="search-row">
             <input type="tel" id="searchPhone" placeholder="Search by phone number" />
             <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
-            <button id="prevBillBtn" class="btn btn-secondary" type="button" disabled>Previous</button>
-            <button id="nextBillBtn" class="btn btn-secondary" type="button" disabled>Next</button>
+            <button id="loadBookingBtn" class="btn btn-secondary" type="button">Load Booking</button>
+            <select id="bookingSelect" class="btn btn-secondary" style="display: none; min-width: 220px"></select>
+            <select id="billSelect" class="btn btn-secondary" style="display: none; min-width: 240px"></select>
             <button id="editBillBtn" class="btn btn-secondary" type="button" disabled>Edit</button>
             <button id="clearSearchBtn" class="btn" type="button">Clear</button>
             <a id="manageItemsBtn" class="btn btn-secondary" href="items.html" target="_blank" rel="noopener">Item List</a>
           </div>
+          <p id="statusMsg" class="status"></p>
         </div>
 
         <form id="billForm">
@@ -82,6 +87,7 @@
               <tbody id="itemsBody"></tbody>
             </table>
           </div>
+          <datalist id="billItemOptions"></datalist>
 
           <div class="actions-row">
             <button type="button" id="addItemBtn" class="btn">+ Add Item</button>
@@ -112,12 +118,10 @@
           </label>
 
           <div class="submit-wrap">
-            <button type="submit" id="saveBillBtn" class="btn btn-primary">Save Bill to Excel</button>
+            <button type="submit" id="saveBillBtn" class="btn btn-primary">SAVE</button>
             <button type="button" id="printBillBtn" class="btn btn-secondary">Print</button>
           </div>
         </form>
-
-        <p id="statusMsg" class="status"></p>
       </section>
     </main>
 
