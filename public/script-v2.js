@@ -847,6 +847,36 @@ async function fetchBookEventsByPhone(cleanedPhone) {
     return null;
   }
 
+  function formatDateOnly(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return raw;
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  function normalizeBooking(booking) {
+    const bookingId = String(
+      booking?.bookingId || booking?.bookNumber || booking?.bookNo || booking?.id || ''
+    ).trim();
+    const eventDay = formatDateOnly(
+      booking?.eventDay || booking?.eventDate || booking?.date || booking?.event_date || ''
+    );
+    const event = String(booking?.event || booking?.eventName || booking?.occasion || '').trim();
+    const name = String(
+      booking?.name || booking?.customerName || booking?.customer || booking?.fullName || ''
+    ).trim();
+
+    return {
+      ...booking,
+      bookingId,
+      eventDay,
+      event,
+      name
+    };
+  }
+
   let lastError = new Error('Failed to load booking data.');
 
   for (const url of candidates) {
@@ -864,7 +894,7 @@ async function fetchBookEventsByPhone(cleanedPhone) {
       if (!rows) {
         throw new Error('Invalid booking response format from backend.');
       }
-      return rows;
+      return rows.map(normalizeBooking);
     } catch (error) {
       lastError = error;
     }
