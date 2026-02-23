@@ -1059,6 +1059,13 @@ if (themeToggleInput) {
   });
 }
 
+window.addEventListener('storage', (event) => {
+  if (event.key !== THEME_STORAGE_KEY) {
+    return;
+  }
+  applyTheme(event.newValue === 'dark' ? 'dark' : 'light');
+});
+
 searchBtn.addEventListener('click', () => {
   matchedBookingsForImport = [];
   hideBookingSelector();

@@ -31,6 +31,10 @@
             <h1 class="page-title">Book Event</h1>
           </div>
           <a class="btn btn-secondary" href="index.html">BILLING</a>
+          <label class="theme-toggle" for="themeToggle">
+            <input id="themeToggle" type="checkbox" />
+            <span>Night Mode</span>
+          </label>
           <div class="search-row">
             <input type="tel" id="searchPhone" placeholder="Search by phone number" />
             <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
@@ -190,6 +194,7 @@
       const saveSameBtn = document.getElementById('saveSameBtn');
       const saveNewBtn = document.getElementById('saveNewBtn');
       const saveCancelBtn = document.getElementById('saveCancelBtn');
+      const themeToggleInput = document.getElementById('themeToggle');
       const statusMsg = document.getElementById('statusMsg');
       const ptBillNo = document.getElementById('ptBillNo');
       const ptDate = document.getElementById('ptDate');
@@ -202,6 +207,7 @@
       const ptNoteLine = document.getElementById('ptNoteLine');
       const APPS_SCRIPT_URL =
         'https://script.google.com/macros/s/AKfycbycQP83g4Buo1D_KMohHbU10016skIRsQjhKvc4Rg5tMVgbtU6wCXubxqOEx_cMB0jwCQ/exec';
+      const THEME_STORAGE_KEY = 'sagarika_theme_v1';
       let productPrices = {};
       let storeItems = [];
       let currentBookingId = '';
@@ -218,6 +224,19 @@
 
       function apiUrl(resource, query = '') {
         return `${APPS_SCRIPT_URL}?resource=${encodeURIComponent(resource)}${query}`;
+      }
+
+      function applyTheme(theme) {
+        const normalized = theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', normalized);
+        if (themeToggleInput) {
+          themeToggleInput.checked = normalized === 'dark';
+        }
+        try {
+          localStorage.setItem(THEME_STORAGE_KEY, normalized);
+        } catch {
+          // Ignore storage failures.
+        }
       }
 
       async function parseJsonResponse(response) {
@@ -809,6 +828,19 @@
         searchBookingsByPhone(searchPhoneInput.value.trim());
       });
 
+      if (themeToggleInput) {
+        themeToggleInput.addEventListener('change', () => {
+          applyTheme(themeToggleInput.checked ? 'dark' : 'light');
+        });
+      }
+
+      window.addEventListener('storage', (event) => {
+        if (event.key !== THEME_STORAGE_KEY) {
+          return;
+        }
+        applyTheme(event.newValue === 'dark' ? 'dark' : 'light');
+      });
+
       if (bookingListSelect) {
         bookingListSelect.addEventListener('change', () => {
           const selectedIndex = Number(bookingListSelect.value);
@@ -894,6 +926,13 @@
       });
 
       (async function init() {
+        try {
+          const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+          applyTheme(savedTheme === 'dark' ? 'dark' : 'light');
+        } catch {
+          applyTheme('light');
+        }
+
         currentDateViewInput.value = new Date().toISOString().slice(0, 10);
         eventDayInput.value = new Date().toISOString().slice(0, 10);
         await refreshNextBookingNumber();

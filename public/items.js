@@ -2,11 +2,26 @@ const itemsEditorBody = document.getElementById('itemsEditorBody');
 const addItemRowBtn = document.getElementById('addItemRowBtn');
 const saveItemListBtn = document.getElementById('saveItemListBtn');
 const itemStatus = document.getElementById('itemStatus');
+const themeToggleInput = document.getElementById('themeToggle');
 const APPS_SCRIPT_URL =
   'https://script.google.com/macros/s/AKfycbycQP83g4Buo1D_KMohHbU10016skIRsQjhKvc4Rg5tMVgbtU6wCXubxqOEx_cMB0jwCQ/exec';
+const THEME_STORAGE_KEY = 'sagarika_theme_v1';
 
 function apiUrl(resource) {
   return `${APPS_SCRIPT_URL}?resource=${encodeURIComponent(resource)}`;
+}
+
+function applyTheme(theme) {
+  const normalized = theme === 'dark' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', normalized);
+  if (themeToggleInput) {
+    themeToggleInput.checked = normalized === 'dark';
+  }
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, normalized);
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
 async function parseJsonResponse(response) {
@@ -114,5 +129,25 @@ addItemRowBtn.addEventListener('click', () => {
 });
 
 saveItemListBtn.addEventListener('click', saveItems);
+
+if (themeToggleInput) {
+  themeToggleInput.addEventListener('change', () => {
+    applyTheme(themeToggleInput.checked ? 'dark' : 'light');
+  });
+}
+
+window.addEventListener('storage', (event) => {
+  if (event.key !== THEME_STORAGE_KEY) {
+    return;
+  }
+  applyTheme(event.newValue === 'dark' ? 'dark' : 'light');
+});
+
+try {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  applyTheme(savedTheme === 'dark' ? 'dark' : 'light');
+} catch {
+  applyTheme('light');
+}
 
 loadItems();

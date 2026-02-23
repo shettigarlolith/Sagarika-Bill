@@ -30,8 +30,13 @@
 
       .items-table th,
       .items-table td {
-        border: 1px solid #dce5ec;
+        border: 1px solid var(--line);
         padding: 10px;
+      }
+
+      .items-table th {
+        background: var(--table-head);
+        color: var(--table-head-text);
       }
 
       .items-table input {
@@ -61,6 +66,10 @@
             <p class="kicker">Catalog Manager</p>
             <h1>Item List</h1>
           </div>
+          <label class="theme-toggle" for="themeToggle">
+            <input id="themeToggle" type="checkbox" />
+            <span>Night Mode</span>
+          </label>
           <a class="btn btn-secondary top-link" href="index.html" target="_blank" rel="noopener">Open Billing Page</a>
         </div>
 
