@@ -35,6 +35,7 @@
             <input type="tel" id="searchPhone" placeholder="Search by phone number" />
             <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
             <select id="bookingListSelect" class="btn btn-secondary" style="display: none; min-width: 260px"></select>
+            <button type="button" id="editEventBtn" class="btn btn-secondary" disabled>Edit</button>
             <button id="clearSearchBtn" class="btn" type="button">Clear</button>
           </div>
           <p id="statusMsg" class="status"></p>
@@ -106,6 +107,18 @@
       </section>
     </main>
 
+    <div id="saveModeModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; align-items: center; justify-content: center;">
+      <div style="background: #fff; color: #142430; border-radius: 14px; padding: 18px; width: min(92vw, 360px); box-shadow: 0 18px 42px rgba(0,0,0,0.25);">
+        <div style="font-weight: 800; margin-bottom: 8px;">Save Edited Booking</div>
+        <div style="font-size: 14px; color: #355062; margin-bottom: 14px;">Choose how you want to save this edited booking.</div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" id="saveSameBtn" class="btn btn-primary" style="flex: 1;">Existing Book</button>
+          <button type="button" id="saveNewBtn" class="btn btn-secondary" style="flex: 1;">New Book</button>
+          <button type="button" id="saveCancelBtn" class="btn" style="width: 100%;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <section id="printTemplate" class="print-template">
       <div class="print-page">
         <div class="print-watermark">SAGARIKA</div>
@@ -168,10 +181,15 @@
       const eventItemOptions = document.getElementById('eventItemOptions');
       const saveEventBtn = document.getElementById('saveEventBtn');
       const printEventBtn = document.getElementById('printEventBtn');
+      const editEventBtn = document.getElementById('editEventBtn');
       const searchPhoneInput = document.getElementById('searchPhone');
       const searchBtn = document.getElementById('searchBtn');
       const bookingListSelect = document.getElementById('bookingListSelect');
       const clearSearchBtn = document.getElementById('clearSearchBtn');
+      const saveModeModal = document.getElementById('saveModeModal');
+      const saveSameBtn = document.getElementById('saveSameBtn');
+      const saveNewBtn = document.getElementById('saveNewBtn');
+      const saveCancelBtn = document.getElementById('saveCancelBtn');
       const statusMsg = document.getElementById('statusMsg');
       const ptBillNo = document.getElementById('ptBillNo');
       const ptDate = document.getElementById('ptDate');
@@ -189,6 +207,8 @@
       let currentBookingId = '';
       let nextBookingId = '';
       let isSaving = false;
+      let isFormReadOnly = false;
+      let isEditingExisting = false;
       let matchedBookings = [];
       let currentBookingIndex = -1;
 
@@ -271,6 +291,11 @@
           `<td><input class="event-qty" type="number" min="1" step="1" value="${quantity}" required /></td>` +
           '<td><button type="button" class="btn btn-danger remove-item-btn">Remove</button></td>';
         bindRemove(row.querySelector('.remove-item-btn'));
+        if (isFormReadOnly) {
+          row.querySelector('.event-item').disabled = true;
+          row.querySelector('.event-qty').readOnly = true;
+          row.querySelector('.remove-item-btn').disabled = true;
+        }
         return row;
       }
 
@@ -282,6 +307,7 @@
 
       function bindRemove(button) {
         button.addEventListener('click', () => {
+          if (isFormReadOnly) return;
           if (eventItemsBody.children.length === 1) return;
           button.closest('tr').remove();
         });
@@ -433,6 +459,7 @@
       function setSavingState(saving, label = 'Saving...') {
         isSaving = saving;
         printEventBtn.disabled = saving;
+        editEventBtn.disabled = saving || !(isFormReadOnly && currentBookingId);
 
         if (saving) {
           saveEventBtn.disabled = true;
@@ -440,11 +467,42 @@
           return;
         }
 
-        saveEventBtn.disabled = false;
-        saveEventBtn.textContent = 'SAVE';
+        if (isFormReadOnly) {
+          saveEventBtn.disabled = true;
+          saveEventBtn.textContent = 'Read Only';
+        } else {
+          saveEventBtn.disabled = false;
+          saveEventBtn.textContent = 'SAVE';
+        }
+      }
+
+      function setFormReadOnly(readOnly) {
+        isFormReadOnly = readOnly;
+        eventDayInput.disabled = readOnly;
+        eventNameInput.readOnly = readOnly;
+        customerNameInput.readOnly = readOnly;
+        phoneNumberInput.readOnly = readOnly;
+        addressInput.readOnly = readOnly;
+        eventNoteInput.readOnly = readOnly;
+        addEventItemBtn.disabled = readOnly;
+
+        eventItemsBody.querySelectorAll('tr').forEach((row) => {
+          row.querySelector('.event-item').disabled = readOnly;
+          row.querySelector('.event-qty').readOnly = readOnly;
+          row.querySelector('.remove-item-btn').disabled = readOnly;
+        });
+
+        setSavingState(false);
+        editEventBtn.disabled = !(readOnly && currentBookingId);
       }
 
       function validatePayload() {
+        if (isFormReadOnly) {
+          statusMsg.textContent = 'Booking is read-only. Click Edit to modify.';
+          statusMsg.style.color = '#b42a2a';
+          return null;
+        }
+
         const eventName = eventNameInput.value.trim();
         const customerName = customerNameInput.value.trim();
         const phoneNumber = onlyDigits(phoneNumberInput.value).slice(0, 10);
@@ -520,6 +578,36 @@
         bookingNumberViewInput.value = currentBookingId || nextBookingId || 'To be generated';
       }
 
+      function askSaveModeForExisting() {
+        return new Promise((resolve) => {
+          saveModeModal.style.display = 'flex';
+
+          const cleanup = () => {
+            saveModeModal.style.display = 'none';
+            saveSameBtn.removeEventListener('click', onSame);
+            saveNewBtn.removeEventListener('click', onNew);
+            saveCancelBtn.removeEventListener('click', onCancel);
+          };
+
+          const onSame = () => {
+            cleanup();
+            resolve('overwrite');
+          };
+          const onNew = () => {
+            cleanup();
+            resolve('new');
+          };
+          const onCancel = () => {
+            cleanup();
+            resolve(null);
+          };
+
+          saveSameBtn.addEventListener('click', onSame);
+          saveNewBtn.addEventListener('click', onNew);
+          saveCancelBtn.addEventListener('click', onCancel);
+        });
+      }
+
       async function refreshNextBookingNumber() {
         try {
           const data = await requestApiJson([
@@ -545,6 +633,7 @@
 
       function populateBookingForm(booking) {
         currentBookingId = String(booking.bookingId || '');
+        isEditingExisting = false;
         syncBookingHeader();
         eventDayInput.value = booking.eventDay || new Date().toISOString().slice(0, 10);
         eventNameInput.value = booking.event || '';
@@ -562,6 +651,7 @@
             eventItemsBody.appendChild(createRow(String(entry.item || ''), Number(entry.quantity || 1)));
           });
         }
+        setFormReadOnly(true);
       }
 
       async function searchBookingsByPhone(phoneNumber) {
@@ -617,6 +707,19 @@
           return null;
         }
 
+        if (isEditingExisting && currentBookingId) {
+          const saveMode = await askSaveModeForExisting();
+          if (!saveMode) {
+            statusMsg.textContent = 'Save cancelled.';
+            statusMsg.style.color = '#b42a2a';
+            return null;
+          }
+          payload.saveMode = saveMode;
+          if (saveMode === 'overwrite') {
+            payload.bookingId = currentBookingId;
+          }
+        }
+
         setSavingState(true, saveLabel);
 
         try {
@@ -628,9 +731,13 @@
           const bookingId =
             result?.bookingId || result?.data?.bookingId || result?.result?.bookingId || currentBookingId;
           currentBookingId = String(bookingId || currentBookingId);
+          isEditingExisting = false;
           syncBookingHeader();
           statusMsg.textContent = `Saved successfully. Booking ID: ${currentBookingId}`;
           statusMsg.style.color = '#0c7a6b';
+          if (currentBookingId) {
+            setFormReadOnly(true);
+          }
           setSavingState(false);
           return result;
         } catch (error) {
@@ -660,10 +767,12 @@
       }
 
       addEventItemBtn.addEventListener('click', () => {
+        if (isFormReadOnly) return;
         eventItemsBody.appendChild(createRow('', 1));
       });
 
       phoneNumberInput.addEventListener('input', () => {
+        if (isFormReadOnly) return;
         phoneNumberInput.value = onlyDigits(phoneNumberInput.value).slice(0, 10);
       });
 
@@ -704,7 +813,17 @@
         eventNoteInput.value = '';
         eventItemsBody.innerHTML = '';
         eventItemsBody.appendChild(createRow('', 1));
+        isEditingExisting = false;
+        setFormReadOnly(false);
         statusMsg.textContent = '';
+      });
+
+      editEventBtn.addEventListener('click', () => {
+        if (!currentBookingId) return;
+        isEditingExisting = true;
+        setFormReadOnly(false);
+        statusMsg.textContent = 'Edit mode enabled. Save will ask Existing Book or New Book.';
+        statusMsg.style.color = '#ff1493';
       });
 
       bookEventForm.addEventListener('submit', async (event) => {
@@ -722,8 +841,23 @@
         }
 
         if (currentBookingId) {
-          renderPrintTemplate();
-          window.print();
+          if (isFormReadOnly) {
+            renderPrintTemplate();
+            window.print();
+            return;
+          }
+
+          if (!isEditingExisting) {
+            renderPrintTemplate();
+            window.print();
+            return;
+          }
+
+          const result = await saveCurrentEvent('Saving for Print...');
+          if (result) {
+            renderPrintTemplate();
+            window.print();
+          }
           return;
         }
 
@@ -744,6 +878,7 @@
           eventItemsBody.innerHTML = '';
           eventItemsBody.appendChild(createRow('', 1));
           hideBookingListSelect();
+          setFormReadOnly(false);
           if (storeItems.length === 0) {
             statusMsg.textContent = 'No items found in Item List sheet. Please add items first.';
             statusMsg.style.color = '#b42a2a';
@@ -754,6 +889,7 @@
           eventItemsBody.innerHTML = '';
           eventItemsBody.appendChild(createRow('', 1));
           hideBookingListSelect();
+          setFormReadOnly(false);
         }
       })();
     </script>

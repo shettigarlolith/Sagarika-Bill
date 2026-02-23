@@ -578,7 +578,7 @@ app.post('/api/bills', async (req, res) => {
 
 app.post('/api/book-events', async (req, res) => {
   try {
-    const { eventDay, eventName, customerName, phoneNumber, address, note, items } = req.body;
+    const { eventDay, eventName, customerName, phoneNumber, address, note, items, saveMode, bookingId: requestedBookingIdRaw } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'At least one item is required.' });
@@ -609,7 +609,18 @@ app.post('/api/book-events', async (req, res) => {
       return res.status(400).json({ error: 'Select valid items from "Item List" and enter quantity.' });
     }
 
-    const bookingId = `BE${String(getNextBookEventSequence(bookEvents)).padStart(4, '0')}`;
+    const requestedBookingId = String(requestedBookingIdRaw || '').trim();
+    const normalizedSaveMode = String(saveMode || '').toLowerCase();
+    let bookingId = `BE${String(getNextBookEventSequence(bookEvents)).padStart(4, '0')}`;
+
+    if (normalizedSaveMode === 'overwrite' && requestedBookingId) {
+      bookingId = requestedBookingId;
+      for (let i = bookEvents.length - 1; i >= 0; i -= 1) {
+        if (String(bookEvents[i].bookingId || '').trim() === bookingId) {
+          bookEvents.splice(i, 1);
+        }
+      }
+    }
     const createdAt = new Date().toISOString();
     const safeEventDay = eventDay || new Date().toISOString().slice(0, 10);
     const safeEventName = String(eventName || '').trim();
