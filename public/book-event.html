@@ -215,9 +215,16 @@
       }
 
       async function requestApiJson(resource, { method = 'GET', query = '', body = null } = {}) {
+        const resources = Array.isArray(resource) ? resource : [resource];
         const localQuery = query ? (query.startsWith('?') ? query : `?${query}`) : '';
         const scriptQuery = localQuery ? `&${localQuery.slice(1)}` : '';
-        const urls = [`/api/${resource}${localQuery}`, apiUrl(resource, scriptQuery)];
+        const urls = [];
+        if (resources.length > 0) {
+          urls.push(`/api/${resources[0]}${localQuery}`);
+        }
+        resources.forEach((r) => {
+          urls.push(apiUrl(r, scriptQuery));
+        });
         let lastError = new Error('Failed to connect to backend.');
 
         for (const url of urls) {
@@ -234,6 +241,9 @@
             if (!response.ok) {
               throw new Error((data && (data.error || data.details)) || 'Request failed.');
             }
+            if (data && (data.error || data.details)) {
+              throw new Error(data.error || data.details);
+            }
 
             return data;
           } catch (error) {
@@ -242,6 +252,15 @@
         }
 
         throw lastError;
+      }
+
+      function asArrayPayload(data) {
+        if (Array.isArray(data)) return data;
+        if (Array.isArray(data?.bookings)) return data.bookings;
+        if (Array.isArray(data?.data)) return data.data;
+        if (Array.isArray(data?.result)) return data.result;
+        if (Array.isArray(data?.records)) return data.records;
+        return null;
       }
 
       function createRow(item = '', quantity = 1) {
@@ -478,7 +497,11 @@
 
       async function refreshNextBookingNumber() {
         try {
-          const data = await requestApiJson('book-events/next-booking-number');
+          const data = await requestApiJson([
+            'book-events/next-booking-number',
+            'bookEvents/next-booking-number',
+            'book-events-next-booking-number'
+          ]);
           if (!data || !data.bookingId) {
             throw new Error('Failed to load next booking number.');
           }
@@ -526,12 +549,13 @@
 
         try {
           const query = `?phoneNumber=${encodeURIComponent(cleanedPhone)}`;
-          const data = await requestApiJson('book-events', { query });
-          if (!Array.isArray(data)) {
+          const data = await requestApiJson(['book-events', 'bookEvents', 'bookevent'], { query });
+          const rows = asArrayPayload(data);
+          if (!rows) {
             throw new Error('Failed to search bookings.');
           }
 
-          if (data.length === 0) {
+          if (rows.length === 0) {
             matchedBookings = [];
             currentBookingIndex = -1;
             updateBookingNavigationButtons();
@@ -540,7 +564,7 @@
             return;
           }
 
-          matchedBookings = data;
+          matchedBookings = rows;
           currentBookingIndex = 0;
           updateBookingNavigationButtons();
           populateBookingForm(matchedBookings[currentBookingIndex]);
@@ -570,9 +594,14 @@
         setSavingState(true, saveLabel);
 
         try {
-          const result = await requestApiJson('book-events', { method: 'POST', body: payload });
+          const result = await requestApiJson(['book-events', 'bookEvents', 'bookevent'], {
+            method: 'POST',
+            body: payload
+          });
 
-          currentBookingId = String(result.bookingId || currentBookingId);
+          const bookingId =
+            result?.bookingId || result?.data?.bookingId || result?.result?.bookingId || currentBookingId;
+          currentBookingId = String(bookingId || currentBookingId);
           syncBookingHeader();
           statusMsg.textContent = `Saved successfully. Booking ID: ${currentBookingId}`;
           statusMsg.style.color = '#0c7a6b';
@@ -588,11 +617,12 @@
 
       async function loadItemsFromSheet() {
         const data = await requestApiJson('items');
-        if (!Array.isArray(data)) {
+        const rows = asArrayPayload(data);
+        if (!rows) {
           throw new Error('Failed to load item list.');
         }
 
-        productPrices = data.reduce((acc, entry) => {
+        productPrices = rows.reduce((acc, entry) => {
           const itemName = String(entry.item || '').trim();
           if (itemName) {
             acc[itemName] = Number(entry.price || 0);

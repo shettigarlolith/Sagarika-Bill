@@ -831,7 +831,21 @@ async function searchBillsByPhone(phoneNumber) {
 async function fetchBookEventsByPhone(cleanedPhone) {
   const localQuery = `?phoneNumber=${encodeURIComponent(cleanedPhone)}`;
   const scriptQuery = `&phoneNumber=${encodeURIComponent(cleanedPhone)}`;
-  const candidates = [`/api/book-events${localQuery}`, apiUrl('book-events', scriptQuery)];
+  const candidates = [
+    `/api/book-events${localQuery}`,
+    apiUrl('book-events', scriptQuery),
+    apiUrl('bookEvents', scriptQuery),
+    apiUrl('bookevent', scriptQuery)
+  ];
+
+  function asArray(data) {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.bookings)) return data.bookings;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.result)) return data.result;
+    if (Array.isArray(data?.records)) return data.records;
+    return null;
+  }
 
   let lastError = new Error('Failed to load booking data.');
 
@@ -842,10 +856,15 @@ async function fetchBookEventsByPhone(cleanedPhone) {
       if (!response.ok) {
         throw new Error((data && (data.error || data.details)) || 'Failed to search bookings.');
       }
-      if (!Array.isArray(data)) {
-        throw new Error('Invalid booking response.');
+      if (data && (data.error || data.details)) {
+        throw new Error(data.error || data.details);
       }
-      return data;
+
+      const rows = asArray(data);
+      if (!rows) {
+        throw new Error('Invalid booking response format from backend.');
+      }
+      return rows;
     } catch (error) {
       lastError = error;
     }
