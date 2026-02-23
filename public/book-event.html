@@ -335,6 +335,29 @@
         return `${dd}/${mm}/${yyyy}`;
       }
 
+      function normalizeDateForInput(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+
+        // HTML date input accepts only YYYY-MM-DD.
+        if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+          return raw.slice(0, 10);
+        }
+
+        const ddMmYyyy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (ddMmYyyy) {
+          const [, dd, mm, yyyy] = ddMmYyyy;
+          return `${yyyy}-${mm}-${dd}`;
+        }
+
+        const parsed = new Date(raw);
+        if (Number.isNaN(parsed.getTime())) {
+          return '';
+        }
+
+        return parsed.toISOString().slice(0, 10);
+      }
+
       function numberToWordsBelow1000(num) {
         const ones = [
           'Zero',
@@ -636,7 +659,8 @@
         currentBookingId = String(booking.bookingId || '');
         isEditingExisting = false;
         syncBookingHeader();
-        eventDayInput.value = booking.eventDay || new Date().toISOString().slice(0, 10);
+        eventDayInput.value =
+          normalizeDateForInput(booking.eventDay) || new Date().toISOString().slice(0, 10);
         eventNameInput.value = booking.event || '';
         customerNameInput.value = booking.name || '';
         phoneNumberInput.value = onlyDigits(booking.phoneNumber || '').slice(0, 10);
