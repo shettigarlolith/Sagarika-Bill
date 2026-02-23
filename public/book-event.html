@@ -231,7 +231,11 @@
           try {
             const options = { method };
             if (body !== null) {
-              options.headers = { 'Content-Type': 'application/json' };
+              // Apps Script POST from GitHub Pages must stay "simple request" (no JSON header),
+              // otherwise browser sends CORS preflight and fails with "Failed to fetch".
+              if (url.startsWith('/api/')) {
+                options.headers = { 'Content-Type': 'application/json' };
+              }
               options.body = JSON.stringify(body);
             }
 
