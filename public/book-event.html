@@ -34,10 +34,10 @@
           <div class="search-row">
             <input type="tel" id="searchPhone" placeholder="Search by phone number" />
             <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
-            <button id="prevBookingBtn" class="btn btn-secondary" type="button" disabled>Previous</button>
-            <button id="nextBookingBtn" class="btn btn-secondary" type="button" disabled>Next</button>
+            <select id="bookingListSelect" class="btn btn-secondary" style="display: none; min-width: 260px"></select>
             <button id="clearSearchBtn" class="btn" type="button">Clear</button>
           </div>
+          <p id="statusMsg" class="status"></p>
         </div>
 
         <form id="bookEventForm">
@@ -103,8 +103,6 @@
             <button type="button" id="printEventBtn" class="btn btn-secondary">Print</button>
           </div>
         </form>
-
-        <p id="statusMsg" class="status"></p>
       </section>
     </main>
 
@@ -172,8 +170,7 @@
       const printEventBtn = document.getElementById('printEventBtn');
       const searchPhoneInput = document.getElementById('searchPhone');
       const searchBtn = document.getElementById('searchBtn');
-      const prevBookingBtn = document.getElementById('prevBookingBtn');
-      const nextBookingBtn = document.getElementById('nextBookingBtn');
+      const bookingListSelect = document.getElementById('bookingListSelect');
       const clearSearchBtn = document.getElementById('clearSearchBtn');
       const statusMsg = document.getElementById('statusMsg');
       const ptBillNo = document.getElementById('ptBillNo');
@@ -489,10 +486,25 @@
         };
       }
 
-      function updateBookingNavigationButtons() {
-        const hasMatches = matchedBookings.length > 0;
-        prevBookingBtn.disabled = !hasMatches || currentBookingIndex <= 0;
-        nextBookingBtn.disabled = !hasMatches || currentBookingIndex >= matchedBookings.length - 1;
+      function hideBookingListSelect() {
+        if (!bookingListSelect) return;
+        bookingListSelect.style.display = 'none';
+        bookingListSelect.innerHTML = '';
+      }
+
+      function showBookingListSelect(bookings) {
+        if (!bookingListSelect) return;
+
+        bookingListSelect.innerHTML = bookings
+          .map((booking, index) => {
+            const bookingId = String(booking.bookingId || `Booking ${index + 1}`);
+            const eventDay = String(booking.eventDay || '').trim();
+            const eventName = String(booking.event || '').trim();
+            const label = [bookingId, eventDay, eventName].filter(Boolean).join(' | ');
+            return `<option value="${index}">${label}</option>`;
+          })
+          .join('');
+        bookingListSelect.style.display = 'inline-flex';
       }
 
       function syncBookingHeader() {
@@ -562,7 +574,7 @@
           if (rows.length === 0) {
             matchedBookings = [];
             currentBookingIndex = -1;
-            updateBookingNavigationButtons();
+            hideBookingListSelect();
             statusMsg.textContent = `No bookings found for phone ${cleanedPhone}.`;
             statusMsg.style.color = '#b42a2a';
             return;
@@ -570,14 +582,15 @@
 
           matchedBookings = rows;
           currentBookingIndex = 0;
-          updateBookingNavigationButtons();
+          showBookingListSelect(matchedBookings);
+          bookingListSelect.value = '0';
           populateBookingForm(matchedBookings[currentBookingIndex]);
-          statusMsg.textContent = `Found ${matchedBookings.length} booking(s). Showing 1/${matchedBookings.length}: ${currentBookingId}.`;
-          statusMsg.style.color = '#0c7a6b';
+          statusMsg.textContent = `Found ${matchedBookings.length} booking(s). Showing 1/${matchedBookings.length}`;
+          statusMsg.style.color = '#ff1493';
         } catch (error) {
           matchedBookings = [];
           currentBookingIndex = -1;
-          updateBookingNavigationButtons();
+          hideBookingListSelect();
           statusMsg.textContent = error.message;
           statusMsg.style.color = '#b42a2a';
         }
@@ -653,33 +666,24 @@
         searchBookingsByPhone(searchPhoneInput.value.trim());
       });
 
-      prevBookingBtn.addEventListener('click', () => {
-        if (currentBookingIndex <= 0 || matchedBookings.length === 0) {
-          return;
-        }
-        currentBookingIndex -= 1;
-        updateBookingNavigationButtons();
-        populateBookingForm(matchedBookings[currentBookingIndex]);
-        statusMsg.textContent = `Showing ${currentBookingIndex + 1}/${matchedBookings.length}: ${currentBookingId}.`;
-        statusMsg.style.color = '#0c7a6b';
-      });
+      if (bookingListSelect) {
+        bookingListSelect.addEventListener('change', () => {
+          const selectedIndex = Number(bookingListSelect.value);
+          const selectedBooking = matchedBookings[selectedIndex];
+          if (!selectedBooking) return;
 
-      nextBookingBtn.addEventListener('click', () => {
-        if (matchedBookings.length === 0 || currentBookingIndex >= matchedBookings.length - 1) {
-          return;
-        }
-        currentBookingIndex += 1;
-        updateBookingNavigationButtons();
-        populateBookingForm(matchedBookings[currentBookingIndex]);
-        statusMsg.textContent = `Showing ${currentBookingIndex + 1}/${matchedBookings.length}: ${currentBookingId}.`;
-        statusMsg.style.color = '#0c7a6b';
-      });
+          currentBookingIndex = selectedIndex;
+          populateBookingForm(selectedBooking);
+          statusMsg.textContent = `Found ${matchedBookings.length} booking(s). Showing ${currentBookingIndex + 1}/${matchedBookings.length}`;
+          statusMsg.style.color = '#ff1493';
+        });
+      }
 
       clearSearchBtn.addEventListener('click', () => {
         searchPhoneInput.value = '';
         matchedBookings = [];
         currentBookingIndex = -1;
-        updateBookingNavigationButtons();
+        hideBookingListSelect();
         currentBookingId = '';
         syncBookingHeader();
         refreshNextBookingNumber();
@@ -730,7 +734,7 @@
           await loadItemsFromSheet();
           eventItemsBody.innerHTML = '';
           eventItemsBody.appendChild(createRow('', 1));
-          updateBookingNavigationButtons();
+          hideBookingListSelect();
           if (storeItems.length === 0) {
             statusMsg.textContent = 'No items found in Item List sheet. Please add items first.';
             statusMsg.style.color = '#b42a2a';
@@ -740,7 +744,7 @@
           statusMsg.style.color = '#b42a2a';
           eventItemsBody.innerHTML = '';
           eventItemsBody.appendChild(createRow('', 1));
-          updateBookingNavigationButtons();
+          hideBookingListSelect();
         }
       })();
     </script>
