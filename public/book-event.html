@@ -495,12 +495,21 @@
       function showBookingListSelect(bookings) {
         if (!bookingListSelect) return;
 
+        const formatDateOnly = (value) => {
+          const raw = String(value || '').trim();
+          if (!raw) return '';
+          if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+          const parsed = new Date(raw);
+          if (Number.isNaN(parsed.getTime())) return raw;
+          return parsed.toISOString().slice(0, 10);
+        };
+
         bookingListSelect.innerHTML = bookings
           .map((booking, index) => {
             const bookingId = String(booking.bookingId || `Booking ${index + 1}`);
-            const eventDay = String(booking.eventDay || '').trim();
-            const eventName = String(booking.event || '').trim();
-            const label = [bookingId, eventDay, eventName].filter(Boolean).join(' | ');
+            const eventDay = formatDateOnly(booking.eventDay);
+            const customerName = String(booking.name || '').trim();
+            const label = [bookingId, eventDay, customerName].filter(Boolean).join(' | ');
             return `<option value="${index}">${label}</option>`;
           })
           .join('');
