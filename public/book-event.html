@@ -566,8 +566,9 @@
           .map((booking, index) => {
             const bookingId = String(booking.bookingId || `Booking ${index + 1}`);
             const eventDay = formatDateOnly(booking.eventDay);
+            const eventName = String(booking.event || '').trim();
             const customerName = String(booking.name || '').trim();
-            const label = [bookingId, eventDay, customerName].filter(Boolean).join(' | ');
+            const label = [bookingId, eventDay, eventName, customerName].filter(Boolean).join(' | ');
             return `<option value="${index}">${label}</option>`;
           })
           .join('');

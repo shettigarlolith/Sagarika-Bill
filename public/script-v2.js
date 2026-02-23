@@ -934,7 +934,8 @@ function showBookingSelector(bookings) {
       const bookingId = String(booking.bookingId || `Booking ${index + 1}`);
       const eventDay = String(booking.eventDay || '').trim();
       const event = String(booking.event || '').trim();
-      const suffix = [eventDay, event].filter(Boolean).join(' | ');
+      const name = String(booking.name || '').trim();
+      const suffix = [eventDay, event, name].filter(Boolean).join(' | ');
       const label = suffix ? `${bookingId} | ${suffix}` : bookingId;
       return `<option value="${index}">${label}</option>`;
     })
