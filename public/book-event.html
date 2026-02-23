@@ -185,6 +185,8 @@
       const ptRows = document.getElementById('ptRows');
       const ptNote = document.getElementById('ptNote');
       const ptNoteLine = document.getElementById('ptNoteLine');
+      const APPS_SCRIPT_URL =
+        'https://script.google.com/macros/s/AKfycbycQP83g4Buo1D_KMohHbU10016skIRsQjhKvc4Rg5tMVgbtU6wCXubxqOEx_cMB0jwCQ/exec';
       let productPrices = {};
       let storeItems = [];
       let currentBookingId = '';
@@ -197,19 +199,49 @@
         return String(value || '').replace(/\D/g, '');
       }
 
-      async function parseJsonResponse(response) {
-        const contentType = response.headers.get('content-type') || '';
-        const raw = await response.text();
+      function apiUrl(resource, query = '') {
+        return `${APPS_SCRIPT_URL}?resource=${encodeURIComponent(resource)}${query}`;
+      }
 
-        if (!contentType.includes('application/json')) {
-          throw new Error('API did not return JSON. Start the app server and open it via localhost URL.');
-        }
+      async function parseJsonResponse(response) {
+        const raw = await response.text();
 
         try {
           return JSON.parse(raw);
         } catch {
-          throw new Error('Invalid JSON response from server.');
+          const preview = raw.slice(0, 120).replace(/\s+/g, ' ').trim();
+          throw new Error(`API did not return JSON. Response preview: ${preview}`);
         }
+      }
+
+      async function requestApiJson(resource, { method = 'GET', query = '', body = null } = {}) {
+        const localQuery = query ? (query.startsWith('?') ? query : `?${query}`) : '';
+        const scriptQuery = localQuery ? `&${localQuery.slice(1)}` : '';
+        const urls = [`/api/${resource}${localQuery}`, apiUrl(resource, scriptQuery)];
+        let lastError = new Error('Failed to connect to backend.');
+
+        for (const url of urls) {
+          try {
+            const options = { method };
+            if (body !== null) {
+              options.headers = { 'Content-Type': 'application/json' };
+              options.body = JSON.stringify(body);
+            }
+
+            const response = await fetch(url, options);
+            const data = await parseJsonResponse(response);
+
+            if (!response.ok) {
+              throw new Error((data && (data.error || data.details)) || 'Request failed.');
+            }
+
+            return data;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+
+        throw lastError;
       }
 
       function createRow(item = '', quantity = 1) {
@@ -446,10 +478,8 @@
 
       async function refreshNextBookingNumber() {
         try {
-          const response = await fetch('/api/book-events/next-booking-number');
-          const data = await parseJsonResponse(response);
-
-          if (!response.ok || !data || !data.bookingId) {
+          const data = await requestApiJson('book-events/next-booking-number');
+          if (!data || !data.bookingId) {
             throw new Error('Failed to load next booking number.');
           }
 
@@ -496,10 +526,8 @@
 
         try {
           const query = `?phoneNumber=${encodeURIComponent(cleanedPhone)}`;
-          const response = await fetch(`/api/book-events${query}`);
-          const data = await parseJsonResponse(response);
-
-          if (!response.ok || !Array.isArray(data)) {
+          const data = await requestApiJson('book-events', { query });
+          if (!Array.isArray(data)) {
             throw new Error('Failed to search bookings.');
           }
 
@@ -542,16 +570,7 @@
         setSavingState(true, saveLabel);
 
         try {
-          const response = await fetch('/api/book-events', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          const result = await parseJsonResponse(response);
-
-          if (!response.ok) {
-            throw new Error(result.error || 'Failed to save event booking.');
-          }
+          const result = await requestApiJson('book-events', { method: 'POST', body: payload });
 
           currentBookingId = String(result.bookingId || currentBookingId);
           syncBookingHeader();
@@ -568,10 +587,8 @@
       }
 
       async function loadItemsFromSheet() {
-        const response = await fetch('/api/items');
-        const data = await parseJsonResponse(response);
-
-        if (!response.ok || !Array.isArray(data)) {
+        const data = await requestApiJson('items');
+        if (!Array.isArray(data)) {
           throw new Error('Failed to load item list.');
         }
 
