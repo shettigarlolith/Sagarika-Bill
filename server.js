@@ -22,6 +22,10 @@ const GOOGLE_SHEET_ID =
 const GOOGLE_SERVICE_ACCOUNT_FILE =
   process.env.GOOGLE_SERVICE_ACCOUNT_FILE ||
   path.join(__dirname, 'credentials', 'google-service-account.json');
+const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '';
+const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
+const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY || '';
+const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID || '';
 
 const defaultItemList = [
   { item: 'Rice (5kg)', price: 450 },
@@ -164,7 +168,10 @@ let sheetsClient = null;
 let storageMode = null;
 
 function isGoogleConfigured() {
-  return Boolean(googleLib && GOOGLE_SHEET_ID && fs.existsSync(GOOGLE_SERVICE_ACCOUNT_FILE));
+  const hasJson = Boolean(GOOGLE_SERVICE_ACCOUNT_JSON);
+  const hasPair = Boolean(GOOGLE_SERVICE_ACCOUNT_EMAIL && GOOGLE_PRIVATE_KEY);
+  const hasFile = fs.existsSync(GOOGLE_SERVICE_ACCOUNT_FILE);
+  return Boolean(googleLib && GOOGLE_SHEET_ID && (hasJson || hasPair || hasFile));
 }
 
 async function getSheetsClient() {
@@ -177,7 +184,21 @@ async function getSheetsClient() {
   }
 
   const { google } = googleLib;
-  const credentials = JSON.parse(fs.readFileSync(GOOGLE_SERVICE_ACCOUNT_FILE, 'utf8'));
+  let credentials;
+
+  if (GOOGLE_SERVICE_ACCOUNT_JSON) {
+    credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT_JSON);
+  } else if (GOOGLE_SERVICE_ACCOUNT_EMAIL && GOOGLE_PRIVATE_KEY) {
+    credentials = {
+      type: 'service_account',
+      project_id: GOOGLE_PROJECT_ID || undefined,
+      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
+    };
+  } else {
+    credentials = JSON.parse(fs.readFileSync(GOOGLE_SERVICE_ACCOUNT_FILE, 'utf8'));
+  }
+
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: ['https://www.googleapis.com/auth/spreadsheets']
@@ -739,7 +760,11 @@ app.get('/api/bills', async (req, res) => {
   }
 });
 
-app.listen(PORT, async () => {
-  const mode = await getStorageMode();
-  console.log(`Server running at http://localhost:${PORT} (${mode})`);
-});
+if (require.main === module) {
+  app.listen(PORT, async () => {
+    const mode = await getStorageMode();
+    console.log(`Server running at http://localhost:${PORT} (${mode})`);
+  });
+}
+
+module.exports = app;
