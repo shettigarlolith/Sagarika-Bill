@@ -17,6 +17,14 @@
         const page = location.pathname.split('/').pop() || 'index.html';
         location.replace(`login.html?next=${encodeURIComponent(page)}`);
       })();
+
+      function logoutUser() {
+        sessionStorage.removeItem('sagarika_auth');
+        sessionStorage.removeItem('sagarika_token');
+        sessionStorage.removeItem('sagarika_user');
+        sessionStorage.removeItem('sagarika_role');
+        location.replace('login.html');
+      }
     </script>
   </head>
   <body>
@@ -40,6 +48,7 @@
             <input id="themeToggle" type="checkbox" />
             <span>Night Mode</span>
           </label>
+          <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
           <div class="search-row">
             <input type="tel" id="searchPhone" placeholder="Search by phone number" />
             <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>

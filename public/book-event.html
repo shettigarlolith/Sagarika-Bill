@@ -11,12 +11,115 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles-v2.css" />
+    <style>
+      .calendar-wrap {
+        margin-top: 18px;
+      }
+
+      .calendar-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .calendar-title {
+        margin: 0;
+        color: #ec108d;
+      }
+
+      .calendar-weekdays,
+      .calendar-grid {
+        margin-top: 10px;
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .calendar-weekdays div {
+        font-size: 12px;
+        font-weight: 800;
+        color: #5f7383;
+        text-align: center;
+      }
+
+      .calendar-cell {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        min-height: 120px;
+        padding: 8px;
+        background: var(--input-bg);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .calendar-cell-empty {
+        background: transparent;
+        border-style: dashed;
+        opacity: 0.5;
+      }
+
+      .calendar-day {
+        font-size: 12px;
+        font-weight: 800;
+        color: #244462;
+      }
+
+      .calendar-events {
+        display: grid;
+        gap: 4px;
+        max-height: 88px;
+        overflow-y: auto;
+      }
+
+      .calendar-event-btn {
+        border: 1px solid #dce5ec;
+        border-radius: 8px;
+        background: #f7fafc;
+        color: #244462;
+        font-size: 12px;
+        text-align: left;
+        padding: 4px 6px;
+        cursor: pointer;
+      }
+
+      .calendar-event-btn:hover {
+        background: #e9eff8;
+      }
+
+      .calendar-details {
+        margin-top: 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--input-bg);
+        padding: 10px;
+      }
+
+      .calendar-details h3 {
+        margin: 0 0 8px;
+      }
+
+      .calendar-details p {
+        margin: 4px 0;
+      }
+
+    </style>
     <script>
       (function () {
         if (sessionStorage.getItem('sagarika_auth') === 'ok') return;
         const page = location.pathname.split('/').pop() || 'book-event.html';
         location.replace(`login.html?next=${encodeURIComponent(page)}`);
       })();
+
+      function logoutUser() {
+        sessionStorage.removeItem('sagarika_auth');
+        sessionStorage.removeItem('sagarika_token');
+        sessionStorage.removeItem('sagarika_user');
+        sessionStorage.removeItem('sagarika_role');
+        location.replace('login.html');
+      }
     </script>
   </head>
   <body>
@@ -35,6 +138,7 @@
             <input id="themeToggle" type="checkbox" />
             <span>Night Mode</span>
           </label>
+          <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
           <div class="search-row">
             <input type="tel" id="searchPhone" placeholder="Search by phone number" />
             <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
@@ -108,6 +212,32 @@
             <button type="button" id="printEventBtn" class="btn btn-secondary">Print</button>
           </div>
         </form>
+
+        <section class="calendar-wrap">
+          <div class="calendar-head">
+            <h2 class="calendar-title">Event Calendar</h2>
+            <div class="submit-wrap" style="margin-top: 0">
+              <button type="button" id="calendarPrevBtn" class="btn btn-secondary">Prev</button>
+              <strong id="calendarMonthLabel"></strong>
+              <button type="button" id="calendarNextBtn" class="btn btn-secondary">Next</button>
+              <button type="button" id="calendarRefreshBtn" class="btn">Refresh</button>
+            </div>
+          </div>
+          <div class="calendar-weekdays">
+            <div>Sun</div>
+            <div>Mon</div>
+            <div>Tue</div>
+            <div>Wed</div>
+            <div>Thu</div>
+            <div>Fri</div>
+            <div>Sat</div>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+          <div id="calendarDetails" class="calendar-details">
+            <h3>Booking Details</h3>
+            <p style="color: #5f7383; margin: 0">Click an event name in the calendar to view booked content.</p>
+          </div>
+        </section>
       </section>
     </main>
 
@@ -196,6 +326,12 @@
       const saveCancelBtn = document.getElementById('saveCancelBtn');
       const themeToggleInput = document.getElementById('themeToggle');
       const statusMsg = document.getElementById('statusMsg');
+      const calendarPrevBtn = document.getElementById('calendarPrevBtn');
+      const calendarNextBtn = document.getElementById('calendarNextBtn');
+      const calendarRefreshBtn = document.getElementById('calendarRefreshBtn');
+      const calendarMonthLabel = document.getElementById('calendarMonthLabel');
+      const calendarGrid = document.getElementById('calendarGrid');
+      const calendarDetails = document.getElementById('calendarDetails');
       const ptBillNo = document.getElementById('ptBillNo');
       const ptDate = document.getElementById('ptDate');
       const ptEventDate = document.getElementById('ptEventDate');
@@ -217,6 +353,8 @@
       let isEditingExisting = false;
       let matchedBookings = [];
       let currentBookingIndex = -1;
+      let calendarMonthCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      let calendarBookings = [];
 
       function onlyDigits(value) {
         return String(value || '').replace(/\D/g, '');
@@ -375,6 +513,114 @@
         }
 
         return parsed.toISOString().slice(0, 10);
+      }
+
+      function escapeHtml(text) {
+        return String(text || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function getBookingDateKey(value) {
+        return normalizeDateForInput(value);
+      }
+
+      function formatMonthLabel(dateObj) {
+        return dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      }
+
+      function showCalendarBookingDetails(booking) {
+        const items = Array.isArray(booking.items)
+          ? booking.items
+              .map((item) => `${String(item.item || '').trim()} x${Number(item.quantity || 0)}`)
+              .filter(Boolean)
+          : [];
+
+        calendarDetails.innerHTML = `
+          <h3>Booking Details</h3>
+          <p><strong>Booking ID:</strong> ${escapeHtml(booking.bookingId || '-')}</p>
+          <p><strong>Event Date:</strong> ${escapeHtml(normalizeDateForInput(booking.eventDay) || '-')}</p>
+          <p><strong>Event:</strong> ${escapeHtml(booking.event || '-')}</p>
+          <p><strong>Name:</strong> ${escapeHtml(booking.name || '-')}</p>
+          <p><strong>Phone:</strong> ${escapeHtml(booking.phoneNumber || '-')}</p>
+          <p><strong>Address:</strong> ${escapeHtml(booking.address || '-')}</p>
+          <p><strong>Items:</strong> ${escapeHtml(items.join(', ') || '-')}</p>
+          <p><strong>Note:</strong> ${escapeHtml(booking.note || '-')}</p>
+        `;
+      }
+
+      function renderCalendar() {
+        const monthStart = new Date(calendarMonthCursor.getFullYear(), calendarMonthCursor.getMonth(), 1);
+        const year = monthStart.getFullYear();
+        const month = monthStart.getMonth();
+        const firstDayWeekIndex = monthStart.getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        calendarMonthLabel.textContent = formatMonthLabel(monthStart);
+        calendarGrid.innerHTML = '';
+
+        for (let i = 0; i < firstDayWeekIndex; i += 1) {
+          const emptyCell = document.createElement('div');
+          emptyCell.className = 'calendar-cell calendar-cell-empty';
+          calendarGrid.appendChild(emptyCell);
+        }
+
+        for (let day = 1; day <= daysInMonth; day += 1) {
+          const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const dayBookings = calendarBookings.filter((booking) => getBookingDateKey(booking.eventDay) === key);
+
+          const cell = document.createElement('div');
+          cell.className = 'calendar-cell';
+
+          const dayTitle = document.createElement('div');
+          dayTitle.className = 'calendar-day';
+          dayTitle.textContent = key;
+
+          const eventsWrap = document.createElement('div');
+          eventsWrap.className = 'calendar-events';
+
+          if (dayBookings.length === 0) {
+            const none = document.createElement('span');
+            none.style.color = '#8a9aac';
+            none.style.fontSize = '12px';
+            none.textContent = 'No events';
+            eventsWrap.appendChild(none);
+          } else {
+            dayBookings.forEach((booking) => {
+              const eventBtn = document.createElement('button');
+              eventBtn.type = 'button';
+              eventBtn.className = 'calendar-event-btn';
+              eventBtn.textContent = String(booking.name || booking.event || booking.bookingId || 'Booked Event');
+              eventBtn.addEventListener('click', () => {
+                showCalendarBookingDetails(booking);
+                populateBookingForm(booking);
+                statusMsg.textContent = `Loaded booking ${booking.bookingId || ''} from calendar.`;
+                statusMsg.style.color = '#ff1493';
+              });
+              eventsWrap.appendChild(eventBtn);
+            });
+          }
+
+          cell.append(dayTitle, eventsWrap);
+          calendarGrid.appendChild(cell);
+        }
+      }
+
+      async function loadCalendarBookings() {
+        try {
+          const data = await requestApiJson(['book-events', 'bookEvents', 'bookevent']);
+          const rows = asArrayPayload(data);
+          if (!rows) {
+            throw new Error('Failed to load bookings for calendar.');
+          }
+          calendarBookings = rows;
+          renderCalendar();
+        } catch (error) {
+          calendarGrid.innerHTML = `<div class="calendar-cell" style="grid-column: 1 / -1; color: #b42a2a;">${escapeHtml(error.message)}</div>`;
+        }
       }
 
       function numberToWordsBelow1000(num) {
@@ -782,6 +1028,7 @@
           if (currentBookingId) {
             setFormReadOnly(true);
           }
+          await loadCalendarBookings();
           setSavingState(false);
           return result;
         } catch (error) {
@@ -854,6 +1101,20 @@
         });
       }
 
+      calendarPrevBtn.addEventListener('click', () => {
+        calendarMonthCursor = new Date(calendarMonthCursor.getFullYear(), calendarMonthCursor.getMonth() - 1, 1);
+        renderCalendar();
+      });
+
+      calendarNextBtn.addEventListener('click', () => {
+        calendarMonthCursor = new Date(calendarMonthCursor.getFullYear(), calendarMonthCursor.getMonth() + 1, 1);
+        renderCalendar();
+      });
+
+      calendarRefreshBtn.addEventListener('click', async () => {
+        await loadCalendarBookings();
+      });
+
       clearSearchBtn.addEventListener('click', () => {
         searchPhoneInput.value = '';
         matchedBookings = [];
@@ -873,6 +1134,8 @@
         isEditingExisting = false;
         setFormReadOnly(false);
         statusMsg.textContent = '';
+        calendarDetails.innerHTML =
+          '<h3>Booking Details</h3><p style="color: #5f7383; margin: 0">Click an event name in the calendar to view booked content.</p>';
       });
 
       editEventBtn.addEventListener('click', () => {
@@ -939,6 +1202,7 @@
         syncBookingHeader();
         try {
           await loadItemsFromSheet();
+          await loadCalendarBookings();
           eventItemsBody.innerHTML = '';
           eventItemsBody.appendChild(createRow('', 1));
           hideBookingListSelect();
@@ -950,6 +1214,7 @@
         } catch (error) {
           statusMsg.textContent = error.message;
           statusMsg.style.color = '#b42a2a';
+          await loadCalendarBookings();
           eventItemsBody.innerHTML = '';
           eventItemsBody.appendChild(createRow('', 1));
           hideBookingListSelect();

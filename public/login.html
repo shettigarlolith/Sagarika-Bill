@@ -11,15 +11,72 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles-v2.css" />
+    <script>
+      function logoutUser() {
+        sessionStorage.removeItem('sagarika_auth');
+        sessionStorage.removeItem('sagarika_token');
+        sessionStorage.removeItem('sagarika_user');
+        sessionStorage.removeItem('sagarika_role');
+        location.replace('login.html');
+      }
+    </script>
     <style>
       .login-wrap {
-        max-width: 420px;
+        max-width: 520px;
         margin: 10vh auto 0;
       }
 
       .login-title {
         margin: 6px 0 0;
         color: #ec108d;
+      }
+
+      .mode-switch {
+        margin-top: 12px;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .admin-panel {
+        margin-top: 16px;
+        display: none;
+      }
+
+      .pending-list {
+        margin-top: 10px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .pending-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border: 1px solid #dce5ec;
+        border-radius: 10px;
+        padding: 10px;
+        flex-wrap: wrap;
+      }
+
+      .user-row-main {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #244462;
+        font-size: 13px;
+      }
+
+      .user-row-actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .mode-btn-active {
+        background: linear-gradient(135deg, #0c7a6b, #1e927f);
+        color: #fff;
       }
     </style>
   </head>
@@ -31,7 +88,7 @@
       <section class="card">
         <p class="kicker">Secure Access</p>
         <h1 class="login-title">Sagarika Bill Login</h1>
-        <form id="loginForm" class="meta-grid">
+        <form id="authForm" class="meta-grid">
           <label>
             Username
             <input type="text" id="username" autocomplete="username" required />
@@ -41,10 +98,26 @@
             <input type="password" id="password" autocomplete="current-password" required />
           </label>
           <div class="submit-wrap">
-            <button type="submit" class="btn btn-primary">Login</button>
+            <button type="button" id="continueBtn" class="btn btn-secondary" style="display: none">Continue to App</button>
           </div>
         </form>
-        <p id="loginStatus" class="status"></p>
+        <div class="mode-switch">
+          <button type="submit" id="authSubmitBtn" class="btn btn-primary" form="authForm">Login</button>
+          <button type="button" id="modeRegisterBtn" class="btn btn-secondary">Create User</button>
+          <button type="button" id="logoutInlineBtn" class="btn btn-danger" onclick="logoutUser()" style="display: none">Logout</button>
+        </div>
+        <p id="authHint" style="margin: 8px 0 0; color: #5f7383; font-size: 13px">
+          Admin and approved users can login.
+        </p>
+        <section id="adminPanel" class="admin-panel">
+          <h2>User Management</h2>
+          <p class="status" id="adminStatus"></p>
+          <div id="adminUsersList" class="pending-list"></div>
+          <div class="submit-wrap">
+            <button type="button" id="refreshPendingBtn" class="btn btn-secondary">Refresh Users</button>
+          </div>
+        </section>
+        <p id="authStatus" class="status"></p>
       </section>
     </main>
 

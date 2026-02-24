@@ -616,6 +616,7 @@ input[readonly] {
   .search-row input {
     min-width: 100%;
   }
+
 }
 
 @media print {

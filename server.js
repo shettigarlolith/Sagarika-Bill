@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const XLSX = require('xlsx');
 
 let googleLib = null;
@@ -26,6 +27,9 @@ const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
 const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY || '';
 const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID || '';
+const ADMIN_USERNAME = 'lolith';
+const ADMIN_PASSWORD = 'lolith123@';
+const SESSION_TTL_MS = 1000 * 60 * 60 * 8;
 
 const defaultItemList = [
   { item: 'Rice (5kg)', price: 450 },
@@ -84,6 +88,29 @@ function writeSheet(workbook, sheetName, data) {
   }
 }
 
+function normalizeUserRecords(usersRaw) {
+  const normalizeStatus = (value) => {
+    const status = String(value || '').toLowerCase().trim();
+    if (status === 'approved' || status === 'pending' || status === 'disabled') {
+      return status;
+    }
+    return 'pending';
+  };
+
+  return (Array.isArray(usersRaw) ? usersRaw : [])
+    .map((row) => ({
+      username: normalizeUsername(row.username),
+      passwordHash: String(row.passwordHash || '').trim(),
+      salt: String(row.salt || '').trim(),
+      role: String(row.role || 'user').toLowerCase() === 'admin' ? 'admin' : 'user',
+      status: normalizeStatus(row.status),
+      createdAt: String(row.createdAt || ''),
+      approvedAt: String(row.approvedAt || ''),
+      approvedBy: String(row.approvedBy || '')
+    }))
+    .filter((row) => row.username && row.passwordHash && row.salt);
+}
+
 function ensureWorkbook() {
   let workbook;
   let changed = false;
@@ -112,6 +139,18 @@ function ensureWorkbook() {
 
   if (!workbook.SheetNames.includes('BookEvent')) {
     writeSheet(workbook, 'BookEvent', []);
+    changed = true;
+  }
+
+  if (!workbook.SheetNames.includes('Users')) {
+    writeSheet(workbook, 'Users', []);
+    changed = true;
+  }
+
+  const existingUsers = normalizeUserRecords(readSheet(workbook, 'Users'));
+  const ensuredUsers = ensureDefaultAdminUser(existingUsers);
+  if (ensuredUsers.changed) {
+    writeSheet(workbook, 'Users', ensuredUsers.users);
     changed = true;
   }
 
@@ -166,6 +205,142 @@ function getItemPriceMap(itemList) {
 
 let sheetsClient = null;
 let storageMode = null;
+const activeSessions = new Map();
+
+function normalizeUsername(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function hashPassword(password, salt) {
+  return crypto.pbkdf2Sync(String(password || ''), salt, 100000, 64, 'sha512').toString('hex');
+}
+
+function createPasswordRecord(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const passwordHash = hashPassword(password, salt);
+  return { salt, passwordHash };
+}
+
+function createUserRecord({ username, password, role = 'user', status = 'pending', approvedBy = '' }) {
+  const normalizedUsername = normalizeUsername(username);
+  const { salt, passwordHash } = createPasswordRecord(password);
+  const now = new Date().toISOString();
+  return {
+    username: normalizedUsername,
+    passwordHash,
+    salt,
+    role,
+    status,
+    createdAt: now,
+    approvedAt: status === 'approved' ? now : '',
+    approvedBy: status === 'approved' ? approvedBy : ''
+  };
+}
+
+function buildDefaultAdminUser() {
+  return createUserRecord({
+    username: ADMIN_USERNAME,
+    password: ADMIN_PASSWORD,
+    role: 'admin',
+    status: 'approved',
+    approvedBy: 'system'
+  });
+}
+
+function sanitizeUser(user) {
+  return {
+    username: String(user.username || ''),
+    role: String(user.role || 'user'),
+    status: String(user.status || 'pending'),
+    createdAt: String(user.createdAt || ''),
+    approvedAt: String(user.approvedAt || ''),
+    approvedBy: String(user.approvedBy || '')
+  };
+}
+
+function ensureDefaultAdminUser(users) {
+  const adminUsername = normalizeUsername(ADMIN_USERNAME);
+  const existing = users.find((user) => normalizeUsername(user.username) === adminUsername);
+  if (!existing) {
+    users.push(buildDefaultAdminUser());
+    return { users, changed: true };
+  }
+
+  let changed = false;
+  if (existing.role !== 'admin') {
+    existing.role = 'admin';
+    changed = true;
+  }
+  if (existing.status !== 'approved') {
+    existing.status = 'approved';
+    existing.approvedAt = new Date().toISOString();
+    existing.approvedBy = 'system';
+    changed = true;
+  }
+
+  return { users, changed };
+}
+
+function createSession(user) {
+  const token = crypto.randomBytes(24).toString('hex');
+  activeSessions.set(token, {
+    username: String(user.username || ''),
+    role: String(user.role || 'user'),
+    createdAt: Date.now()
+  });
+  return token;
+}
+
+function getSessionFromRequest(req) {
+  const authHeader = String(req.headers.authorization || '');
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    return null;
+  }
+
+  const token = match[1].trim();
+  const session = activeSessions.get(token);
+  if (!session) {
+    return null;
+  }
+
+  if (Date.now() - session.createdAt > SESSION_TTL_MS) {
+    activeSessions.delete(token);
+    return null;
+  }
+
+  return { token, ...session };
+}
+
+function requireAdmin(req, res, next) {
+  const session = getSessionFromRequest(req);
+  if (!session) {
+    return res.status(401).json({ error: 'Unauthorized.' });
+  }
+
+  if (session.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin permission required.' });
+  }
+
+  req.session = session;
+  return next();
+}
+
+function revokeUserSessions(username) {
+  const safeUsername = normalizeUsername(username);
+  for (const [token, session] of activeSessions.entries()) {
+    if (normalizeUsername(session.username) === safeUsername) {
+      activeSessions.delete(token);
+    }
+  }
+}
+
+function validatePasswordStrength(password) {
+  if (password.length < 6 || password.length > 128) {
+    return 'Password must be 6-128 characters long.';
+  }
+  return '';
+}
 
 function isGoogleConfigured() {
   const hasJson = Boolean(GOOGLE_SERVICE_ACCOUNT_JSON);
@@ -285,7 +460,7 @@ async function ensureGoogleSheetsWorkbook() {
   });
 
   const existing = new Set((meta.data.sheets || []).map((s) => s.properties?.title).filter(Boolean));
-  const required = ['Bills', 'BillItems', 'Item List', 'BookEvent'];
+  const required = ['Bills', 'BillItems', 'Item List', 'BookEvent', 'Users'];
 
   const requests = required
     .filter((title) => !existing.has(title))
@@ -301,6 +476,13 @@ async function ensureGoogleSheetsWorkbook() {
   const itemList = await readGoogleRows('Item List');
   if (itemList.length === 0) {
     await writeGoogleRows('Item List', defaultItemList);
+  }
+
+  const usersRaw = await readGoogleRows('Users');
+  const users = normalizeUserRecords(usersRaw);
+  const ensuredUsers = ensureDefaultAdminUser(users);
+  if (ensuredUsers.changed) {
+    await writeGoogleRows('Users', ensuredUsers.users);
   }
 }
 
@@ -416,6 +598,39 @@ async function saveBookEvents(bookEvents) {
   XLSX.writeFile(workbook, excelPath);
 }
 
+async function getUsers() {
+  const mode = await getStorageMode();
+  if (mode === 'google') {
+    const users = normalizeUserRecords(await readGoogleRows('Users'));
+    const ensuredUsers = ensureDefaultAdminUser(users);
+    if (ensuredUsers.changed) {
+      await writeGoogleRows('Users', ensuredUsers.users);
+    }
+    return ensuredUsers.users;
+  }
+
+  const workbook = ensureWorkbook();
+  const users = normalizeUserRecords(readSheet(workbook, 'Users'));
+  const ensuredUsers = ensureDefaultAdminUser(users);
+  if (ensuredUsers.changed) {
+    writeSheet(workbook, 'Users', ensuredUsers.users);
+    XLSX.writeFile(workbook, excelPath);
+  }
+  return ensuredUsers.users;
+}
+
+async function saveUsers(users) {
+  const mode = await getStorageMode();
+  if (mode === 'google') {
+    await writeGoogleRows('Users', users);
+    return;
+  }
+
+  const workbook = ensureWorkbook();
+  writeSheet(workbook, 'Users', users);
+  XLSX.writeFile(workbook, excelPath);
+}
+
 function getNextBookEventSequence(bookEvents) {
   let maxSeq = 0;
 
@@ -469,6 +684,275 @@ function parseBookEventItemsFromRow(row) {
 
   return [];
 }
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const username = normalizeUsername(req.body?.username);
+    const password = String(req.body?.password || '');
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required.' });
+    }
+
+    const users = await getUsers();
+    const user = users.find((row) => normalizeUsername(row.username) === username);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid username or password.' });
+    }
+
+    const expectedHash = hashPassword(password, user.salt);
+    if (expectedHash !== user.passwordHash) {
+      return res.status(401).json({ error: 'Invalid username or password.' });
+    }
+
+    if (user.status === 'disabled') {
+      return res.status(403).json({ error: 'User is disabled. Contact admin.' });
+    }
+
+    if (user.status !== 'approved') {
+      return res.status(403).json({ error: 'User is pending admin approval.' });
+    }
+
+    const token = createSession(user);
+    return res.json({
+      message: 'Login successful.',
+      token,
+      user: sanitizeUser(user)
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to login.', details: error.message });
+  }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const username = normalizeUsername(req.body?.username);
+    const password = String(req.body?.password || '');
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required.' });
+    }
+
+    if (!/^[a-z0-9._-]{3,40}$/.test(username)) {
+      return res.status(400).json({
+        error: 'Username must be 3-40 chars and can only include letters, numbers, dot, underscore, hyphen.'
+      });
+    }
+
+    const passwordError = validatePasswordStrength(password);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
+    }
+
+    const users = await getUsers();
+    const existing = users.find((row) => normalizeUsername(row.username) === username);
+    if (existing) {
+      if (existing.status === 'pending') {
+        return res.status(409).json({ error: 'User already exists and is pending admin approval.' });
+      }
+      return res.status(409).json({ error: 'Username already exists.' });
+    }
+
+    users.push(createUserRecord({ username, password, role: 'user', status: 'pending' }));
+    await saveUsers(users);
+
+    return res.status(201).json({
+      message: 'User created and waiting for admin approval.'
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to register user.', details: error.message });
+  }
+});
+
+app.get('/api/auth/pending-users', requireAdmin, async (req, res) => {
+  try {
+    const users = await getUsers();
+    const pendingUsers = users
+      .filter((user) => user.role !== 'admin' && user.status === 'pending')
+      .map((user) => sanitizeUser(user));
+
+    return res.json(pendingUsers);
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to read pending users.', details: error.message });
+  }
+});
+
+app.post('/api/auth/approve-user', requireAdmin, async (req, res) => {
+  try {
+    const username = normalizeUsername(req.body?.username);
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required.' });
+    }
+
+    const users = await getUsers();
+    const user = users.find((row) => normalizeUsername(row.username) === username);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (user.role === 'admin') {
+      return res.status(400).json({ error: 'Admin user does not require approval.' });
+    }
+
+    if (user.status === 'approved') {
+      return res.json({ message: 'User already approved.', user: sanitizeUser(user) });
+    }
+
+    user.status = 'approved';
+    user.approvedAt = new Date().toISOString();
+    user.approvedBy = String(req.session.username || '');
+
+    await saveUsers(users);
+    return res.json({ message: 'User approved successfully.', user: sanitizeUser(user) });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to approve user.', details: error.message });
+  }
+});
+
+app.get('/api/auth/users', requireAdmin, async (req, res) => {
+  try {
+    const users = await getUsers();
+    const result = users
+      .map((user) => sanitizeUser(user))
+      .sort((a, b) => {
+        if (a.role !== b.role) {
+          return a.role === 'admin' ? -1 : 1;
+        }
+        return a.username.localeCompare(b.username);
+      });
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to read users.', details: error.message });
+  }
+});
+
+app.post('/api/auth/reset-password', requireAdmin, async (req, res) => {
+  try {
+    const username = normalizeUsername(req.body?.username);
+    const newPassword = String(req.body?.newPassword || '');
+
+    if (!username || !newPassword) {
+      return res.status(400).json({ error: 'Username and newPassword are required.' });
+    }
+
+    const passwordError = validatePasswordStrength(newPassword);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
+    }
+
+    const users = await getUsers();
+    const user = users.find((row) => normalizeUsername(row.username) === username);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (user.role === 'admin') {
+      return res.status(400).json({ error: 'Admin password cannot be reset from this action.' });
+    }
+
+    const { salt, passwordHash } = createPasswordRecord(newPassword);
+    user.salt = salt;
+    user.passwordHash = passwordHash;
+    await saveUsers(users);
+    revokeUserSessions(username);
+    return res.json({ message: 'Password reset successfully.', user: sanitizeUser(user) });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to reset password.', details: error.message });
+  }
+});
+
+app.post('/api/auth/disable-user', requireAdmin, async (req, res) => {
+  try {
+    const username = normalizeUsername(req.body?.username);
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required.' });
+    }
+
+    const users = await getUsers();
+    const user = users.find((row) => normalizeUsername(row.username) === username);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (user.role === 'admin') {
+      return res.status(400).json({ error: 'Admin user cannot be disabled.' });
+    }
+
+    if (user.status === 'disabled') {
+      return res.json({ message: 'User already disabled.', user: sanitizeUser(user) });
+    }
+
+    user.status = 'disabled';
+    await saveUsers(users);
+    revokeUserSessions(username);
+    return res.json({ message: 'User disabled successfully.', user: sanitizeUser(user) });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to disable user.', details: error.message });
+  }
+});
+
+app.post('/api/auth/enable-user', requireAdmin, async (req, res) => {
+  try {
+    const username = normalizeUsername(req.body?.username);
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required.' });
+    }
+
+    const users = await getUsers();
+    const user = users.find((row) => normalizeUsername(row.username) === username);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (user.role === 'admin') {
+      return res.status(400).json({ error: 'Admin user is always enabled.' });
+    }
+
+    if (user.status === 'approved') {
+      return res.json({ message: 'User already enabled.', user: sanitizeUser(user) });
+    }
+
+    user.status = 'approved';
+    if (!user.approvedAt) {
+      user.approvedAt = new Date().toISOString();
+    }
+    if (!user.approvedBy) {
+      user.approvedBy = String(req.session.username || '');
+    }
+
+    await saveUsers(users);
+    return res.json({ message: 'User enabled successfully.', user: sanitizeUser(user) });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to enable user.', details: error.message });
+  }
+});
+
+app.post('/api/auth/delete-user', requireAdmin, async (req, res) => {
+  try {
+    const username = normalizeUsername(req.body?.username);
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required.' });
+    }
+
+    const users = await getUsers();
+    const idx = users.findIndex((row) => normalizeUsername(row.username) === username);
+    if (idx < 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (users[idx].role === 'admin') {
+      return res.status(400).json({ error: 'Admin user cannot be deleted.' });
+    }
+
+    const deleted = users[idx];
+    users.splice(idx, 1);
+    await saveUsers(users);
+    revokeUserSessions(username);
+    return res.json({ message: 'User deleted successfully.', user: sanitizeUser(deleted) });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to delete user.', details: error.message });
+  }
+});
 
 app.get('/api/items', async (req, res) => {
   try {
