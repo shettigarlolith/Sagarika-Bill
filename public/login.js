@@ -13,6 +13,9 @@ const authSubmitBtn = document.getElementById('authSubmitBtn');
 const logoutInlineBtn = document.getElementById('logoutInlineBtn');
 
 let authMode = 'login';
+const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
 
 function getNextPage() {
   const params = new URLSearchParams(location.search);
@@ -68,11 +71,25 @@ function setAuthMode(mode) {
   clearStatus();
 }
 
+function withApiBase(path) {
+  if (!path.startsWith('/api/')) {
+    return path;
+  }
+  if (!BACKEND_BASE_URL) {
+    return path;
+  }
+  return `${BACKEND_BASE_URL}${path}`;
+}
+
 async function fetchJson(url, options) {
+  const finalUrl = withApiBase(url);
   let response;
   try {
-    response = await fetch(url, options);
+    response = await fetch(finalUrl, options);
   } catch {
+    if (BACKEND_BASE_URL) {
+      throw new Error(`Cannot reach backend: ${BACKEND_BASE_URL}`);
+    }
     throw new Error('Cannot reach server. Open the app via http://localhost:3000 and keep npm start running.');
   }
 
@@ -95,7 +112,16 @@ async function fetchJson(url, options) {
 
   if (!response.ok) {
     if (response.status === 404 && url.startsWith('/api/')) {
+      if (BACKEND_BASE_URL) {
+        throw new Error(`API not found on backend: ${BACKEND_BASE_URL}`);
+      }
       throw new Error('API not found. Restart server with latest code and open http://localhost:3000.');
+    }
+    if (response.status === 405 && url.startsWith('/api/')) {
+      if (BACKEND_BASE_URL) {
+        throw new Error(`API method blocked (HTTP 405) on backend: ${BACKEND_BASE_URL}`);
+      }
+      throw new Error('Login API method blocked (HTTP 405). Open the app from http://localhost:3000.');
     }
     throw new Error(data.error || `Request failed (HTTP ${response.status}).`);
   }
