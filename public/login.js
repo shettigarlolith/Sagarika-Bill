@@ -69,16 +69,35 @@ function setAuthMode(mode) {
 }
 
 async function fetchJson(url, options) {
-  const response = await fetch(url, options);
-  let data = {};
+  let response;
   try {
-    data = await response.json();
+    response = await fetch(url, options);
   } catch {
-    data = {};
+    throw new Error('Cannot reach server. Open the app via http://localhost:3000 and keep npm start running.');
+  }
+
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  let data = {};
+
+  if (contentType.includes('application/json')) {
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
+    }
+  } else {
+    try {
+      await response.text();
+    } catch {
+      // ignore
+    }
   }
 
   if (!response.ok) {
-    throw new Error(data.error || 'Request failed.');
+    if (response.status === 404 && url.startsWith('/api/')) {
+      throw new Error('API not found. Restart server with latest code and open http://localhost:3000.');
+    }
+    throw new Error(data.error || `Request failed (HTTP ${response.status}).`);
   }
 
   return data;
