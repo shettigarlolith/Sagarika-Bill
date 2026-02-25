@@ -663,6 +663,46 @@ input[readonly] {
   font-weight: 700;
 }
 
+.choice-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 14, 28, 0.62);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 20px;
+}
+
+.choice-modal.is-open {
+  display: flex;
+}
+
+.choice-dialog {
+  width: min(460px, 100%);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.34);
+  padding: 18px;
+}
+
+.choice-dialog h3 {
+  margin: 0 0 8px;
+}
+
+.choice-dialog p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.choice-actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 768px) {
   input,
   textarea,

@@ -190,8 +190,8 @@ function getNextBillSequence(bills) {
   let maxSeq = 0;
 
   bills.forEach((bill) => {
-    const id = String(bill.billId || '');
-    const match = id.match(/^SAG(\d{4})\d{4}$/);
+    const id = String(bill.billId || '').trim();
+    const match = id.match(/^(?:SAG)?(\d{4})(?:\d{4})?$/);
     if (match) {
       const seq = Number(match[1]);
       if (!Number.isNaN(seq) && seq > maxSeq) {
@@ -203,13 +203,9 @@ function getNextBillSequence(bills) {
   return maxSeq + 1;
 }
 
-function buildBillId(bills, billDateValue) {
+function buildBillId(bills) {
   const sequence = getNextBillSequence(bills);
-  const safeDate = billDateValue || new Date().toISOString().slice(0, 10);
-  const dateObj = new Date(safeDate);
-  const month = String((dateObj.getMonth() + 1) || 1).padStart(2, '0');
-  const day = String(dateObj.getDate() || 1).padStart(2, '0');
-  return `SAG${String(sequence).padStart(4, '0')}${month}${day}`;
+  return String(sequence).padStart(4, '0');
 }
 
 function getItemPriceMap(itemList) {
@@ -224,9 +220,80 @@ function getItemPriceMap(itemList) {
   return priceMap;
 }
 
+function buildNormalizedBillPayload(body, itemList) {
+  const { billDate, eventDay, customerName, phoneNumber, gstNo, eWay, address, note, items, gst, discount } = body || {};
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return { error: 'At least one item is required.' };
+  }
+
+  const normalizedPhone = normalizePhoneNumber(phoneNumber);
+  if (normalizedPhone.length !== 10) {
+    return { error: 'Phone number must be a valid 10-digit number.' };
+  }
+
+  const priceMap = getItemPriceMap(itemList);
+
+  const normalizedItems = items.map((item, index) => {
+    const itemName = String(item.item || '').trim();
+    const quantity = Number(item.quantity || 0);
+    const unitPrice = Number(priceMap[itemName]);
+    const amount = quantity * unitPrice;
+
+    return {
+      slNo: Number(item.slNo ?? index + 1),
+      item: itemName,
+      quantity,
+      unitPrice,
+      amount
+    };
+  });
+
+  const hasInvalidItem = normalizedItems.some(
+    (item) =>
+      !item.item ||
+      Number.isNaN(item.quantity) ||
+      Number.isNaN(item.unitPrice) ||
+      Number.isNaN(item.amount)
+  );
+
+  if (hasInvalidItem) {
+    return { error: 'Item not found in "Item List" sheet or invalid quantity.' };
+  }
+
+  const total = normalizedItems.reduce((sum, item) => sum + item.amount, 0);
+  const selectedItems = normalizedItems.map((item) => `${item.item} x${item.quantity}`).join(', ');
+  const gstPercent = Number(gst || 0);
+  const discountPercent = Number(discount || 0);
+  const gstAmount = (total * gstPercent) / 100;
+  const discountAmount = (total * discountPercent) / 100;
+  const amountPayable = total + gstAmount - discountAmount;
+
+  return {
+    data: {
+      billDate: billDate || new Date().toISOString().slice(0, 10),
+      eventDay: String(eventDay || '').trim(),
+      customerName: customerName || 'Walk-in Customer',
+      phoneNumber: normalizedPhone,
+      gstNo: String(gstNo || '').trim(),
+      eWay: String(eWay || '').trim(),
+      address: String(address || ''),
+      note: String(note || ''),
+      selectedItems,
+      total,
+      gst: gstPercent,
+      discount: discountPercent,
+      amountPayable,
+      normalizedItems
+    }
+  };
+}
+
 let sheetsClient = null;
 let storageMode = null;
 const activeSessions = new Map();
+const GOOGLE_READ_CACHE_TTL_MS = Math.max(0, Number(process.env.GOOGLE_READ_CACHE_TTL_MS || 3000));
+const googleSheetReadCache = new Map();
 
 function normalizeUsername(value) {
   return String(value || '').trim().toLowerCase();
@@ -473,6 +540,108 @@ function normalizeNumericFields(rows, numericFields) {
   });
 }
 
+function parseBillItemsJson(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((entry, index) => ({
+        slNo: Number(entry?.slNo ?? index + 1),
+        item: String(entry?.item || '').trim(),
+        quantity: Number(entry?.quantity || 0),
+        unitPrice: Number(entry?.unitPrice || 0),
+        amount: Number(entry?.amount || 0)
+      }))
+      .filter(
+        (entry) =>
+          entry.item &&
+          Number.isFinite(entry.slNo) &&
+          Number.isFinite(entry.quantity) &&
+          Number.isFinite(entry.unitPrice) &&
+          Number.isFinite(entry.amount)
+      );
+  } catch {
+    return [];
+  }
+}
+
+function extractBillItemsFromRow(row) {
+  const fromJson = parseBillItemsJson(row.itemsJson);
+  if (fromJson.length > 0) {
+    return fromJson;
+  }
+
+  const itemName = String(row.item || '').trim();
+  if (!itemName) {
+    return [];
+  }
+
+  const quantity = Number(row.quantity || 0);
+  const unitPrice = Number(row.unitPrice || 0);
+  const amount = Number(row.amount || quantity * unitPrice);
+  const slNo = Number(row.slNo || 1);
+
+  if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice) || !Number.isFinite(amount) || !Number.isFinite(slNo)) {
+    return [];
+  }
+
+  return [{ slNo, item: itemName, quantity, unitPrice, amount }];
+}
+
+function getBillItemsForBillId(billItems, billId) {
+  const rows = billItems.filter((entry) => String(entry.billId || '').trim() === String(billId || '').trim());
+  const flatItems = rows.flatMap((row) => extractBillItemsFromRow(row));
+  flatItems.sort((a, b) => Number(a.slNo || 0) - Number(b.slNo || 0));
+  return flatItems;
+}
+
+function compactBillItemsRows(billItems) {
+  const grouped = new Map();
+
+  (Array.isArray(billItems) ? billItems : []).forEach((row) => {
+    const billId = String(row.billId || '').trim();
+    if (!billId) {
+      return;
+    }
+
+    const items = extractBillItemsFromRow(row);
+    if (!grouped.has(billId)) {
+      grouped.set(billId, []);
+    }
+    grouped.get(billId).push(...items);
+  });
+
+  return [...grouped.entries()]
+    .map(([billId, items]) => {
+      const sortedItems = items
+        .filter((item) => item.item)
+        .sort((a, b) => Number(a.slNo || 0) - Number(b.slNo || 0))
+        .map((item, index) => ({
+          slNo: Number(item.slNo || index + 1),
+          item: String(item.item || '').trim(),
+          quantity: Number(item.quantity || 0),
+          unitPrice: Number(item.unitPrice || 0),
+          amount: Number(item.amount || 0)
+        }));
+
+      return {
+        billId,
+        itemCount: sortedItems.length,
+        itemsJson: JSON.stringify(sortedItems),
+        updatedAt: new Date().toISOString()
+      };
+    })
+    .sort((a, b) => a.billId.localeCompare(b.billId, undefined, { numeric: true, sensitivity: 'base' }));
+}
+
 async function ensureGoogleSheetsWorkbook() {
   const sheets = await getSheetsClient();
   const meta = await sheets.spreadsheets.get({
@@ -508,13 +677,26 @@ async function ensureGoogleSheetsWorkbook() {
 }
 
 async function readGoogleRows(sheetName) {
+  const cacheKey = String(sheetName || '').trim();
+  const now = Date.now();
+  const cached = googleSheetReadCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.rows.map((row) => ({ ...row }));
+  }
+
   const sheets = await getSheetsClient();
   const result = await sheets.spreadsheets.values.get({
     spreadsheetId: GOOGLE_SHEET_ID,
     range: `${sheetName}!A1:ZZ20000`
   });
-
-  return valueMatrixToRows(result.data.values || []);
+  const rows = valueMatrixToRows(result.data.values || []);
+  if (GOOGLE_READ_CACHE_TTL_MS > 0) {
+    googleSheetReadCache.set(cacheKey, {
+      expiresAt: now + GOOGLE_READ_CACHE_TTL_MS,
+      rows
+    });
+  }
+  return rows.map((row) => ({ ...row }));
 }
 
 async function writeGoogleRows(sheetName, rows) {
@@ -532,6 +714,8 @@ async function writeGoogleRows(sheetName, rows) {
     valueInputOption: 'RAW',
     requestBody: { values }
   });
+
+  googleSheetReadCache.delete(String(sheetName || '').trim());
 }
 
 async function getStorageMode() {
@@ -556,28 +740,40 @@ async function getStorageMode() {
   return storageMode;
 }
 
-async function getAllData() {
+async function getAllData(options = {}) {
+  const {
+    includeBills = true,
+    includeBillItems = true,
+    includeItemList = true,
+    includeBookEvents = true
+  } = options;
   const mode = await getStorageMode();
 
   if (mode === 'google') {
-    const billsRaw = await readGoogleRows('Bills');
-    const itemListRaw = await readGoogleRows('Item List');
-    const billItemsRaw = await readGoogleRows('BillItems');
-    const bookEventsRaw = await readGoogleRows('BookEvent');
+    const billsRaw = includeBills ? await readGoogleRows('Bills') : [];
+    const itemListRaw = includeItemList ? await readGoogleRows('Item List') : [];
+    const billItemsRaw = includeBillItems ? await readGoogleRows('BillItems') : [];
+    const bookEventsRaw = includeBookEvents ? await readGoogleRows('BookEvent') : [];
 
-    const bills = normalizeNumericFields(billsRaw, ['total', 'gst', 'discount', 'amountPayable']);
-    const billItems = normalizeNumericFields(billItemsRaw, ['slNo', 'quantity', 'unitPrice', 'amount']);
-    const itemList = normalizeNumericFields(itemListRaw, ['price']);
-    const bookEvents = normalizeNumericFields(bookEventsRaw, ['quantity']);
+    const bills = includeBills ? normalizeNumericFields(billsRaw, ['total', 'gst', 'discount', 'amountPayable']) : [];
+    const billItems = includeBillItems
+      ? normalizeNumericFields(billItemsRaw, ['slNo', 'quantity', 'unitPrice', 'amount'])
+      : [];
+    const itemList = includeItemList ? normalizeNumericFields(itemListRaw, ['price']) : [];
+    const bookEvents = includeBookEvents ? normalizeNumericFields(bookEventsRaw, ['quantity']) : [];
 
     return { mode, bills, billItems, itemList, bookEvents };
   }
 
   const workbook = ensureWorkbook();
-  const bills = normalizeNumericFields(readSheet(workbook, 'Bills'), ['total', 'gst', 'discount', 'amountPayable']);
-  const billItems = normalizeNumericFields(readSheet(workbook, 'BillItems'), ['slNo', 'quantity', 'unitPrice', 'amount']);
-  const itemList = normalizeNumericFields(readSheet(workbook, 'Item List'), ['price']);
-  const bookEvents = normalizeNumericFields(readSheet(workbook, 'BookEvent'), ['quantity']);
+  const bills = includeBills
+    ? normalizeNumericFields(readSheet(workbook, 'Bills'), ['total', 'gst', 'discount', 'amountPayable'])
+    : [];
+  const billItems = includeBillItems
+    ? normalizeNumericFields(readSheet(workbook, 'BillItems'), ['slNo', 'quantity', 'unitPrice', 'amount'])
+    : [];
+  const itemList = includeItemList ? normalizeNumericFields(readSheet(workbook, 'Item List'), ['price']) : [];
+  const bookEvents = includeBookEvents ? normalizeNumericFields(readSheet(workbook, 'BookEvent'), ['quantity']) : [];
   return { mode, bills, billItems, itemList, bookEvents };
 }
 
@@ -594,16 +790,18 @@ async function saveItemList(itemList) {
 }
 
 async function saveBillsAndItems(bills, billItems) {
+  const compactedBillItems = compactBillItemsRows(billItems);
+
   const mode = await getStorageMode();
   if (mode === 'google') {
     await writeGoogleRows('Bills', bills);
-    await writeGoogleRows('BillItems', billItems);
+    await writeGoogleRows('BillItems', compactedBillItems);
     return;
   }
 
   const workbook = ensureWorkbook();
   writeSheet(workbook, 'Bills', bills);
-  writeSheet(workbook, 'BillItems', billItems);
+  writeSheet(workbook, 'BillItems', compactedBillItems);
   XLSX.writeFile(workbook, excelPath);
 }
 
@@ -977,7 +1175,12 @@ app.post('/api/auth/delete-user', requireAdmin, async (req, res) => {
 
 app.get('/api/items', async (req, res) => {
   try {
-    const { itemList } = await getAllData();
+    const { itemList } = await getAllData({
+      includeBills: false,
+      includeBillItems: false,
+      includeItemList: true,
+      includeBookEvents: false
+    });
     const result = itemList
       .map((entry) => ({ item: String(entry.item || '').trim(), price: Number(entry.price || 0) }))
       .filter((entry) => entry.item)
@@ -1018,89 +1221,109 @@ app.post('/api/items', async (req, res) => {
 
 app.post('/api/bills', async (req, res) => {
   try {
-    const { billDate, customerName, phoneNumber, gstNo, eWay, address, note, items, gst, discount } = req.body;
-
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: 'At least one item is required.' });
-    }
-
-    const normalizedPhone = normalizePhoneNumber(phoneNumber);
-    if (normalizedPhone.length !== 10) {
-      return res.status(400).json({ error: 'Phone number must be a valid 10-digit number.' });
-    }
-
-    const { bills, billItems, itemList } = await getAllData();
-    const priceMap = getItemPriceMap(itemList);
-
-    const normalizedItems = items.map((item, index) => {
-      const itemName = String(item.item || '').trim();
-      const quantity = Number(item.quantity || 0);
-      const unitPrice = Number(priceMap[itemName]);
-      const amount = quantity * unitPrice;
-
-      return {
-        slNo: Number(item.slNo ?? index + 1),
-        item: itemName,
-        quantity,
-        unitPrice,
-        amount
-      };
+    const { bills, billItems, itemList } = await getAllData({
+      includeBills: true,
+      includeBillItems: true,
+      includeItemList: true,
+      includeBookEvents: false
     });
-
-    const hasInvalidItem = normalizedItems.some(
-      (item) =>
-        !item.item ||
-        Number.isNaN(item.quantity) ||
-        Number.isNaN(item.unitPrice) ||
-        Number.isNaN(item.amount)
-    );
-
-    if (hasInvalidItem) {
-      return res.status(400).json({ error: 'Item not found in "Item List" sheet or invalid quantity.' });
+    const normalizedPayload = buildNormalizedBillPayload(req.body, itemList);
+    if (normalizedPayload.error) {
+      return res.status(400).json({ error: normalizedPayload.error });
     }
+    const payload = normalizedPayload.data;
 
-    const total = normalizedItems.reduce((sum, item) => sum + item.amount, 0);
-    const selectedItems = normalizedItems.map((item) => `${item.item} x${item.quantity}`).join(', ');
-    const gstPercent = Number(gst || 0);
-    const discountPercent = Number(discount || 0);
-    const gstAmount = (total * gstPercent) / 100;
-    const discountAmount = (total * discountPercent) / 100;
-    const amountPayable = total + gstAmount - discountAmount;
-
-    const billId = buildBillId(bills, billDate);
+    const billId = buildBillId(bills);
 
     bills.push({
       billId,
-      billDate: billDate || new Date().toISOString().slice(0, 10),
-      customerName: customerName || 'Walk-in Customer',
-      phoneNumber: normalizedPhone,
-      gstNo: String(gstNo || '').trim(),
-      eWay: String(eWay || '').trim(),
-      address: String(address || ''),
-      note: String(note || ''),
-      selectedItems,
-      total,
-      gst: gstPercent,
-      discount: discountPercent,
-      amountPayable,
+      billDate: payload.billDate,
+      eventDay: payload.eventDay,
+      customerName: payload.customerName,
+      phoneNumber: payload.phoneNumber,
+      gstNo: payload.gstNo,
+      eWay: payload.eWay,
+      address: payload.address,
+      note: payload.note,
+      selectedItems: payload.selectedItems,
+      total: payload.total,
+      gst: payload.gst,
+      discount: payload.discount,
+      amountPayable: payload.amountPayable,
       createdAt: new Date().toISOString()
     });
 
-    normalizedItems.forEach((item) => {
-      billItems.push({
-        billId,
-        slNo: item.slNo,
-        item: item.item,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        amount: item.amount
-      });
+    billItems.push({
+      billId,
+      itemCount: payload.normalizedItems.length,
+      itemsJson: JSON.stringify(payload.normalizedItems),
+      updatedAt: new Date().toISOString()
     });
 
     await saveBillsAndItems(bills, billItems);
     res.status(201).json({ message: 'Bill saved successfully.', billId });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save bill.', details: error.message });
+  }
+});
+
+app.put('/api/bills/:billId', async (req, res) => {
+  try {
+    const billId = String(req.params.billId || '').trim();
+    if (!billId) {
+      return res.status(400).json({ error: 'Bill ID is required.' });
+    }
+
+    const { bills, billItems, itemList } = await getAllData({
+      includeBills: true,
+      includeBillItems: true,
+      includeItemList: true,
+      includeBookEvents: false
+    });
+    const billIndex = bills.findIndex((bill) => String(bill.billId || '').trim() === billId);
+    if (billIndex < 0) {
+      return res.status(404).json({ error: 'Bill not found.' });
+    }
+
+    const normalizedPayload = buildNormalizedBillPayload(req.body, itemList);
+    if (normalizedPayload.error) {
+      return res.status(400).json({ error: normalizedPayload.error });
+    }
+    const payload = normalizedPayload.data;
+
+    const existing = bills[billIndex] || {};
+    bills[billIndex] = {
+      ...existing,
+      billId,
+      billDate: payload.billDate,
+      eventDay: payload.eventDay,
+      customerName: payload.customerName,
+      phoneNumber: payload.phoneNumber,
+      gstNo: payload.gstNo,
+      eWay: payload.eWay,
+      address: payload.address,
+      note: payload.note,
+      selectedItems: payload.selectedItems,
+      total: payload.total,
+      gst: payload.gst,
+      discount: payload.discount,
+      amountPayable: payload.amountPayable,
+      createdAt: String(existing.createdAt || new Date().toISOString()),
+      updatedAt: new Date().toISOString()
+    };
+
+    const nextBillItems = billItems.filter((row) => String(row.billId || '').trim() !== billId);
+    nextBillItems.push({
+      billId,
+      itemCount: payload.normalizedItems.length,
+      itemsJson: JSON.stringify(payload.normalizedItems),
+      updatedAt: new Date().toISOString()
+    });
+
+    await saveBillsAndItems(bills, nextBillItems);
+    res.json({ message: 'Bill updated successfully.', billId });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update bill.', details: error.message });
   }
 });
 
@@ -1117,7 +1340,12 @@ app.post('/api/book-events', async (req, res) => {
       return res.status(400).json({ error: 'Phone number must be a valid 10-digit number.' });
     }
 
-    const { itemList, bookEvents } = await getAllData();
+    const { itemList, bookEvents } = await getAllData({
+      includeBills: false,
+      includeBillItems: false,
+      includeItemList: true,
+      includeBookEvents: true
+    });
     const priceMap = getItemPriceMap(itemList);
 
     const normalizedItems = items.map((entry) => ({
@@ -1181,7 +1409,12 @@ app.post('/api/book-events', async (req, res) => {
 
 app.get('/api/book-events/next-booking-number', async (req, res) => {
   try {
-    const { bookEvents } = await getAllData();
+    const { bookEvents } = await getAllData({
+      includeBills: false,
+      includeBillItems: false,
+      includeItemList: false,
+      includeBookEvents: true
+    });
     const nextBookingId = `BE${String(getNextBookEventSequence(bookEvents)).padStart(4, '0')}`;
     res.json({ bookingId: nextBookingId });
   } catch (error) {
@@ -1189,9 +1422,29 @@ app.get('/api/book-events/next-booking-number', async (req, res) => {
   }
 });
 
+app.get('/api/bills/next-bill-number', async (req, res) => {
+  try {
+    const { bills } = await getAllData({
+      includeBills: true,
+      includeBillItems: false,
+      includeItemList: false,
+      includeBookEvents: false
+    });
+    const billId = buildBillId(bills);
+    res.json({ billId });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get next bill number.', details: error.message });
+  }
+});
+
 app.get('/api/book-events', async (req, res) => {
   try {
-    const { bookEvents } = await getAllData();
+    const { bookEvents } = await getAllData({
+      includeBills: false,
+      includeBillItems: false,
+      includeItemList: false,
+      includeBookEvents: true
+    });
     const phoneFilter = normalizePhoneNumber(req.query.phoneNumber || '');
 
     const grouped = new Map();
@@ -1243,7 +1496,12 @@ app.get('/api/book-events', async (req, res) => {
 
 app.get('/api/bills', async (req, res) => {
   try {
-    const { bills, billItems } = await getAllData();
+    const { bills, billItems } = await getAllData({
+      includeBills: true,
+      includeBillItems: true,
+      includeItemList: false,
+      includeBookEvents: false
+    });
     const phoneFilter = normalizePhoneNumber(req.query.phoneNumber || '');
 
     const result = bills
@@ -1257,7 +1515,7 @@ app.get('/api/bills', async (req, res) => {
       })
       .map((bill) => ({
         ...bill,
-        items: billItems.filter((item) => item.billId === bill.billId)
+        items: getBillItemsForBillId(billItems, bill.billId)
       }))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 

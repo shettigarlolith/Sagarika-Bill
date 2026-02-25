@@ -46,6 +46,48 @@ function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
+function normalizeBillDateForInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    return raw.slice(0, 10);
+  }
+
+  const compactDateMatch = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (compactDateMatch) {
+    const first = Number(compactDateMatch[1]);
+    const second = Number(compactDateMatch[2]);
+    const yearRaw = Number(compactDateMatch[3]);
+
+    const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+    const monthFirst = first <= 12 && second > 12;
+    const dayFirst = first > 12 && second <= 12;
+    const month = monthFirst ? first : dayFirst ? second : first;
+    const day = monthFirst ? second : dayFirst ? first : second;
+
+    if (year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  const yyyy = String(parsed.getFullYear()).padStart(4, '0');
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  const dd = String(parsed.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 async function parseJsonResponse(response) {
   const contentType = response.headers.get('content-type') || '';
   const raw = await response.text();
@@ -184,7 +226,7 @@ function updateBillNavigationButtons() {
 
 function populateBillForm(bill) {
   currentBillId = String(bill.billId || '');
-  billDateInput.value = bill.billDate || new Date().toISOString().slice(0, 10);
+  billDateInput.value = normalizeBillDateForInput(bill.billDate);
   customerNameInput.value = bill.customerName || '';
   phoneNumberInput.value = onlyDigits(bill.phoneNumber || '').slice(0, 10);
   gstInput.value = Number(bill.gst || 0);

@@ -1,0 +1,38 @@
+com.sagarikabill.app-core-runtime-2.2.0-0 /Users/etp4/.gradle/caches/9.0.0/transforms/0544fd4ff144b8c71441ed1f909eaa74/transformed/core-runtime-2.2.0/res
+com.sagarikabill.app-coordinatorlayout-1.1.0-1 /Users/etp4/.gradle/caches/9.0.0/transforms/093ba7ab43c7e719bc0bb3aefdf75f28/transformed/coordinatorlayout-1.1.0/res
+com.sagarikabill.app-savedstate-1.2.1-2 /Users/etp4/.gradle/caches/9.0.0/transforms/136774a4c36a76e544221c541ecce328/transformed/savedstate-1.2.1/res
+com.sagarikabill.app-constraintlayout-2.0.1-3 /Users/etp4/.gradle/caches/9.0.0/transforms/19ec4b9872b470c7c43ec2c8e2215d85/transformed/constraintlayout-2.0.1/res
+com.sagarikabill.app-core-ktx-1.13.1-4 /Users/etp4/.gradle/caches/9.0.0/transforms/1c95498ab7cdd8bc331ed7715f5a9d46/transformed/core-ktx-1.13.1/res
+com.sagarikabill.app-annotation-experimental-1.4.0-5 /Users/etp4/.gradle/caches/9.0.0/transforms/2165d6d73348e3de0c1f8e3e409be1d3/transformed/annotation-experimental-1.4.0/res
+com.sagarikabill.app-drawerlayout-1.1.1-6 /Users/etp4/.gradle/caches/9.0.0/transforms/29e56b17e3653fee1e006faa6a34e5b5/transformed/drawerlayout-1.1.1/res
+com.sagarikabill.app-activity-ktx-1.9.2-7 /Users/etp4/.gradle/caches/9.0.0/transforms/2e212212e8d71e0005f467ce4559a57e/transformed/activity-ktx-1.9.2/res
+com.sagarikabill.app-appcompat-1.7.0-8 /Users/etp4/.gradle/caches/9.0.0/transforms/49dc12deba1d7ecf656fb8bb49a47076/transformed/appcompat-1.7.0/res
+com.sagarikabill.app-recyclerview-1.1.0-9 /Users/etp4/.gradle/caches/9.0.0/transforms/51fec655bc5ca73eb7ba73ef8839c264/transformed/recyclerview-1.1.0/res
+com.sagarikabill.app-transition-1.5.0-10 /Users/etp4/.gradle/caches/9.0.0/transforms/5dfe5bffdd3e3e91259b27c80fc54a34/transformed/transition-1.5.0/res
+com.sagarikabill.app-viewpager2-1.0.0-11 /Users/etp4/.gradle/caches/9.0.0/transforms/60a5f593ac9078ad95d945a1d1dcdd88/transformed/viewpager2-1.0.0/res
+com.sagarikabill.app-startup-runtime-1.1.1-12 /Users/etp4/.gradle/caches/9.0.0/transforms/6679ac9b32ea42cedec607cc9c512666/transformed/startup-runtime-1.1.1/res
+com.sagarikabill.app-fragment-1.5.4-13 /Users/etp4/.gradle/caches/9.0.0/transforms/7b725232b15637e4b1f9acd4c1916d7d/transformed/fragment-1.5.4/res
+com.sagarikabill.app-lifecycle-viewmodel-ktx-2.6.2-14 /Users/etp4/.gradle/caches/9.0.0/transforms/7d681cfbbf042e54d6225ddc56354b62/transformed/lifecycle-viewmodel-ktx-2.6.2/res
+com.sagarikabill.app-activity-1.9.2-15 /Users/etp4/.gradle/caches/9.0.0/transforms/8e00538e12bad36e351951d6fa2f7b9b/transformed/activity-1.9.2/res
+com.sagarikabill.app-savedstate-ktx-1.2.1-16 /Users/etp4/.gradle/caches/9.0.0/transforms/972b5b0f01460b2df3d23ca5da0398bb/transformed/savedstate-ktx-1.2.1/res
+com.sagarikabill.app-lifecycle-viewmodel-savedstate-2.6.2-17 /Users/etp4/.gradle/caches/9.0.0/transforms/a0cabd07797a455ccc3f3dfb4a0ac7c4/transformed/lifecycle-viewmodel-savedstate-2.6.2/res
+com.sagarikabill.app-appcompat-resources-1.7.0-18 /Users/etp4/.gradle/caches/9.0.0/transforms/a81070e754dcd3340c8ccb48d3e40497/transformed/appcompat-resources-1.7.0/res
+com.sagarikabill.app-lifecycle-process-2.6.2-19 /Users/etp4/.gradle/caches/9.0.0/transforms/b0531a0a22cd34df4eba57a4e90b206f/transformed/lifecycle-process-2.6.2/res
+com.sagarikabill.app-core-1.13.1-20 /Users/etp4/.gradle/caches/9.0.0/transforms/b180bffb0081417ae206bd412ad80e79/transformed/core-1.13.1/res
+com.sagarikabill.app-emoji2-1.3.0-21 /Users/etp4/.gradle/caches/9.0.0/transforms/b343a99fb51e64cec123d50254fc1b7c/transformed/emoji2-1.3.0/res
+com.sagarikabill.app-lifecycle-livedata-2.6.2-22 /Users/etp4/.gradle/caches/9.0.0/transforms/bdc14ba57baaca19b278b789ff86de57/transformed/lifecycle-livedata-2.6.2/res
+com.sagarikabill.app-cardview-1.0.0-23 /Users/etp4/.gradle/caches/9.0.0/transforms/c2aa88d52af7f1e99af9dccb77da03e0/transformed/cardview-1.0.0/res
+com.sagarikabill.app-lifecycle-runtime-ktx-2.6.2-24 /Users/etp4/.gradle/caches/9.0.0/transforms/ca130b0ca06f902336eae90f063dd09e/transformed/lifecycle-runtime-ktx-2.6.2/res
+com.sagarikabill.app-lifecycle-livedata-core-2.6.2-25 /Users/etp4/.gradle/caches/9.0.0/transforms/e46184a9616c94761b53312bf95660a6/transformed/lifecycle-livedata-core-2.6.2/res
+com.sagarikabill.app-lifecycle-viewmodel-2.6.2-26 /Users/etp4/.gradle/caches/9.0.0/transforms/ea930120341b7d4b73998603ee5654b0/transformed/lifecycle-viewmodel-2.6.2/res
+com.sagarikabill.app-emoji2-views-helper-1.3.0-27 /Users/etp4/.gradle/caches/9.0.0/transforms/f6bdc465f2619c2fff058f1a18c00762/transformed/emoji2-views-helper-1.3.0/res
+com.sagarikabill.app-lifecycle-runtime-2.6.2-28 /Users/etp4/.gradle/caches/9.0.0/transforms/f8c516b0282a8c9b034cfa091d18f787/transformed/lifecycle-runtime-2.6.2/res
+com.sagarikabill.app-profileinstaller-1.3.1-29 /Users/etp4/.gradle/caches/9.0.0/transforms/fd2369bf9c62d6beab9610a769b6c398/transformed/profileinstaller-1.3.1/res
+com.sagarikabill.app-material-1.12.0-30 /Users/etp4/.gradle/caches/9.0.0/transforms/fde4244508a1b3d4baff77b5fa483717/transformed/material-1.12.0/res
+com.sagarikabill.app-pngs-31 /Users/etp4/Documents/ETP All Files/2026/lolith/bill/android-webview/app/build/generated/res/pngs/debug
+com.sagarikabill.app-resValues-32 /Users/etp4/Documents/ETP All Files/2026/lolith/bill/android-webview/app/build/generated/res/resValues/debug
+com.sagarikabill.app-packageDebugResources-33 /Users/etp4/Documents/ETP All Files/2026/lolith/bill/android-webview/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
+com.sagarikabill.app-packageDebugResources-34 /Users/etp4/Documents/ETP All Files/2026/lolith/bill/android-webview/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
+com.sagarikabill.app-debug-35 /Users/etp4/Documents/ETP All Files/2026/lolith/bill/android-webview/app/build/intermediates/merged_res/debug/mergeDebugResources
+com.sagarikabill.app-debug-36 /Users/etp4/Documents/ETP All Files/2026/lolith/bill/android-webview/app/src/debug/res
+com.sagarikabill.app-main-37 /Users/etp4/Documents/ETP All Files/2026/lolith/bill/android-webview/app/src/main/res

@@ -11,7 +11,9 @@ const gstInput = document.getElementById('gst');
 const discountInput = document.getElementById('discount');
 const amountPayableInput = document.getElementById('amountPayable');
 const statusMsg = document.getElementById('statusMsg');
+const billNumberInput = document.getElementById('billNumber');
 const billDateInput = document.getElementById('billDate');
+const eventDayInput = document.getElementById('eventDay');
 const phoneNumberInput = document.getElementById('phoneNumber');
 const searchPhoneInput = document.getElementById('searchPhone');
 const searchBtn = document.getElementById('searchBtn');
@@ -24,6 +26,15 @@ const saveBillBtn = document.getElementById('saveBillBtn');
 const printBillBtn = document.getElementById('printBillBtn');
 const themeToggleInput = document.getElementById('themeToggle');
 const billNoteInput = document.getElementById('billNote');
+const billSaveChoiceModal = document.getElementById('billSaveChoiceModal');
+const updateBillChoiceBtn = document.getElementById('updateBillChoiceBtn');
+const newBillChoiceBtn = document.getElementById('newBillChoiceBtn');
+const cancelBillChoiceBtn = document.getElementById('cancelBillChoiceBtn');
+const duplicateBillModal = document.getElementById('duplicateBillModal');
+const duplicateBillMessage = document.getElementById('duplicateBillMessage');
+const duplicateCreateBtn = document.getElementById('duplicateCreateBtn');
+const duplicateLoadBtn = document.getElementById('duplicateLoadBtn');
+const duplicateCancelBtn = document.getElementById('duplicateCancelBtn');
 const ptBillNo = document.getElementById('ptBillNo');
 const ptEWay = document.getElementById('ptEWay');
 const ptDate = document.getElementById('ptDate');
@@ -42,8 +53,7 @@ const ptGrandTotal = document.getElementById('ptGrandTotal');
 const ptAmountWords = document.getElementById('ptAmountWords');
 const ptNoteLine = document.getElementById('ptNoteLine');
 const ptNote = document.getElementById('ptNote');
-const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbycQP83g4Buo1D_KMohHbU10016skIRsQjhKvc4Rg5tMVgbtU6wCXubxqOEx_cMB0jwCQ/exec';
+const LOCAL_API_BASE = '/api';
 
 let productPrices = {};
 let storeItems = [];
@@ -53,6 +63,9 @@ let isFormReadOnly = false;
 let matchedBills = [];
 let currentBillIndex = -1;
 let currentBillId = '';
+let nextBillNumber = '0001';
+let loadedBillId = '';
+let loadedBillSignature = '';
 let matchedBookingsForImport = [];
 const DRAFT_STORAGE_KEY = 'sagarika_bill_draft_v1';
 const THEME_STORAGE_KEY = 'sagarika_theme_v1';
@@ -63,8 +76,212 @@ function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
+function renderBillNumber() {
+  if (!billNumberInput) {
+    return;
+  }
+  const value = String(currentBillId || '').trim();
+  billNumberInput.value = value || nextBillNumber;
+}
+
+async function refreshNextBillNumber() {
+  try {
+    const response = await fetch('/api/bills/next-bill-number');
+    const data = await parseJsonResponse(response);
+    if (!response.ok) {
+      return;
+    }
+
+    const fromApi = String(data?.billId || '').trim();
+    if (fromApi) {
+      nextBillNumber = fromApi;
+      if (!String(currentBillId || '').trim()) {
+        renderBillNumber();
+      }
+    }
+  } catch {
+    // Keep last known value.
+  }
+}
+
+function getCurrentBillSnapshot() {
+  const rows = [...itemsBody.querySelectorAll('tr')].map((row, index) => ({
+    slNo: Number(row.querySelector('.slNo').value || index + 1),
+    item: String(row.querySelector('.item').value || '').trim(),
+    quantity: String(row.querySelector('.quantity').value || '').trim(),
+    amount: Number(row.querySelector('.amount').value || 0)
+  }));
+
+  rows.sort((a, b) => Number(a.slNo || 0) - Number(b.slNo || 0));
+
+  return JSON.stringify({
+    billDate: String(billDateInput.value || '').trim(),
+    eventDay: String(eventDayInput?.value || '').trim(),
+    customerName: String(customerNameInput.value || '').trim(),
+    phoneNumber: onlyDigits(phoneNumberInput.value).slice(0, 10),
+    gstNo: String(gstNoInput.value || '').trim(),
+    eWay: String(eWayInput.value || '').trim(),
+    address: String(addressInput.value || '').trim(),
+    note: String(billNoteInput.value || '').trim(),
+    gst: Number(gstInput.value || 0),
+    discount: Number(discountInput.value || 0),
+    items: rows
+  });
+}
+
+function markCurrentBillAsLoadedBase() {
+  loadedBillId = String(currentBillId || '').trim();
+  loadedBillSignature = loadedBillId ? getCurrentBillSnapshot() : '';
+}
+
+function resetLoadedBillBase() {
+  loadedBillId = '';
+  loadedBillSignature = '';
+}
+
+function hasLoadedBillChanges() {
+  if (!loadedBillId || !loadedBillSignature) {
+    return false;
+  }
+  return getCurrentBillSnapshot() !== loadedBillSignature;
+}
+
+function askSaveChoiceForLoadedBill() {
+  return new Promise((resolve) => {
+    if (!billSaveChoiceModal || !updateBillChoiceBtn || !newBillChoiceBtn || !cancelBillChoiceBtn) {
+      resolve('update');
+      return;
+    }
+
+    const cleanup = (result) => {
+      billSaveChoiceModal.classList.remove('is-open');
+      billSaveChoiceModal.setAttribute('aria-hidden', 'true');
+      updateBillChoiceBtn.removeEventListener('click', onUpdate);
+      newBillChoiceBtn.removeEventListener('click', onNew);
+      cancelBillChoiceBtn.removeEventListener('click', onCancel);
+      billSaveChoiceModal.removeEventListener('click', onBackdrop);
+      resolve(result);
+    };
+
+    const onUpdate = () => cleanup('update');
+    const onNew = () => cleanup('new');
+    const onCancel = () => cleanup('cancel');
+    const onBackdrop = (event) => {
+      if (event.target === billSaveChoiceModal) {
+        cleanup('cancel');
+      }
+    };
+
+    updateBillChoiceBtn.addEventListener('click', onUpdate);
+    newBillChoiceBtn.addEventListener('click', onNew);
+    cancelBillChoiceBtn.addEventListener('click', onCancel);
+    billSaveChoiceModal.addEventListener('click', onBackdrop);
+
+    billSaveChoiceModal.classList.add('is-open');
+    billSaveChoiceModal.setAttribute('aria-hidden', 'false');
+  });
+}
+
+function askDuplicateBillChoice(existingBillId) {
+  return new Promise((resolve) => {
+    if (
+      !duplicateBillModal ||
+      !duplicateBillMessage ||
+      !duplicateCreateBtn ||
+      !duplicateLoadBtn ||
+      !duplicateCancelBtn
+    ) {
+      resolve('create');
+      return;
+    }
+
+    duplicateBillMessage.textContent = `Bill already generated. Existing Bill No: ${existingBillId}.`;
+
+    const cleanup = (result) => {
+      duplicateBillModal.classList.remove('is-open');
+      duplicateBillModal.setAttribute('aria-hidden', 'true');
+      duplicateCreateBtn.removeEventListener('click', onCreate);
+      duplicateLoadBtn.removeEventListener('click', onLoad);
+      duplicateCancelBtn.removeEventListener('click', onCancel);
+      duplicateBillModal.removeEventListener('click', onBackdrop);
+      resolve(result);
+    };
+
+    const onCreate = () => cleanup('create');
+    const onLoad = () => cleanup('load');
+    const onCancel = () => cleanup('cancel');
+    const onBackdrop = (event) => {
+      if (event.target === duplicateBillModal) {
+        cleanup('cancel');
+      }
+    };
+
+    duplicateCreateBtn.addEventListener('click', onCreate);
+    duplicateLoadBtn.addEventListener('click', onLoad);
+    duplicateCancelBtn.addEventListener('click', onCancel);
+    duplicateBillModal.addEventListener('click', onBackdrop);
+
+    duplicateBillModal.classList.add('is-open');
+    duplicateBillModal.setAttribute('aria-hidden', 'false');
+  });
+}
+
+function normalizeBillDateForInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    return raw.slice(0, 10);
+  }
+
+  const compactDateMatch = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (compactDateMatch) {
+    const first = Number(compactDateMatch[1]);
+    const second = Number(compactDateMatch[2]);
+    const yearRaw = Number(compactDateMatch[3]);
+
+    const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+    const monthFirst = first <= 12 && second > 12;
+    const dayFirst = first > 12 && second <= 12;
+    const month = monthFirst ? first : dayFirst ? second : first;
+    const day = monthFirst ? second : dayFirst ? first : second;
+
+    if (year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  const yyyy = String(parsed.getFullYear()).padStart(4, '0');
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  const dd = String(parsed.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function apiUrl(resource, query = '') {
-  return `${APPS_SCRIPT_URL}?resource=${encodeURIComponent(resource)}${query}`;
+  const resourceMap = {
+    items: 'items',
+    bills: 'bills',
+    'book-events': 'book-events',
+    bookevents: 'book-events',
+    bookevent: 'book-events'
+  };
+
+  const normalizedResourceKey = String(resource || '').trim().toLowerCase();
+  const normalizedResource = resourceMap[normalizedResourceKey] || normalizedResourceKey;
+  const normalizedQuery = String(query || '').trim().replace(/^[?&]+/, '');
+  const queryPart = normalizedQuery ? `?${normalizedQuery}` : '';
+  return `${LOCAL_API_BASE}/${normalizedResource}${queryPart}`;
 }
 
 function applyTheme(theme) {
@@ -244,6 +461,7 @@ function saveDraftToStorage() {
   try {
     const draft = {
       billDate: billDateInput.value || '',
+      eventDay: eventDayInput?.value || '',
       customerName: customerNameInput.value || '',
       phoneNumber: phoneNumberInput.value || '',
       gstNo: gstNoInput.value || '',
@@ -273,6 +491,9 @@ function setFormReadOnly(readOnly) {
   isFormReadOnly = readOnly;
 
   billDateInput.disabled = readOnly;
+  if (eventDayInput) {
+    eventDayInput.disabled = readOnly;
+  }
   customerNameInput.readOnly = readOnly;
   phoneNumberInput.readOnly = readOnly;
   gstNoInput.readOnly = readOnly;
@@ -314,21 +535,7 @@ function hideBillSelector() {
 }
 
 function formatBillDateForSelector(value) {
-  const raw = String(value || '').trim();
-  if (!raw) {
-    return '';
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-    return raw.slice(0, 10);
-  }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) {
-    return raw;
-  }
-
-  return parsed.toISOString().slice(0, 10);
+  return normalizeBillDateForInput(value);
 }
 
 function showBillSelector(bills) {
@@ -352,7 +559,11 @@ function showBillSelector(bills) {
 
 function populateBillForm(bill) {
   currentBillId = String(bill.billId || '');
-  billDateInput.value = bill.billDate || new Date().toISOString().slice(0, 10);
+  renderBillNumber();
+  billDateInput.value = normalizeBillDateForInput(bill.billDate);
+  if (eventDayInput) {
+    eventDayInput.value = bill.eventDay ? normalizeBillDateForInput(bill.eventDay) : '';
+  }
   customerNameInput.value = bill.customerName || '';
   phoneNumberInput.value = onlyDigits(bill.phoneNumber || '').slice(0, 10);
   gstNoInput.value = String(bill.gstNo || '');
@@ -384,6 +595,7 @@ function populateBillForm(bill) {
   recalculate();
   isSaveLocked = false;
   setFormReadOnly(true);
+  markCurrentBillAsLoadedBase();
   saveDraftToStorage();
 }
 
@@ -564,8 +776,9 @@ function renderPrintTemplate() {
   const cgstAmt = (total * cgstRate) / 100;
   const grandTotal = total + sgstAmt + cgstAmt - discountAmount;
 
-  const billNoMatch = String(currentBillId || '').match(/^SAG(\d{4})\d{4}$/);
-  ptBillNo.textContent = billNoMatch ? billNoMatch[1] : '0001';
+  const billNoRaw = String(currentBillId || '').trim();
+  const legacyBillNoMatch = billNoRaw.match(/^SAG(\d{4})\d{4}$/);
+  ptBillNo.textContent = legacyBillNoMatch ? legacyBillNoMatch[1] : billNoRaw || '0001';
   ptEWay.textContent = eWayInput.value.trim() || '........................................................';
   ptDate.textContent = formatDateForPrint(billDateInput.value);
   ptCustomer.textContent = customerNameInput.value || 'Walk-in Customer';
@@ -678,6 +891,7 @@ function validateBillAndGetPayload() {
 
   return {
     billDate: billDateInput.value,
+    eventDay: eventDayInput?.value || '',
     customerName: customerNameInput.value.trim() || 'Walk-in Customer',
     phoneNumber,
     gstNo: gstNoInput.value.trim(),
@@ -705,7 +919,63 @@ function validateBillAndGetPayload() {
   };
 }
 
-async function saveCurrentBill(saveLabel = 'Saving...') {
+function normalizeDateKey(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return raw.slice(0, 10);
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw;
+  }
+  const yyyy = String(parsed.getFullYear()).padStart(4, '0');
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  const dd = String(parsed.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+async function findExistingBillForPayload(payload) {
+  const phone = onlyDigits(payload?.phoneNumber || '').slice(0, 10);
+  if (phone.length !== 10) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(apiUrl('bills', `phoneNumber=${encodeURIComponent(phone)}`));
+    const data = await parseJsonResponse(response);
+    if (!response.ok || !Array.isArray(data) || data.length === 0) {
+      return null;
+    }
+
+    const payloadEventDay = normalizeDateKey(payload?.eventDay);
+    const payloadBillDate = normalizeDateKey(payload?.billDate);
+    const payloadCustomer = String(payload?.customerName || '').trim().toLowerCase();
+
+    const sameEventDay = data.find((bill) => {
+      const billEventDay = normalizeDateKey(bill?.eventDay);
+      const billCustomer = String(bill?.customerName || '').trim().toLowerCase();
+      return payloadEventDay && billEventDay && payloadEventDay === billEventDay && billCustomer === payloadCustomer;
+    });
+    if (sameEventDay) {
+      return sameEventDay;
+    }
+
+    return (
+      data.find((bill) => {
+        const billDate = normalizeDateKey(bill?.billDate);
+        const billCustomer = String(bill?.customerName || '').trim().toLowerCase();
+        return payloadBillDate && billDate && payloadBillDate === billDate && billCustomer === payloadCustomer;
+      }) || null
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create') {
   if (isSaving) {
     statusMsg.textContent = 'Save already in progress.';
     statusMsg.style.color = '#b42a2a';
@@ -717,11 +987,37 @@ async function saveCurrentBill(saveLabel = 'Saving...') {
     return null;
   }
 
+  if (mode === 'create' && !loadedBillId) {
+    const existingBill = await findExistingBillForPayload(payload);
+    if (existingBill) {
+      const existingBillId = String(existingBill.billId || '').trim() || '(unknown)';
+      const choice = await askDuplicateBillChoice(existingBillId);
+      if (choice === 'load') {
+        populateBillForm(existingBill);
+        statusMsg.textContent = `Existing bill loaded: ${existingBillId}.`;
+        statusMsg.style.color = '#b42a2a';
+        return null;
+      }
+      if (choice === 'cancel') {
+        statusMsg.textContent = 'Save cancelled.';
+        statusMsg.style.color = '#b42a2a';
+        return null;
+      }
+    }
+  }
+
   setSavingState(true, saveLabel);
 
   try {
-    const response = await fetch(apiUrl('bills'), {
-      method: 'POST',
+    const isUpdateMode = mode === 'update' && loadedBillId;
+    const endpoint = isUpdateMode ? apiUrl(`bills/${encodeURIComponent(loadedBillId)}`) : apiUrl('bills');
+    const method = isUpdateMode ? 'PUT' : 'POST';
+
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(payload)
     });
 
@@ -731,9 +1027,16 @@ async function saveCurrentBill(saveLabel = 'Saving...') {
       throw new Error(result.error || 'Failed to save bill.');
     }
 
-    statusMsg.textContent = `Saved successfully. Bill ID: ${result.billId}`;
+    statusMsg.textContent = isUpdateMode
+      ? `Updated successfully. Bill ID: ${result.billId}`
+      : `Saved successfully. Bill ID: ${result.billId}`;
     statusMsg.style.color = '#0c7a6b';
     currentBillId = String(result.billId || currentBillId);
+    renderBillNumber();
+    markCurrentBillAsLoadedBase();
+    if (!isUpdateMode) {
+      await refreshNextBillNumber();
+    }
     lockSaveAfterSuccess();
     saveDraftToStorage();
     setSavingState(false);
@@ -744,6 +1047,29 @@ async function saveCurrentBill(saveLabel = 'Saving...') {
     setSavingState(false);
     return null;
   }
+}
+
+async function saveWithLoadedBillChoice(saveLabelForNew = 'Saving...', saveLabelForUpdate = 'Updating...') {
+  if (!loadedBillId) {
+    return saveCurrentBill(saveLabelForNew, 'create');
+  }
+
+  if (!hasLoadedBillChanges()) {
+    statusMsg.textContent = 'No changes detected in this bill.';
+    statusMsg.style.color = '#0c7a6b';
+    return { billId: loadedBillId, skipped: true };
+  }
+
+  const choice = await askSaveChoiceForLoadedBill();
+  if (choice === 'cancel') {
+    return null;
+  }
+
+  if (choice === 'update') {
+    return saveCurrentBill(saveLabelForUpdate, 'update');
+  }
+
+  return saveCurrentBill(saveLabelForNew, 'create');
 }
 
 function unlockSaveOnChange() {
@@ -927,6 +1253,9 @@ function loadBookingIntoBillForm(booking) {
   }
 
   billDateInput.value = new Date().toISOString().slice(0, 10);
+  if (eventDayInput) {
+    eventDayInput.value = booking.eventDay ? normalizeBillDateForInput(booking.eventDay) : '';
+  }
   customerNameInput.value = String(booking.name || '').trim();
   phoneNumberInput.value = onlyDigits(booking.phoneNumber || '').slice(0, 10);
   gstNoInput.value = String(booking.gstNo || '').trim();
@@ -953,6 +1282,9 @@ function loadBookingIntoBillForm(booking) {
   }
 
   currentBillId = '';
+  renderBillNumber();
+  refreshNextBillNumber();
+  resetLoadedBillBase();
   isSaveLocked = false;
   setFormReadOnly(false);
   recalculate();
@@ -1131,6 +1463,9 @@ editBillBtn.addEventListener('click', () => {
 clearSearchBtn.addEventListener('click', () => {
   searchPhoneInput.value = '';
   billDateInput.value = new Date().toISOString().slice(0, 10);
+  if (eventDayInput) {
+    eventDayInput.value = '';
+  }
   customerNameInput.value = '';
   phoneNumberInput.value = '';
   gstNoInput.value = '';
@@ -1142,6 +1477,9 @@ clearSearchBtn.addEventListener('click', () => {
   itemsBody.innerHTML = '';
   addDefaultRow();
   currentBillId = '';
+  renderBillNumber();
+  refreshNextBillNumber();
+  resetLoadedBillBase();
   isSaveLocked = false;
   setFormReadOnly(false);
   recalculate();
@@ -1158,7 +1496,7 @@ clearSearchBtn.addEventListener('click', () => {
 billForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   statusMsg.textContent = '';
-  await saveCurrentBill('Saving...');
+  await saveWithLoadedBillChoice('Saving...', 'Updating...');
 });
 
 printBillBtn.addEventListener('click', async () => {
@@ -1171,12 +1509,26 @@ printBillBtn.addEventListener('click', async () => {
   }
 
   if (isSaveLocked || isFormReadOnly) {
+    if (loadedBillId && !hasLoadedBillChanges()) {
+      renderPrintTemplate();
+      printWithSuggestedFileName();
+      return;
+    }
+
+    if (!loadedBillId) {
+      renderPrintTemplate();
+      printWithSuggestedFileName();
+      return;
+    }
+  }
+
+  if (loadedBillId && !hasLoadedBillChanges()) {
     renderPrintTemplate();
     printWithSuggestedFileName();
     return;
   }
 
-  const result = await saveCurrentBill('Saving for Print...');
+  const result = await saveWithLoadedBillChoice('Saving for Print...', 'Updating for Print...');
   if (result) {
     renderPrintTemplate();
     printWithSuggestedFileName();
@@ -1191,4 +1543,6 @@ try {
 }
 
 loadItemsFromExcel();
+refreshNextBillNumber();
+renderBillNumber();
 hideBillSelector();

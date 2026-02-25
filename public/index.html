@@ -64,8 +64,16 @@
         <form id="billForm">
           <div class="meta-grid">
             <label>
+              Bill No
+              <input type="text" id="billNumber" value="Auto" readonly />
+            </label>
+            <label>
               Bill Date
               <input type="date" id="billDate" required />
+            </label>
+            <label>
+              Event Day
+              <input type="date" id="eventDay" />
             </label>
             <label>
               Customer Name
@@ -236,6 +244,30 @@
       </div>
       <div id="ptNoteLine" class="print-note-line">Note: <span id="ptNote"></span></div>
     </section>
+
+    <div id="billSaveChoiceModal" class="choice-modal" aria-hidden="true">
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="billSaveChoiceTitle">
+        <h3 id="billSaveChoiceTitle">Save Existing Bill</h3>
+        <p>This bill is already loaded. Do you want to update this bill or create a new bill?</p>
+        <div class="choice-actions">
+          <button id="updateBillChoiceBtn" class="btn btn-primary" type="button">Update Bill</button>
+          <button id="newBillChoiceBtn" class="btn btn-secondary" type="button">New Bill</button>
+          <button id="cancelBillChoiceBtn" class="btn" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="duplicateBillModal" class="choice-modal" aria-hidden="true">
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicateBillTitle">
+        <h3 id="duplicateBillTitle">Bill Already Generated</h3>
+        <p id="duplicateBillMessage">An existing bill was found.</p>
+        <div class="choice-actions">
+          <button id="duplicateCreateBtn" class="btn btn-primary" type="button">Create New Bill</button>
+          <button id="duplicateLoadBtn" class="btn btn-secondary" type="button">Load Existing Bill</button>
+          <button id="duplicateCancelBtn" class="btn" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
 
     <script src="script-v2.js"></script>
   </body>
