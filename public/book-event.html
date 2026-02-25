@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Montserrat:wght@700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Montserrat:wght@700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles-v2.css" />
@@ -26,7 +26,7 @@
 
       .calendar-title {
         margin: 0;
-        color: #ec108d;
+        color: #ec1c24;
       }
 
       .calendar-weekdays,
@@ -72,8 +72,8 @@
       }
 
       .calendar-cell-today {
-        border-color: #ff1493;
-        box-shadow: 0 0 0 2px #ff1493;
+        border-color: #ec1c24;
+        box-shadow: 0 0 0 2px #ec1c24;
         background: #ffd5ec;
       }
 
@@ -143,7 +143,7 @@
             <p class="kicker">Event Booking</p>
             <h1 class="page-title">Book Event</h1>
           </div>
-          <a class="btn btn-secondary" href="index.html">Billing Desk</a>
+          <a class="btn btn-secondary" href="welcome.html">Home</a>
           <label class="theme-toggle" for="themeToggle">
             <input id="themeToggle" type="checkbox" />
             <span>Night Mode</span>
@@ -613,7 +613,7 @@
                 showCalendarBookingDetails(booking);
                 populateBookingForm(booking);
                 statusMsg.textContent = `Loaded booking ${booking.bookingId || ''} from calendar.`;
-                statusMsg.style.color = '#ff1493';
+                statusMsg.style.color = '#ec1c24';
               });
               eventsWrap.appendChild(eventBtn);
             });
@@ -990,7 +990,7 @@
           bookingListSelect.value = '0';
           populateBookingForm(matchedBookings[currentBookingIndex]);
           statusMsg.textContent = `Found ${matchedBookings.length} booking(s). Showing 1/${matchedBookings.length}`;
-          statusMsg.style.color = '#ff1493';
+          statusMsg.style.color = '#ec1c24';
         } catch (error) {
           matchedBookings = [];
           currentBookingIndex = -1;
@@ -1112,7 +1112,7 @@
           currentBookingIndex = selectedIndex;
           populateBookingForm(selectedBooking);
           statusMsg.textContent = `Found ${matchedBookings.length} booking(s). Showing ${currentBookingIndex + 1}/${matchedBookings.length}`;
-          statusMsg.style.color = '#ff1493';
+          statusMsg.style.color = '#ec1c24';
         });
       }
 
@@ -1158,7 +1158,7 @@
         isEditingExisting = true;
         setFormReadOnly(false);
         statusMsg.textContent = 'Edit mode enabled. Save will ask Existing Book or New Book.';
-        statusMsg.style.color = '#ff1493';
+        statusMsg.style.color = '#ec1c24';
       });
 
       bookEventForm.addEventListener('submit', async (event) => {

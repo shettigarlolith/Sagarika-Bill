@@ -65,6 +65,11 @@ app.use((req, res, next) => {
   }
   return next();
 });
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'welcome.html'));
+});
+
 app.use(
   express.static(path.join(__dirname, 'public'), {
     etag: false,

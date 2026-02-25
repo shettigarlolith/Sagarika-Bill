@@ -20,7 +20,7 @@ body {
   background: radial-gradient(circle at 20% 10%, #d9f2ec 0%, transparent 35%),
     radial-gradient(circle at 100% 0%, #d6e7ff 0%, transparent 30%), var(--bg);
   color: var(--text);
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Roboto', sans-serif;
 }
 
 .bg-shape {

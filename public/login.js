@@ -18,9 +18,7 @@ const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '')
   .replace(/\/+$/, '');
 
 function getNextPage() {
-  const params = new URLSearchParams(location.search);
-  const next = params.get('next') || 'index.html';
-  return next.endsWith('.html') ? next : 'index.html';
+  return 'welcome.html';
 }
 
 function redirectAfterLogin() {
