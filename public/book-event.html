@@ -555,6 +555,10 @@
           .replace(/'/g, '&#39;');
       }
 
+      function escapeHtmlWithLineBreaks(text) {
+        return escapeHtml(text).replace(/\r?\n/g, '<br>');
+      }
+
       function getBookingDateKey(value) {
         return normalizeDateForInput(value);
       }
@@ -579,7 +583,7 @@
           <p><strong>Phone:</strong> ${escapeHtml(booking.phoneNumber || '-')}</p>
           <p><strong>Address:</strong> ${escapeHtml(booking.address || '-')}</p>
           <p><strong>Items:</strong> ${escapeHtml(items.join(', ') || '-')}</p>
-          <p><strong>Note:</strong> ${escapeHtml(booking.note || '-')}</p>
+          <p><strong>Note:</strong> ${escapeHtmlWithLineBreaks(booking.note || '-')}</p>
         `;
       }
 
