@@ -178,8 +178,12 @@
         background: var(--input-bg);
         color: var(--text);
         border-radius: 10px;
-        padding: 7px 10px;
-        font-weight: 700;
+        min-width: 42px;
+        min-height: 38px;
+        padding: 6px 12px;
+        font-size: 22px;
+        line-height: 1;
+        font-weight: 900;
         cursor: pointer;
       }
 
@@ -203,13 +207,14 @@
         border-radius: 11px;
         border: 1px solid var(--line);
         background: var(--input-bg);
-        padding: 7px;
-        text-align: left;
+        padding: 6px;
+        text-align: center;
         color: var(--text);
         cursor: pointer;
-        display: grid;
-        align-content: space-between;
-        gap: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
       }
 
       .cal-day:hover {
@@ -237,7 +242,11 @@
 
       .cal-day-num {
         font-size: 12px;
-        font-weight: 800;
+        font-weight: 900;
+        line-height: 1;
+        position: absolute;
+        top: 7px;
+        right: 7px;
       }
 
       [data-theme='dark'] .cal-day-num {
@@ -245,19 +254,20 @@
       }
 
       .cal-dot {
-        width: 8px;
-        height: 8px;
+        width: 9px;
+        height: 9px;
         border-radius: 50%;
         background: #ec1c24;
+        position: absolute;
+        top: 7px;
+        left: 7px;
       }
 
-      .cal-count {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        font-size: 11px;
-        font-weight: 700;
-        color: var(--muted);
+      .cal-booking-count {
+        font-size: clamp(20px, 2.5vw, 34px);
+        font-weight: 900;
+        line-height: 1;
+        color: #7a8794;
       }
 
       .selected-panel {
@@ -466,9 +476,9 @@
           <div class="calendar-head">
             <h2 class="calendar-title">CALENDER</h2>
             <div class="calendar-nav">
-              <button type="button" id="prevMonthBtn" class="mini-btn">Prev</button>
+              <button type="button" id="prevMonthBtn" class="mini-btn">&lt;</button>
               <strong id="monthLabel" class="month-label"></strong>
-              <button type="button" id="nextMonthBtn" class="mini-btn">Next</button>
+              <button type="button" id="nextMonthBtn" class="mini-btn">&gt;</button>
             </div>
           </div>
 
@@ -723,7 +733,7 @@
 
           dayBtn.innerHTML = `
             <div class="cal-day-num">${day}</div>
-            <div class="cal-count">${count > 0 ? '<span class="cal-dot"></span>' : ''}${count > 0 ? `${count} event${count > 1 ? 's' : ''}` : ''}</div>
+            ${count > 0 ? '<div class="cal-booking-count">' + count + '</div><span class="cal-dot"></span>' : ''}
           `;
 
           dayBtn.addEventListener('click', () => {
