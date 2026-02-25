@@ -67,6 +67,16 @@
         color: #244462;
       }
 
+      [data-theme='dark'] .calendar-day {
+        color: #ffffff;
+      }
+
+      .calendar-cell-today {
+        border-color: #ff1493;
+        box-shadow: 0 0 0 2px #ff1493;
+        background: #ffd5ec;
+      }
+
       .calendar-events {
         display: grid;
         gap: 4px;
@@ -558,6 +568,8 @@
         const month = monthStart.getMonth();
         const firstDayWeekIndex = monthStart.getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const now = new Date();
+        const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
         calendarMonthLabel.textContent = formatMonthLabel(monthStart);
         calendarGrid.innerHTML = '';
@@ -574,6 +586,9 @@
 
           const cell = document.createElement('div');
           cell.className = 'calendar-cell';
+          if (key === todayKey) {
+            cell.classList.add('calendar-cell-today');
+          }
 
           const dayTitle = document.createElement('div');
           dayTitle.className = 'calendar-day';
