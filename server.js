@@ -1018,7 +1018,7 @@ app.post('/api/items', async (req, res) => {
 
 app.post('/api/bills', async (req, res) => {
   try {
-    const { billDate, customerName, phoneNumber, address, note, items, gst, discount } = req.body;
+    const { billDate, customerName, phoneNumber, gstNo, eWay, address, note, items, gst, discount } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'At least one item is required.' });
@@ -1074,6 +1074,8 @@ app.post('/api/bills', async (req, res) => {
       billDate: billDate || new Date().toISOString().slice(0, 10),
       customerName: customerName || 'Walk-in Customer',
       phoneNumber: normalizedPhone,
+      gstNo: String(gstNo || '').trim(),
+      eWay: String(eWay || '').trim(),
       address: String(address || ''),
       note: String(note || ''),
       selectedItems,

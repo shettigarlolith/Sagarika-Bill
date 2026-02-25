@@ -72,14 +72,19 @@
         <div class="title-row">
           <div>
             <p class="kicker">Catalog Manager</p>
-            <h1>Item List</h1>
+            <h1 class="item-page-title">
+              <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="title-logo" />
+              <span>Item List</span>
+            </h1>
           </div>
-          <label class="theme-toggle" for="themeToggle">
-            <input id="themeToggle" type="checkbox" />
-            <span>Night Mode</span>
-          </label>
-          <a class="btn btn-secondary top-link" href="welcome.html">Home</a>
-          <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
+          <div class="title-right-actions">
+            <a class="btn btn-secondary top-link" href="welcome.html">Home</a>
+            <label class="theme-toggle" for="themeToggle">
+              <input id="themeToggle" type="checkbox" />
+              <span>Night Mode</span>
+            </label>
+            <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
+          </div>
         </div>
 
         <div class="items-wrap">

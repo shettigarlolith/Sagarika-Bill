@@ -3,6 +3,8 @@ const billItemOptions = document.getElementById('billItemOptions');
 const addItemBtn = document.getElementById('addItemBtn');
 const billForm = document.getElementById('billForm');
 const customerNameInput = document.getElementById('customerName');
+const gstNoInput = document.getElementById('gstNo');
+const eWayInput = document.getElementById('eWay');
 const addressInput = document.getElementById('address');
 const totalInput = document.getElementById('total');
 const gstInput = document.getElementById('gst');
@@ -23,9 +25,11 @@ const printBillBtn = document.getElementById('printBillBtn');
 const themeToggleInput = document.getElementById('themeToggle');
 const billNoteInput = document.getElementById('billNote');
 const ptBillNo = document.getElementById('ptBillNo');
+const ptEWay = document.getElementById('ptEWay');
 const ptDate = document.getElementById('ptDate');
 const ptCustomer = document.getElementById('ptCustomer');
 const ptPhone = document.getElementById('ptPhone');
+const ptCustomerGstNo = document.getElementById('ptCustomerGstNo');
 const ptAddress = document.getElementById('ptAddress');
 const ptRows = document.getElementById('ptRows');
 const ptNetTotal = document.getElementById('ptNetTotal');
@@ -242,6 +246,8 @@ function saveDraftToStorage() {
       billDate: billDateInput.value || '',
       customerName: customerNameInput.value || '',
       phoneNumber: phoneNumberInput.value || '',
+      gstNo: gstNoInput.value || '',
+      eWay: eWayInput.value || '',
       address: addressInput.value || '',
       billNote: billNoteInput.value || '',
       gst: gstInput.value || '0',
@@ -269,6 +275,8 @@ function setFormReadOnly(readOnly) {
   billDateInput.disabled = readOnly;
   customerNameInput.readOnly = readOnly;
   phoneNumberInput.readOnly = readOnly;
+  gstNoInput.readOnly = readOnly;
+  eWayInput.readOnly = readOnly;
   addressInput.readOnly = readOnly;
   billNoteInput.readOnly = readOnly;
   gstInput.disabled = readOnly;
@@ -347,6 +355,8 @@ function populateBillForm(bill) {
   billDateInput.value = bill.billDate || new Date().toISOString().slice(0, 10);
   customerNameInput.value = bill.customerName || '';
   phoneNumberInput.value = onlyDigits(bill.phoneNumber || '').slice(0, 10);
+  gstNoInput.value = String(bill.gstNo || '');
+  eWayInput.value = String(bill.eWay || '');
   addressInput.value = String(bill.address || '');
   billNoteInput.value = String(bill.note || '');
   gstInput.value = Number(bill.gst || 0);
@@ -492,13 +502,54 @@ function buildPrintRows() {
     return {
       slNo,
       item,
-      quantityLabel: isManualQuantity(quantityRaw) ? '#' : quantityRaw,
+      quantityLabel: isManualQuantity(quantityRaw) ? '--' : quantityRaw,
       unitPrice,
       amount
     };
   });
 
   return rows.filter((row) => row.item);
+}
+
+function sanitizeFilenamePart(value, fallback) {
+  const cleaned = String(value || '')
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return cleaned || fallback;
+}
+
+function getEventNameForFilename() {
+  const note = String(billNoteInput.value || '');
+  const match = note.match(/(?:^|\n)\s*Event:\s*(.+)\s*(?:\n|$)/i);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return '';
+}
+
+function buildPrintFileName() {
+  const customer = sanitizeFilenamePart(customerNameInput.value, 'Customer');
+  const phone = sanitizeFilenamePart(onlyDigits(phoneNumberInput.value).slice(0, 10), 'Phone');
+  const eventName = sanitizeFilenamePart(getEventNameForFilename(), 'Event');
+  return `${customer}_${phone}_${eventName}`;
+}
+
+function printWithSuggestedFileName() {
+  const originalTitle = document.title;
+  document.title = buildPrintFileName();
+
+  const restoreTitle = () => {
+    document.title = originalTitle;
+  };
+
+  window.addEventListener('afterprint', restoreTitle, { once: true });
+  window.print();
+
+  // Fallback for browsers that don't fire afterprint reliably.
+  setTimeout(restoreTitle, 1500);
 }
 
 function renderPrintTemplate() {
@@ -513,23 +564,25 @@ function renderPrintTemplate() {
   const cgstAmt = (total * cgstRate) / 100;
   const grandTotal = total + sgstAmt + cgstAmt - discountAmount;
 
-  ptBillNo.textContent = currentBillId || 'To be generated';
+  const billNoMatch = String(currentBillId || '').match(/^SAG(\d{4})\d{4}$/);
+  ptBillNo.textContent = billNoMatch ? billNoMatch[1] : '0001';
+  ptEWay.textContent = eWayInput.value.trim() || '........................................................';
   ptDate.textContent = formatDateForPrint(billDateInput.value);
   ptCustomer.textContent = customerNameInput.value || 'Walk-in Customer';
   ptPhone.textContent = phoneNumberInput.value || '-';
+  ptCustomerGstNo.textContent = gstNoInput.value.trim() || '-';
   ptAddress.textContent = addressInput.value || '-';
   ptRows.innerHTML = '';
 
-  const minRows = 12;
-  const rowsToRender = Math.max(minRows, rows.length);
+  const rowsToRender = Math.max(1, rows.length);
   for (let i = 0; i < rowsToRender; i += 1) {
     const row = rows[i];
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${row ? row.slNo : ''}</td>
       <td>${row ? row.item : ''}</td>
-      <td>${row ? row.quantityLabel : ''}</td>
       <td>${row ? formatMoney(row.unitPrice) : ''}</td>
+      <td>${row ? row.quantityLabel : ''}</td>
       <td>${row ? formatMoney(row.amount) : ''}</td>
     `;
     ptRows.appendChild(tr);
@@ -627,6 +680,8 @@ function validateBillAndGetPayload() {
     billDate: billDateInput.value,
     customerName: customerNameInput.value.trim() || 'Walk-in Customer',
     phoneNumber,
+    gstNo: gstNoInput.value.trim(),
+    eWay: eWayInput.value.trim(),
     address: addressInput.value.trim(),
     note: billNoteInput.value.trim(),
     items: items.map((item) => {
@@ -874,9 +929,11 @@ function loadBookingIntoBillForm(booking) {
   billDateInput.value = new Date().toISOString().slice(0, 10);
   customerNameInput.value = String(booking.name || '').trim();
   phoneNumberInput.value = onlyDigits(booking.phoneNumber || '').slice(0, 10);
+  gstNoInput.value = String(booking.gstNo || '').trim();
+  eWayInput.value = String(booking.eWay || '').trim();
   addressInput.value = String(booking.address || '').trim();
   billNoteInput.value = noteParts.join('\n');
-  gstInput.value = 0;
+  gstInput.value = 18;
   discountInput.value = 0;
 
   itemsBody.innerHTML = '';
@@ -1076,8 +1133,10 @@ clearSearchBtn.addEventListener('click', () => {
   billDateInput.value = new Date().toISOString().slice(0, 10);
   customerNameInput.value = '';
   phoneNumberInput.value = '';
+  gstNoInput.value = '';
+  eWayInput.value = '';
   addressInput.value = '';
-  gstInput.value = 0;
+  gstInput.value = 18;
   discountInput.value = 0;
   billNoteInput.value = '';
   itemsBody.innerHTML = '';
@@ -1113,14 +1172,14 @@ printBillBtn.addEventListener('click', async () => {
 
   if (isSaveLocked || isFormReadOnly) {
     renderPrintTemplate();
-    window.print();
+    printWithSuggestedFileName();
     return;
   }
 
   const result = await saveCurrentBill('Saving for Print...');
   if (result) {
     renderPrintTemplate();
-    window.print();
+    printWithSuggestedFileName();
   }
 });
 

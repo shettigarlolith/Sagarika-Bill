@@ -136,6 +136,219 @@
         margin: 4px 0;
       }
 
+      .event-print-template {
+        display: none;
+      }
+
+      .event-print-template .print-page {
+        width: 192mm;
+        min-height: 274mm;
+        margin: 0 auto;
+        border: 1px solid #111;
+        padding: 2mm;
+        color: #111;
+        font-family: 'Times New Roman', serif;
+        background: #fff;
+        font-size: 3mm;
+      }
+
+      .event-print-template .event-invoice-topline {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        font-size: 3mm;
+      }
+
+      .event-print-template .event-invoice-mobile {
+        text-align: right;
+      }
+
+      .event-print-template .event-invoice-title {
+        margin-top: 0.2mm;
+        text-align: center;
+        font-weight: 700;
+        font-size: 4.2mm;
+        letter-spacing: 0.2mm;
+      }
+
+      .event-print-template .event-invoice-brand {
+        text-align: center;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.2mm;
+        font-weight: 700;
+        letter-spacing: 0.5mm;
+        line-height: 1.05;
+      }
+
+      .event-print-template .event-invoice-address {
+        text-align: center;
+        font-size: 3.2mm;
+        margin-top: 0.6mm;
+      }
+
+      .event-print-template .event-invoice-meta-line {
+        margin-top: 1.3mm;
+        border-top: 1px solid #111;
+        border-bottom: 1px solid #111;
+        padding: 0.7mm 0.8mm;
+        display: grid;
+        grid-template-columns: 20mm 1fr 1fr;
+        gap: 2mm;
+        align-items: center;
+        font-size: 4.1mm;
+      }
+
+      .event-print-template .event-invoice-meta-line strong,
+      .event-print-template .event-invoice-meta-line span {
+        font-size: 4.1mm;
+      }
+
+      .event-print-template .event-invoice-party-block {
+        border-bottom: 1px solid #111;
+        padding: 0.4mm 0.8mm 0.55mm;
+      }
+
+      .event-print-template .event-line-row {
+        display: flex;
+        gap: 1.8mm;
+        align-items: baseline;
+        min-height: 6.6mm;
+      }
+
+      .event-print-template .event-line-row strong {
+        min-width: 20mm;
+        font-size: 4.1mm;
+        font-weight: 700;
+      }
+
+      .event-print-template .event-line-fill {
+        flex: 1;
+        min-height: 5.8mm;
+        border-bottom: 1px dotted #111;
+        display: inline-flex;
+        align-items: flex-end;
+        overflow: hidden;
+      }
+
+      .event-print-template .event-line-fill > span {
+        font-size: 4mm;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .event-print-template .print-items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 0;
+        table-layout: fixed;
+        border-left: 1px solid #111;
+        border-right: 1px solid #111;
+        border-bottom: 1px solid #111;
+      }
+
+      .event-print-template .print-items-table th,
+      .event-print-template .print-items-table td {
+        border: 1px solid #111;
+        padding: 0.4mm 0.7mm;
+        font-size: 3.9mm;
+      }
+
+      .event-print-template .print-items-table th:nth-child(1),
+      .event-print-template .print-items-table td:nth-child(1) {
+        width: 8%;
+        text-align: center;
+      }
+
+      .event-print-template .print-items-table th:nth-child(2),
+      .event-print-template .print-items-table td:nth-child(2) {
+        width: 74%;
+      }
+
+      .event-print-template .print-items-table th:nth-child(3),
+      .event-print-template .print-items-table td:nth-child(3) {
+        width: 18%;
+        text-align: center;
+      }
+
+      .event-print-template .print-items-table thead th {
+        font-weight: 700;
+      }
+
+      .event-print-template .print-items-table tbody td {
+        border-top: none;
+        border-bottom: none;
+      }
+
+      .event-print-template .print-items-table tbody tr:last-child td {
+        border-bottom: 1px solid #111;
+      }
+
+      .event-print-template .print-items-table td {
+        height: 9.2mm;
+      }
+
+      .event-print-template .event-invoice-sign-row {
+        border-left: 1px solid #111;
+        border-right: 1px solid #111;
+        border-bottom: 1px solid #111;
+        min-height: 13mm;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: flex-end;
+        padding: 1mm 1.2mm;
+        font-size: 3.8mm;
+        font-weight: 700;
+      }
+
+      .event-print-template .event-note-wrap {
+        margin-top: 1.6mm;
+      }
+
+      .event-print-template .event-contact-line {
+        font-size: 3.2mm;
+        line-height: 1.3;
+      }
+
+      .event-print-template .print-note-line {
+        display: none;
+        margin-top: 1.1mm;
+        font-size: 3.4mm;
+        line-height: 1.35;
+        min-height: 4.5mm;
+      }
+
+      .event-print-template .print-note-line .note-label {
+        display: inline-block;
+        width: 12mm;
+        vertical-align: top;
+        font-weight: 700;
+      }
+
+      .event-print-template .print-note-line .note-value {
+        display: inline-block;
+        width: calc(100% - 13mm);
+        vertical-align: top;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      @media print {
+        .event-print-template {
+          display: flex !important;
+          flex-direction: column;
+          padding: 0;
+        }
+
+        .event-print-template .print-page {
+          width: 100%;
+          min-height: auto;
+          margin: 0;
+        }
+      }
+
     </style>
     <script>
       (function () {
@@ -162,7 +375,10 @@
         <div class="title-row">
           <div>
             <p class="kicker">Event Booking</p>
-            <h1 class="page-title">Book Event</h1>
+            <h1 class="page-title booking-page-title">
+              <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="title-logo" />
+              <span>Book Event</span>
+            </h1>
           </div>
           <a class="btn btn-secondary" href="welcome.html">Home</a>
           <label class="theme-toggle" for="themeToggle">
@@ -284,51 +500,57 @@
       </div>
     </div>
 
-    <section id="printTemplate" class="print-template">
+    <section id="printTemplate" class="print-template event-print-template">
       <div class="print-page">
-        <div class="print-watermark">SAGARIKA</div>
-        <div class="print-header">
-          <div class="print-company-box">
-            <div class="print-brand">SAGARIKA</div>
-            <div class="print-subbrand">SHAMIYANA &amp; DECORATORS</div>
-          </div>
-          <div class="print-logo-box">
-            <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="print-logo" />
+        <div class="event-invoice-topline">
+          <div class="event-invoice-mobile">
+            <div><strong>Mobile No. :</strong> 9916279036 , 9483399099</div>
           </div>
         </div>
+        <div class="event-invoice-title">BOOKING INVOICE</div>
+        <div class="event-invoice-brand">SAGARIKA ENTERPRISES</div>
+        <div class="event-invoice-address">
+          Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist.
+        </div>
 
-        <div class="print-party-row">
-          <div class="party-box">
-            <div><strong>M/s.</strong> <span id="ptCustomer"></span></div>
-            <div>Phone: <span id="ptPhone"></span></div>
-            <div>Address: <span id="ptAddress"></span></div>
+        <div class="event-invoice-meta-line">
+          <div><strong>No :</strong> <span id="ptBillNo"></span></div>
+          <div><strong>Booked on :</strong> <span id="ptDate"></span></div>
+          <div><strong>Event on :</strong> <span id="ptEventDate"></span></div>
+        </div>
+
+        <div class="event-invoice-party-block">
+          <div class="event-line-row">
+            <strong>To</strong>
+            <span class="event-line-fill"><span id="ptCustomer"></span></span>
           </div>
-          <div class="bill-info-box">
-            <div><strong>No:</strong> <span id="ptBillNo"></span></div>
-            <div><strong>Booked on:</strong> <span id="ptDate"></span></div>
-            <div><strong>Event on:</strong> <span id="ptEventDate"></span></div>
+          <div class="event-line-row">
+            <strong>Address</strong>
+            <span class="event-line-fill"><span id="ptAddress"></span></span>
+          </div>
+          <div class="event-line-row">
+            <strong>Mob No</strong>
+            <span class="event-line-fill"><span id="ptPhone"></span></span>
           </div>
         </div>
 
         <table class="print-items-table">
           <thead>
             <tr>
-              <th>S.No</th>
-              <th>Particulars</th>
+              <th>Sl .No</th>
+              <th>Description</th>
               <th>Qty</th>
             </tr>
           </thead>
           <tbody id="ptRows"></tbody>
         </table>
 
-        <div class="print-footer">
-          <div class="print-footer-left">
-            Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist. Phone:
-            9916279036, 9483399099
-          </div>
-        </div>
       </div>
-      <div id="ptNoteLine" class="print-note-line">Note: <span id="ptNote"></span></div>
+      <div class="event-note-wrap">
+        <div id="ptNoteLine" class="print-note-line">
+          <span class="note-label">Note:</span><span id="ptNote" class="note-value"></span>
+        </div>
+          </div>
     </section>
 
     <script>
@@ -755,6 +977,35 @@
         return rows.filter((row) => row.item);
       }
 
+      function sanitizeFilenamePart(value, fallback) {
+        const cleaned = String(value || '')
+          .trim()
+          .replace(/\s+/g, '_')
+          .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+          .replace(/_+/g, '_')
+          .replace(/^_+|_+$/g, '');
+        return cleaned || fallback;
+      }
+
+      function buildBookingPrintFileName() {
+        const phone = sanitizeFilenamePart(onlyDigits(phoneNumberInput.value).slice(0, 10), 'phone');
+        const eventName = sanitizeFilenamePart(eventNameInput.value, 'event');
+        return `${phone}_${eventName}_booking`;
+      }
+
+      function printWithSuggestedFileName() {
+        const originalTitle = document.title;
+        document.title = buildBookingPrintFileName();
+
+        const restoreTitle = () => {
+          document.title = originalTitle;
+        };
+
+        window.addEventListener('afterprint', restoreTitle, { once: true });
+        window.print();
+        setTimeout(restoreTitle, 1500);
+      }
+
       function renderPrintTemplate() {
         const rows = buildPrintRows();
 
@@ -766,8 +1017,7 @@
         ptAddress.textContent = addressInput.value || '-';
         ptRows.innerHTML = '';
 
-        const minRows = 12;
-        const rowsToRender = Math.max(minRows, rows.length);
+        const rowsToRender = Math.max(1, rows.length);
         for (let i = 0; i < rowsToRender; i += 1) {
           const row = rows[i];
           const tr = document.createElement('tr');
@@ -1203,20 +1453,20 @@
         if (currentBookingId) {
           if (isFormReadOnly) {
             renderPrintTemplate();
-            window.print();
+            printWithSuggestedFileName();
             return;
           }
 
           if (!isEditingExisting) {
             renderPrintTemplate();
-            window.print();
+            printWithSuggestedFileName();
             return;
           }
 
           const result = await saveCurrentEvent('Saving for Print...');
           if (result) {
             renderPrintTemplate();
-            window.print();
+            printWithSuggestedFileName();
           }
           return;
         }
@@ -1224,7 +1474,7 @@
         const result = await saveCurrentEvent('Saving for Print...');
         if (result) {
           renderPrintTemplate();
-          window.print();
+          printWithSuggestedFileName();
         }
       });
 

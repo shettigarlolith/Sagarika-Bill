@@ -129,6 +129,17 @@ h2 {
   color: #ec1c24;
 }
 
+.booking-page-title {
+  color: #1f5fff;
+}
+
+.item-page-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #ff2f86;
+}
+
 .title-actions {
   margin-top: 10px;
 }
@@ -334,6 +345,19 @@ input[readonly] {
   min-width: 220px;
 }
 
+.title-right-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.bill-card .title-row .search-row {
+  flex-basis: 100%;
+  order: 3;
+}
+
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -342,6 +366,10 @@ input[readonly] {
   font-weight: 700;
   color: var(--muted);
   user-select: none;
+}
+
+[data-theme='dark'] .theme-toggle {
+  color: var(--text);
 }
 
 .theme-toggle input {
@@ -383,229 +411,256 @@ input[readonly] {
 }
 
 .print-page {
-  width: 148mm;
-  min-height: 210mm;
+  width: 192mm;
+  min-height: 274mm;
   margin: 0 auto;
-  border: 2px solid #111;
-  padding: 2.2mm;
+  border: 1px solid #111;
+  padding: 2mm;
   color: #111;
   font-family: 'Times New Roman', serif;
   background: #fff;
-  position: relative;
+  font-size: 3mm;
+}
+
+.invoice-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  font-size: 3mm;
+}
+
+.invoice-mobile {
+  text-align: right;
+}
+
+.invoice-title-strip {
+  margin-top: 0.2mm;
+  text-align: center;
+  font-weight: 700;
+  font-size: 4.2mm;
+  letter-spacing: 0.2mm;
+}
+
+.invoice-brand {
+  text-align: center;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9.2mm;
+  font-weight: 700;
+  letter-spacing: 0.5mm;
+  line-height: 1.05;
+}
+
+.invoice-address {
+  text-align: center;
+  font-size: 3.2mm;
+  margin-top: 0.6mm;
+}
+
+.invoice-meta-line {
+  margin-top: 1.3mm;
+  border-top: 1px solid #111;
+  border-bottom: 1px solid #111;
+  padding: 0.7mm 0.8mm;
+  display: grid;
+  grid-template-columns: 21mm 1fr 33mm;
+  gap: 2mm;
+  align-items: center;
+  font-size: 4.2mm;
+}
+
+.invoice-party-block {
+  border-bottom: 1px solid #111;
+  padding: 0.4mm 0.8mm 0.55mm;
+}
+
+.line-row {
+  display: flex;
+  gap: 1.6mm;
+  align-items: baseline;
+  min-height: 6.6mm;
+}
+
+.line-row strong {
+  min-width: 19mm;
+  font-size: 4.2mm;
+  font-weight: 700;
+}
+
+.line-fill {
+  flex: 1;
+  min-height: 5.8mm;
+  border-bottom: 1px dotted #111;
+  display: inline-flex;
+  align-items: flex-end;
   overflow: hidden;
 }
 
-.print-watermark {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(-45deg);
-  font-family: 'Montserrat', sans-serif;
-  font-size: 32mm;
-  font-weight: 700;
-  color: #000;
-  opacity: 0.05;
+.line-fill > span {
+  font-size: 4mm;
+  font-weight: 600;
   white-space: nowrap;
-  pointer-events: none;
-  z-index: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.print-page > *:not(.print-watermark) {
-  position: relative;
-  z-index: 1;
-}
-
-.print-header {
+.line-row.split {
   display: grid;
-  grid-template-columns: 1fr 58mm;
-  border: 2px solid #111;
-  min-height: 24mm;
+  grid-template-columns: 1fr 1fr;
+  gap: 5mm;
 }
 
-.print-company-box {
-  border-right: 2px solid #111;
+.line-cell {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.print-brand {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 7.5mm;
-  color: #ec1c24;
-  letter-spacing: 0.6mm;
-}
-
-.print-subbrand {
-  margin-top: 0.8mm;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 3.75mm;
-  font-weight: 700;
-  color: #717171;
-}
-
-.print-logo-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.2mm;
-}
-
-.print-logo {
-  width: 22mm;
-  height: 22mm;
-  object-fit: contain;
-}
-
-.print-party-row {
-  display: grid;
-  grid-template-columns: 1fr 58mm;
-  border: 2px solid #111;
-  border-top: none;
-  min-height: 16mm;
-}
-
-.party-box,
-.bill-info-box {
-  padding: 1.4mm 1.8mm;
-  font-size: 2.9mm;
-  line-height: 1.3;
-}
-
-.party-box {
-  border-right: 2px solid #111;
+  gap: 1.6mm;
+  align-items: baseline;
 }
 
 .print-items-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 0.6mm;
+  margin-top: 0;
   min-width: 0;
   table-layout: fixed;
+  border-left: 1px solid #111;
+  border-right: 1px solid #111;
+  border-bottom: 1px solid #111;
 }
 
 .print-items-table th,
 .print-items-table td {
-  border: 2px solid #111;
-  padding: 0.75mm 0.9mm;
-  font-size: 2.5mm;
+  border: 1px solid #111;
+  padding: 0.4mm 0.7mm;
+  font-size: 3.9mm;
 }
 
 .print-items-table th:nth-child(1),
 .print-items-table td:nth-child(1) {
-  width: 12mm;
+  width: 6%;
+  text-align: center;
+}
+
+.print-items-table th:nth-child(2),
+.print-items-table td:nth-child(2) {
+  width: 47%;
 }
 
 .print-items-table th:nth-child(3),
 .print-items-table td:nth-child(3) {
-  width: 18mm;
+  width: 15%;
   text-align: center;
 }
 
 .print-items-table th:nth-child(4),
 .print-items-table td:nth-child(4) {
-  width: 30mm;
-  text-align: right;
+  width: 15%;
+  text-align: center;
 }
 
 .print-items-table th:nth-child(5),
 .print-items-table td:nth-child(5) {
-  width: 30mm;
+  width: 17%;
   text-align: right;
+}
+
+.print-items-table thead th {
+  font-weight: 700;
+}
+
+.print-items-table tbody td {
+  border-top: none;
+  border-bottom: none;
+}
+
+.print-items-table tbody tr:last-child td {
+  border-bottom: 1px solid #111;
 }
 
 .print-items-table td {
-  height: 4.6mm;
-}
-
-.print-totals {
-  display: grid;
-  grid-template-columns: 1fr 55mm;
-  border-left: 2px solid #111;
-  border-right: 2px solid #111;
-  border-bottom: 2px solid #111;
-}
-
-.rupees-line {
-  border-right: 2px solid #111;
-  padding: 1.2mm;
-  font-size: 2.8mm;
-  min-height: 18mm;
-}
-
-.totals-list {
-  width: 100%;
-  border-left: 2px solid #111;
-  border-top: 2px solid #111;
-}
-
-.total-row {
-  display: grid;
-  grid-template-columns: 1fr 28mm;
-}
-
-.total-row > span,
-.total-row > .total-value {
-  border-right: 2px solid #111;
-  border-bottom: 2px solid #111;
-  padding: 0.9mm 1.2mm;
-  font-size: 2.8mm;
-  color: #111;
-  background: #fff;
-}
-
-.total-row > .total-value {
-  display: block;
-  min-height: 4.5mm;
-  font-family: 'Courier New', monospace;
-  font-weight: 700;
-  text-align: right;
-  white-space: nowrap;
-  letter-spacing: 0.2px;
-}
-
-.grand-row > span,
-.grand-row > .total-value {
-  font-weight: 700;
-}
-
-.print-footer {
-  border: 2px solid #111;
-  border-top: none;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  height: 8.2mm;
 }
 
 .print-note-line {
   display: none;
-  margin-top: 2mm;
-  font-size: 2.8mm;
+  margin-top: 1.6mm;
+  font-size: 3.5mm;
   line-height: 1.35;
-  min-height: 4mm;
+  min-height: 4.5mm;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.print-footer-left,
-.print-footer-right {
-  min-height: 10mm;
-  padding: 1.2mm;
-  font-size: 2.6mm;
+.invoice-bottom-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  border-left: 1px solid #111;
+  border-right: 1px solid #111;
+  border-bottom: 1px solid #111;
+}
+
+.bottom-left {
+  border-right: 1px solid #111;
+  padding: 1.2mm 1.3mm;
+  min-height: 28mm;
+  font-size: 3.4mm;
+  line-height: 1.24;
+}
+
+.bank-title {
+  margin-bottom: 0.5mm;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.bottom-right {
+  display: grid;
+  grid-template-rows: repeat(5, minmax(0, auto));
+}
+
+.total-line {
+  display: grid;
+  grid-template-columns: 1fr 27mm;
+  border-bottom: 1px solid #111;
+  min-height: 5.6mm;
+}
+
+.total-line > span {
+  padding: 0.8mm 1.1mm;
+  font-size: 3.9mm;
+}
+
+.total-line > span:last-child {
+  border-left: 1px solid #111;
+  text-align: right;
+}
+
+.grand-line > span {
+  font-weight: 700;
+}
+
+.invoice-words-row {
+  border-left: 1px solid #111;
+  border-right: 1px solid #111;
+  border-bottom: 1px solid #111;
+  min-height: 8.4mm;
   display: flex;
   align-items: flex-end;
+  gap: 1.5mm;
+  padding: 1mm 1.2mm;
+  font-size: 3.8mm;
 }
 
-.print-footer-left {
-  border-right: 2px solid #111;
-}
-
-.print-footer-right {
+.invoice-sign-row {
+  border-left: 1px solid #111;
+  border-right: 1px solid #111;
+  border-bottom: 1px solid #111;
+  min-height: 13mm;
+  display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: flex-end;
-  text-align: right;
+  padding: 1mm 1.2mm;
+  font-size: 3.8mm;
+  font-weight: 700;
 }
 
 @media (max-width: 768px) {
@@ -632,7 +687,7 @@ input[readonly] {
 
 @media print {
   @page {
-    size: A5 portrait;
+    size: A4 portrait;
     margin: 4mm;
   }
 
@@ -660,12 +715,5 @@ input[readonly] {
 
   .print-note-line {
     margin-top: 2mm;
-  }
-
-  .print-watermark {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-45deg);
   }
 }

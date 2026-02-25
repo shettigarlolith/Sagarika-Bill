@@ -38,17 +38,17 @@
             <p class="kicker">Event Billing Desk</p>
             <h1 class="page-title">
               <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="title-logo" />
-              <span>Sagarika Bill</span>
+              <span>Sagarika</span>
             </h1>
-            <div class="title-actions">
-              <a class="btn book-event-btn" href="welcome.html">Home</a>
-            </div>
           </div>
-          <label class="theme-toggle" for="themeToggle">
-            <input id="themeToggle" type="checkbox" />
-            <span>Night Mode</span>
-          </label>
-          <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
+          <div class="title-right-actions">
+            <a class="btn btn-secondary" href="welcome.html">Home</a>
+            <label class="theme-toggle" for="themeToggle">
+              <input id="themeToggle" type="checkbox" />
+              <span>Night Mode</span>
+            </label>
+            <button class="btn btn-danger logout-btn" type="button" onclick="logoutUser()">Logout</button>
+          </div>
           <div class="search-row">
             <input type="tel" id="searchPhone" placeholder="Search by phone number" />
             <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
@@ -74,6 +74,14 @@
             <label>
               Phone Number
               <input type="tel" id="phoneNumber" placeholder="10-digit phone" pattern="[0-9]{10}" required />
+            </label>
+            <label>
+              GST No
+              <input type="text" id="gstNo" placeholder="Customer GST number" />
+            </label>
+            <label>
+              E-Way
+              <input type="text" id="eWay" placeholder="E-Way number" />
             </label>
             <label>
               Address
@@ -108,7 +116,7 @@
             </label>
             <label>
               GST (%)
-              <input type="number" id="gst" min="0" step="0.01" value="0" />
+              <input type="number" id="gst" min="0" step="0.01" value="18" />
             </label>
             <label>
               Discount (%)
@@ -135,78 +143,95 @@
 
     <section id="printTemplate" class="print-template">
       <div class="print-page">
-        <div class="print-watermark">SAGARIKA</div>
-        <div class="print-header">
-          <div class="print-company-box">
-            <div class="print-brand">SAGARIKA</div>
-            <div class="print-subbrand">SHAMIYANA &amp; DECORATORS</div>
-          </div>
-          <div class="print-logo-box">
-            <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="print-logo" />
+        <div class="invoice-topline">
+          <div><strong>GSTIN:-</strong> 29AJQPR8127A1ZV.</div>
+          <div class="invoice-mobile">
+            <div><strong>Mobile No. :</strong> 9916279036 , 9483399099</div>
           </div>
         </div>
+        <div class="invoice-title-strip">TAX INVOICE</div>
+        <div class="invoice-brand">SAGARIKA ENTERPRISES</div>
+        <div class="invoice-address">
+          Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist.
+        </div>
 
-        <div class="print-party-row">
-          <div class="party-box">
-            <div><strong>M/s.</strong> <span id="ptCustomer"></span></div>
-            <div>Phone: <span id="ptPhone"></span></div>
-            <div>Address: <span id="ptAddress"></span></div>
+        <div class="invoice-meta-line">
+          <div><strong>No :</strong> <span id="ptBillNo"></span></div>
+          <div><strong>E-Way :</strong> <span id="ptEWay"></span></div>
+          <div><strong>Date :</strong> <span id="ptDate"></span></div>
+        </div>
+
+        <div class="invoice-party-block">
+          <div class="line-row">
+            <strong>To</strong>
+            <span class="line-fill"><span id="ptCustomer"></span></span>
           </div>
-          <div class="bill-info-box">
-            <div><strong>No:</strong> <span id="ptBillNo"></span></div>
-            <div><strong>Date:</strong> <span id="ptDate"></span></div>
-            <div><strong>GSTIN: 29AJQPR8127A1ZV</strong></div>
+          <div class="line-row">
+            <strong>Address</strong>
+            <span class="line-fill"><span id="ptAddress"></span></span>
+          </div>
+          <div class="line-row split">
+            <div class="line-cell">
+              <strong>GST No</strong>
+              <span class="line-fill"><span id="ptCustomerGstNo"></span></span>
+            </div>
+            <div class="line-cell">
+              <strong>Mob No</strong>
+              <span class="line-fill"><span id="ptPhone"></span></span>
+            </div>
           </div>
         </div>
 
         <table class="print-items-table">
           <thead>
             <tr>
-              <th>S.No</th>
-              <th>Particulars</th>
+              <th>Sl .No</th>
+              <th>Description</th>
+              <th>Unit</th>
               <th>Qty</th>
-              <th>Unit Price</th>
               <th>Amount</th>
             </tr>
           </thead>
           <tbody id="ptRows"></tbody>
         </table>
 
-        <div class="print-totals">
-          <div class="rupees-line">Rupees: <span id="ptAmountWords"></span></div>
-          <div class="totals-list">
-            <div class="total-row">
-              <span>Net Total</span>
-              <span class="total-value" id="ptNetTotal"></span>
+        <div class="invoice-bottom-grid">
+          <div class="bottom-left">
+            <div class="bank-title">Bank Details :</div>
+            <div>Account Name : SAGARIKA SHAMIYANA &amp; DECORATERS</div>
+            <div>A/c No : 7122000100106701 ,</div>
+            <div>IFSC Code : KARB0000712</div>
+            <div>BANK : Karnataka Bank,</div>
+            <div>BRANCH : sagara , karnataka.</div>
+          </div>
+          <div class="bottom-right">
+            <div class="total-line">
+              <span>Total Amount Before Tax</span>
+              <span id="ptNetTotal"></span>
             </div>
-            <div class="total-row">
-              <span>Add: SGST <span id="ptSgstRate"></span>%</span>
-              <span class="total-value" id="ptSgstAmt"></span>
+            <div class="total-line">
+              <span>CGST <span id="ptCgstRate"></span>%</span>
+              <span id="ptCgstAmt"></span>
             </div>
-            <div class="total-row">
-              <span>Add: CGST <span id="ptCgstRate"></span>%</span>
-              <span class="total-value" id="ptCgstAmt"></span>
+            <div class="total-line">
+              <span>SGST <span id="ptSgstRate"></span>%</span>
+              <span id="ptSgstAmt"></span>
             </div>
-            <div class="total-row">
+            <div class="total-line">
               <span>Discount</span>
-              <span class="total-value" id="ptDiscount"></span>
+              <span id="ptDiscount"></span>
             </div>
-            <div class="total-row grand-row">
-              <span>Grand Total</span>
-              <span class="total-value" id="ptGrandTotal"></span>
+            <div class="total-line grand-line">
+              <span>Grand Total Amount</span>
+              <span id="ptGrandTotal"></span>
             </div>
           </div>
         </div>
 
-        <div class="print-footer">
-          <div class="print-footer-left">
-            Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist. Phone:
-            9916279036, 9483399099
-          </div>
-          <div class="print-footer-right">
-            <div><strong>Girish R</strong></div>
-            <div>Authorised Signatory</div>
-          </div>
+        <div class="invoice-words-row">Amount in words: <span id="ptAmountWords"></span>.</div>
+        <div class="invoice-sign-row">
+          <div>Girish R</div>
+          <div>AUTHORISED SIGNATORY</div>
         </div>
       </div>
       <div id="ptNoteLine" class="print-note-line">Note: <span id="ptNote"></span></div>
