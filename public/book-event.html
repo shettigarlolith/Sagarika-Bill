@@ -29,6 +29,27 @@
         color: #ec1c24;
       }
 
+      .calendar-nav-controls {
+        margin-top: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .calendar-nav-btn {
+        min-width: 44px;
+        min-height: 40px;
+        padding: 6px 10px;
+        font-size: 22px;
+        line-height: 1;
+        font-weight: 900;
+      }
+
+      .calendar-month-label {
+        min-width: 170px;
+        text-align: center;
+      }
+
       .calendar-weekdays,
       .calendar-grid {
         margin-top: 10px;
@@ -226,10 +247,10 @@
         <section class="calendar-wrap">
           <div class="calendar-head">
             <h2 class="calendar-title">Event Calendar</h2>
-            <div class="submit-wrap" style="margin-top: 0">
-              <button type="button" id="calendarPrevBtn" class="btn btn-secondary">Prev</button>
-              <strong id="calendarMonthLabel"></strong>
-              <button type="button" id="calendarNextBtn" class="btn btn-secondary">Next</button>
+            <div class="calendar-nav-controls">
+              <button type="button" id="calendarPrevBtn" class="btn btn-secondary calendar-nav-btn">&lt;</button>
+              <strong id="calendarMonthLabel" class="calendar-month-label"></strong>
+              <button type="button" id="calendarNextBtn" class="btn btn-secondary calendar-nav-btn">&gt;</button>
               <button type="button" id="calendarRefreshBtn" class="btn">Refresh</button>
             </div>
           </div>
