@@ -87,6 +87,29 @@
         gap: 12px;
       }
 
+      .center-action {
+        display: flex;
+        justify-content: center;
+      }
+
+      .report-action .action-btn {
+        width: calc(50% - 5px);
+        min-height: 58px;
+        font-size: 16px;
+        color: #ffffff;
+        border: 1px solid transparent;
+        background: linear-gradient(135deg, #ab3564 0%, #c33c72 100%);
+        box-shadow: 0 12px 24px rgba(195, 60, 114, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      }
+
+      .down-action {
+        margin-top: 8px;
+      }
+
+      .full-width-action .action-btn {
+        width: 100%;
+      }
+
       .main-actions {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -241,7 +264,7 @@
       }
 
       .cal-day-num {
-        font-size: 12px;
+        font-size: clamp(16px, 2.1vw, 20px);
         font-weight: 900;
         line-height: 1;
         position: absolute;
@@ -470,7 +493,12 @@
               <a class="action-btn action-btn-primary" href="book-event.html">Book Event</a>
               <a class="action-btn action-btn-secondary" href="index.html">Bill Desk</a>
             </div>
-            <a class="action-btn action-btn-muted" href="items.html">Item List</a>
+            <div class="center-action report-action">
+              <a class="action-btn action-btn-muted" href="report.html">Report</a>
+            </div>
+            <div class="center-action down-action full-width-action">
+              <a class="action-btn action-btn-muted" href="items.html">Item List</a>
+            </div>
           </div>
         </article>
 

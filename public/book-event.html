@@ -18,35 +18,44 @@
 
       .calendar-head {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        justify-content: space-between;
-        gap: 8px;
+        justify-content: center;
+        gap: 10px;
         flex-wrap: wrap;
       }
 
       .calendar-title {
         margin: 0;
         color: #ec1c24;
+        font-size: 21px;
       }
 
-      .calendar-nav-controls {
-        margin-top: 0;
+      .calendar-nav {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
+        flex-wrap: wrap;
       }
 
-      .calendar-nav-btn {
-        min-width: 44px;
-        min-height: 40px;
-        padding: 6px 10px;
+      .mini-btn {
+        border: 1px solid var(--line);
+        background: var(--input-bg);
+        color: var(--text);
+        border-radius: 10px;
+        min-width: 42px;
+        min-height: 38px;
+        padding: 6px 12px;
         font-size: 22px;
         line-height: 1;
         font-weight: 900;
+        cursor: pointer;
       }
 
-      .calendar-month-label {
-        min-width: 170px;
+      .month-label {
+        font-weight: 800;
+        min-width: 160px;
         text-align: center;
       }
 
@@ -59,50 +68,80 @@
       }
 
       .calendar-weekdays div {
-        font-size: 12px;
-        font-weight: 800;
-        color: #5f7383;
         text-align: center;
-      }
-
-      .calendar-cell {
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        min-height: 120px;
-        padding: 8px;
-        background: var(--input-bg);
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-
-      .calendar-cell-empty {
-        background: transparent;
-        border-style: dashed;
-        opacity: 0.5;
-      }
-
-      .calendar-day {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 800;
-        color: #244462;
+        color: var(--muted);
       }
 
-      [data-theme='dark'] .calendar-day {
+      .cal-day {
+        min-height: 70px;
+        border-radius: 11px;
+        border: 1px solid var(--line);
+        background: var(--input-bg);
+        padding: 6px;
+        text-align: center;
+        color: var(--text);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+      }
+
+      .cal-day:hover {
+        border-color: #ec1c24;
+      }
+
+      .cal-day-empty {
+        border-style: dashed;
+        opacity: 0.45;
+        cursor: default;
+      }
+
+      .cal-day-today {
+        background: #d9e1eb;
+      }
+
+      [data-theme='dark'] .cal-day-today {
+        background: #4c5968;
+      }
+
+      .cal-day-selected {
+        background: #ffdff0;
+        border-color: #ec1c24;
+      }
+
+      .cal-day-num {
+        font-size: clamp(16px, 2.1vw, 20px);
+        font-weight: 900;
+        line-height: 1;
+        position: absolute;
+        top: 7px;
+        right: 7px;
+      }
+
+      [data-theme='dark'] .cal-day-num {
         color: #ffffff;
       }
 
-      .calendar-cell-today {
-        border-color: #ec1c24;
-        box-shadow: 0 0 0 2px #ec1c24;
-        background: #ffd5ec;
+      .cal-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #ec1c24;
+        position: absolute;
+        top: 7px;
+        left: 7px;
       }
 
-      .calendar-events {
-        display: grid;
-        gap: 4px;
-        max-height: 88px;
-        overflow-y: auto;
+      .cal-booking-count {
+        font-size: clamp(20px, 2.5vw, 34px);
+        font-weight: 900;
+        line-height: 1;
+        color: #7a8794;
+        position: relative;
+        top: 10px;
       }
 
       .calendar-event-btn {
@@ -134,6 +173,12 @@
 
       .calendar-details p {
         margin: 4px 0;
+      }
+
+      .calendar-event-list {
+        margin-top: 10px;
+        display: grid;
+        gap: 6px;
       }
 
       .event-print-template {
@@ -470,11 +515,11 @@
 
         <section class="calendar-wrap">
           <div class="calendar-head">
-            <h2 class="calendar-title">Event Calendar</h2>
-            <div class="calendar-nav-controls">
-              <button type="button" id="calendarPrevBtn" class="btn btn-secondary calendar-nav-btn">&lt;</button>
-              <strong id="calendarMonthLabel" class="calendar-month-label"></strong>
-              <button type="button" id="calendarNextBtn" class="btn btn-secondary calendar-nav-btn">&gt;</button>
+            <h2 class="calendar-title">CALENDER</h2>
+            <div class="calendar-nav">
+              <button type="button" id="calendarPrevBtn" class="mini-btn" aria-label="Previous month">&lt;</button>
+              <strong id="calendarMonthLabel" class="month-label"></strong>
+              <button type="button" id="calendarNextBtn" class="mini-btn" aria-label="Next month">&gt;</button>
               <button type="button" id="calendarRefreshBtn" class="btn">Refresh</button>
             </div>
           </div>
@@ -489,8 +534,8 @@
           </div>
           <div id="calendarGrid" class="calendar-grid"></div>
           <div id="calendarDetails" class="calendar-details">
-            <h3>Booking Details</h3>
-            <p style="color: #5f7383; margin: 0">Click an event name in the calendar to view booked content.</p>
+            <h3>Selected Day</h3>
+            <p style="color: #5f7383; margin: 0">Click any day in the calendar to view booked events.</p>
           </div>
         </section>
       </section>
@@ -616,6 +661,8 @@
       let currentBookingIndex = -1;
       let calendarMonthCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
       let calendarBookings = [];
+      let calendarBookingMap = new Map();
+      let selectedCalendarDateKey = new Date().toISOString().slice(0, 10);
 
       function onlyDigits(value) {
         return String(value || '').replace(/\D/g, '');
@@ -749,8 +796,8 @@
         }
         const dd = String(d.getDate()).padStart(2, '0');
         const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const yyyy = d.getFullYear();
-        return `${dd}/${mm}/${yyyy}`;
+        const yy = String(d.getFullYear()).slice(-2);
+        return `${dd}/${mm}/${yy}`;
       }
 
       function normalizeDateForInput(value) {
@@ -817,6 +864,50 @@
         `;
       }
 
+      function formatDateKeyLabel(key) {
+        if (!key) return '-';
+        const date = new Date(`${key}T00:00:00`);
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      }
+
+      function showSelectedCalendarDayDetails() {
+        const key = selectedCalendarDateKey || new Date().toISOString().slice(0, 10);
+        const dayBookings = calendarBookingMap.get(key) || [];
+
+        calendarDetails.innerHTML = `
+          <h3>Selected Day</h3>
+          <p><strong>Date:</strong> ${escapeHtml(formatDateKeyLabel(key))}</p>
+          <p><strong>Bookings:</strong> ${dayBookings.length}</p>
+        `;
+
+        if (dayBookings.length === 0) {
+          calendarDetails.insertAdjacentHTML(
+            'beforeend',
+            '<p style="color: #5f7383; margin: 0;">No bookings on this day.</p>'
+          );
+          return;
+        }
+
+        const list = document.createElement('div');
+        list.className = 'calendar-event-list';
+
+        dayBookings.forEach((booking) => {
+          const eventBtn = document.createElement('button');
+          eventBtn.type = 'button';
+          eventBtn.className = 'calendar-event-btn';
+          eventBtn.textContent = String(booking.name || booking.event || booking.bookingId || 'Booked Event');
+          eventBtn.addEventListener('click', () => {
+            showCalendarBookingDetails(booking);
+            populateBookingForm(booking);
+            statusMsg.textContent = `Loaded booking ${booking.bookingId || ''} from calendar.`;
+            statusMsg.style.color = '#ec1c24';
+          });
+          list.appendChild(eventBtn);
+        });
+
+        calendarDetails.appendChild(list);
+      }
+
       function renderCalendar() {
         const monthStart = new Date(calendarMonthCursor.getFullYear(), calendarMonthCursor.getMonth(), 1);
         const year = monthStart.getFullYear();
@@ -831,50 +922,36 @@
 
         for (let i = 0; i < firstDayWeekIndex; i += 1) {
           const emptyCell = document.createElement('div');
-          emptyCell.className = 'calendar-cell calendar-cell-empty';
+          emptyCell.className = 'cal-day cal-day-empty';
           calendarGrid.appendChild(emptyCell);
         }
 
         for (let day = 1; day <= daysInMonth; day += 1) {
           const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const dayBookings = calendarBookings.filter((booking) => getBookingDateKey(booking.eventDay) === key);
+          const dayBookings = calendarBookingMap.get(key) || [];
+          const count = dayBookings.length;
 
-          const cell = document.createElement('div');
-          cell.className = 'calendar-cell';
+          const cell = document.createElement('button');
+          cell.type = 'button';
+          cell.className = 'cal-day';
           if (key === todayKey) {
-            cell.classList.add('calendar-cell-today');
+            cell.classList.add('cal-day-today');
+          }
+          if (key === selectedCalendarDateKey) {
+            cell.classList.add('cal-day-selected');
           }
 
-          const dayTitle = document.createElement('div');
-          dayTitle.className = 'calendar-day';
-          dayTitle.textContent = key;
+          cell.innerHTML = `
+            <div class="cal-day-num">${day}</div>
+            ${count > 0 ? `<div class="cal-booking-count">${count}</div><span class="cal-dot"></span>` : ''}
+          `;
 
-          const eventsWrap = document.createElement('div');
-          eventsWrap.className = 'calendar-events';
+          cell.addEventListener('click', () => {
+            selectedCalendarDateKey = key;
+            renderCalendar();
+            showSelectedCalendarDayDetails();
+          });
 
-          if (dayBookings.length === 0) {
-            const none = document.createElement('span');
-            none.style.color = '#8a9aac';
-            none.style.fontSize = '12px';
-            none.textContent = 'No events';
-            eventsWrap.appendChild(none);
-          } else {
-            dayBookings.forEach((booking) => {
-              const eventBtn = document.createElement('button');
-              eventBtn.type = 'button';
-              eventBtn.className = 'calendar-event-btn';
-              eventBtn.textContent = String(booking.name || booking.event || booking.bookingId || 'Booked Event');
-              eventBtn.addEventListener('click', () => {
-                showCalendarBookingDetails(booking);
-                populateBookingForm(booking);
-                statusMsg.textContent = `Loaded booking ${booking.bookingId || ''} from calendar.`;
-                statusMsg.style.color = '#ec1c24';
-              });
-              eventsWrap.appendChild(eventBtn);
-            });
-          }
-
-          cell.append(dayTitle, eventsWrap);
           calendarGrid.appendChild(cell);
         }
       }
@@ -887,9 +964,22 @@
             throw new Error('Failed to load bookings for calendar.');
           }
           calendarBookings = rows;
+          calendarBookingMap = new Map();
+          calendarBookings.forEach((booking) => {
+            const key = getBookingDateKey(booking.eventDay || booking.eventDate || booking.date);
+            if (!key) return;
+            const bucket = calendarBookingMap.get(key) || [];
+            bucket.push(booking);
+            calendarBookingMap.set(key, bucket);
+          });
           renderCalendar();
+          showSelectedCalendarDayDetails();
         } catch (error) {
-          calendarGrid.innerHTML = `<div class="calendar-cell" style="grid-column: 1 / -1; color: #b42a2a;">${escapeHtml(error.message)}</div>`;
+          calendarGrid.innerHTML = `<div class="cal-day cal-day-empty" style="grid-column: 1 / -1; color: #b42a2a;">${escapeHtml(error.message)}</div>`;
+          calendarDetails.innerHTML = `
+            <h3>Selected Day</h3>
+            <p style="color: #b42a2a; margin: 0;">${escapeHtml(error.message)}</p>
+          `;
         }
       }
 
@@ -1142,10 +1232,13 @@
         const formatDateOnly = (value) => {
           const raw = String(value || '').trim();
           if (!raw) return '';
-          if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+          if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+            const [yyyy, mm, dd] = raw.slice(0, 10).split('-');
+            return `${dd}/${mm}/${String(yyyy).slice(-2)}`;
+          }
           const parsed = new Date(raw);
           if (Number.isNaN(parsed.getTime())) return raw;
-          return parsed.toISOString().slice(0, 10);
+          return formatDateForPrint(parsed.toISOString().slice(0, 10));
         };
 
         bookingListSelect.innerHTML = bookings
@@ -1432,8 +1525,9 @@
         isEditingExisting = false;
         setFormReadOnly(false);
         statusMsg.textContent = '';
-        calendarDetails.innerHTML =
-          '<h3>Booking Details</h3><p style="color: #5f7383; margin: 0">Click an event name in the calendar to view booked content.</p>';
+        selectedCalendarDateKey = new Date().toISOString().slice(0, 10);
+        renderCalendar();
+        showSelectedCalendarDayDetails();
       });
 
       editEventBtn.addEventListener('click', () => {

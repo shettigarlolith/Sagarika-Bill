@@ -535,7 +535,12 @@ function hideBillSelector() {
 }
 
 function formatBillDateForSelector(value) {
-  return normalizeBillDateForInput(value);
+  const normalized = normalizeBillDateForInput(value);
+  if (!normalized || !/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+  const [yyyy, mm, dd] = normalized.split('-');
+  return `${dd}/${mm}/${String(yyyy).slice(-2)}`;
 }
 
 function showBillSelector(bills) {
@@ -620,8 +625,8 @@ function formatDateForPrint(isoDate) {
   }
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
 }
 
 function numberToWordsBelow1000(num) {
@@ -1307,7 +1312,7 @@ function showBookingSelector(bookings) {
   bookingSelect.innerHTML = bookings
     .map((booking, index) => {
       const bookingId = String(booking.bookingId || `Booking ${index + 1}`);
-      const eventDay = String(booking.eventDay || '').trim();
+      const eventDay = formatDateForPrint(String(booking.eventDay || '').trim());
       const event = String(booking.event || '').trim();
       const name = String(booking.name || '').trim();
       const suffix = [eventDay, event, name].filter(Boolean).join(' | ');

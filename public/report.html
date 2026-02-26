@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Report | Sagarika</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Montserrat:wght@700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles-v2.css" />
+    <style>
+      .report-actions {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .report-action-btn {
+        min-height: 56px;
+        font-size: 16px;
+      }
+
+      .report-status {
+        margin-top: 12px;
+        min-height: 20px;
+        font-weight: 700;
+      }
+
+      .report-toolbar {
+        margin-top: 10px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .report-table-wrap {
+        margin-top: 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: auto;
+        background: var(--input-bg);
+      }
+
+      .report-table {
+        width: 100%;
+        min-width: 720px;
+        border-collapse: collapse;
+      }
+
+      .report-table th,
+      .report-table td {
+        border: 1px solid var(--line);
+        padding: 10px 12px;
+        text-align: left;
+      }
+
+      .report-table th {
+        background: var(--table-head);
+        color: var(--table-head-text);
+        font-size: 13px;
+      }
+
+      .report-table tr.duplicate-row td {
+        background: var(--dup-bg, #ffd9d9);
+        color: #111111;
+        font-weight: 700;
+      }
+
+      .date-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 1200;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(10, 20, 32, 0.65);
+        padding: 16px;
+      }
+
+      .date-modal[aria-hidden='false'] {
+        display: flex;
+      }
+
+      .date-modal-card {
+        width: min(96vw, 420px);
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: var(--card);
+        box-shadow: var(--shadow);
+        padding: 16px;
+      }
+
+      .date-modal-card h3 {
+        margin: 0 0 10px;
+      }
+
+      .date-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .date-modal-actions {
+        margin-top: 14px;
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+      }
+
+      .print-sheet {
+        display: none;
+      }
+
+      .print-heading {
+        margin: 0 0 10px;
+        font-size: 18px;
+        font-weight: 900;
+        color: #111;
+      }
+
+      @media print {
+        body * {
+          visibility: hidden !important;
+        }
+
+        .print-sheet,
+        .print-sheet * {
+          visibility: visible !important;
+        }
+
+        .print-sheet {
+          display: block !important;
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          background: #fff !important;
+          color: #111 !important;
+          padding: 8mm;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        .print-heading {
+          display: block !important;
+        }
+
+        .print-table-wrap {
+          display: block !important;
+          margin-top: 0 !important;
+          border: none !important;
+          border-radius: 0 !important;
+          overflow: visible !important;
+          background: #fff !important;
+        }
+
+        .print-sheet .report-table {
+          min-width: 0 !important;
+          width: 100% !important;
+        }
+
+        .print-sheet .report-table th,
+        .print-sheet .report-table td {
+          border: 1px solid #111 !important;
+          color: #111 !important;
+          background: #fff !important;
+        }
+
+        .print-sheet .report-table tr.duplicate-row,
+        .print-sheet .report-table tr.duplicate-row td {
+          background: #efefef !important;
+        }
+      }
+
+      @media (max-width: 700px) {
+        .report-actions {
+          grid-template-columns: 1fr;
+        }
+
+        .date-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+    <script>
+      (function () {
+        if (sessionStorage.getItem('sagarika_auth') === 'ok') return;
+        const page = location.pathname.split('/').pop() || 'report.html';
+        location.replace(`login.html?next=${encodeURIComponent(page)}`);
+      })();
+
+      function logoutUser() {
+        sessionStorage.removeItem('sagarika_auth');
+        sessionStorage.removeItem('sagarika_token');
+        sessionStorage.removeItem('sagarika_user');
+        sessionStorage.removeItem('sagarika_role');
+        location.replace('login.html');
+      }
+    </script>
+  </head>
+  <body>
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+
+    <main class="container">
+      <section class="card">
+        <div class="title-row">
+          <div>
+            <p class="kicker">Analytics</p>
+            <h1 class="page-title">
+              <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="title-logo" />
+              <span>Report</span>
+            </h1>
+          </div>
+          <div class="title-right-actions">
+            <a class="btn btn-secondary" href="welcome.html">Home</a>
+            <label class="theme-toggle" for="themeToggle">
+              <input id="themeToggle" type="checkbox" />
+              <span>Night Mode</span>
+            </label>
+            <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
+          </div>
+        </div>
+
+        <div class="report-actions">
+          <button type="button" id="bookingReportBtn" class="btn btn-primary report-action-btn">Booking Report</button>
+          <button type="button" id="billingReportBtn" class="btn btn-secondary report-action-btn">Billing Report</button>
+        </div>
+
+        <p id="reportStatus" class="report-status"></p>
+        <div id="reportToolbar" class="report-toolbar" style="display: none;">
+          <button type="button" id="printBookingReportBtn" class="btn btn-secondary">Print</button>
+        </div>
+
+        <div id="bookingReportWrap" class="report-table-wrap" style="display: none;">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th style="width: 18%;">Date</th>
+                <th style="width: 27%;">Event</th>
+                <th style="width: 30%;">Name</th>
+                <th style="width: 25%;">Phone Number</th>
+              </tr>
+            </thead>
+            <tbody id="bookingReportBody"></tbody>
+          </table>
+        </div>
+
+        <div id="billingReportWrap" class="report-table-wrap" style="display: none;">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Bill No</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Phone</th>
+                <th>GST No</th>
+                <th>Taxable Value</th>
+                <th>GST %</th>
+                <th>SGST</th>
+                <th>CGST</th>
+                <th>Discount %</th>
+                <th>Discount Amt</th>
+                <th>Amount Payable</th>
+              </tr>
+            </thead>
+            <tbody id="billingReportBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <section id="printSheet" class="print-sheet">
+      <h2 id="printHeading" class="print-heading"></h2>
+      <div id="printContent" class="print-table-wrap"></div>
+    </section>
+
+    <section id="dateRangeModal" class="date-modal" aria-hidden="true">
+      <div class="date-modal-card">
+        <h3 id="dateRangeTitle">Select Date Range</h3>
+        <div class="date-grid">
+          <label>
+            From Date
+            <input type="date" id="fromDateInput" required />
+          </label>
+          <label>
+            To Date
+            <input type="date" id="toDateInput" required />
+          </label>
+        </div>
+        <div class="date-modal-actions">
+          <button type="button" id="cancelDateRangeBtn" class="btn">Cancel</button>
+          <button type="button" id="applyDateRangeBtn" class="btn btn-primary">OK</button>
+        </div>
+      </div>
+    </section>
+
+    <script src="config.js"></script>
+    <script>
+      const THEME_STORAGE_KEY = 'sagarika_theme_v1';
+      const themeToggleInput = document.getElementById('themeToggle');
+      const bookingReportBtn = document.getElementById('bookingReportBtn');
+      const billingReportBtn = document.getElementById('billingReportBtn');
+      const reportStatus = document.getElementById('reportStatus');
+      const bookingReportWrap = document.getElementById('bookingReportWrap');
+      const bookingReportBody = document.getElementById('bookingReportBody');
+      const billingReportWrap = document.getElementById('billingReportWrap');
+      const billingReportBody = document.getElementById('billingReportBody');
+      const reportToolbar = document.getElementById('reportToolbar');
+      const printBookingReportBtn = document.getElementById('printBookingReportBtn');
+      const printHeading = document.getElementById('printHeading');
+      const printContent = document.getElementById('printContent');
+      const dateRangeModal = document.getElementById('dateRangeModal');
+      const dateRangeTitle = document.getElementById('dateRangeTitle');
+      const fromDateInput = document.getElementById('fromDateInput');
+      const toDateInput = document.getElementById('toDateInput');
+      const cancelDateRangeBtn = document.getElementById('cancelDateRangeBtn');
+      const applyDateRangeBtn = document.getElementById('applyDateRangeBtn');
+      const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
+      let bookingReportRange = { from: '', to: '' };
+      let activeReportType = '';
+
+      function withApiBase(path) {
+        if (!path.startsWith('/api/') || !BACKEND_BASE_URL) return path;
+        return `${BACKEND_BASE_URL}${path}`;
+      }
+
+      function escapeHtml(value) {
+        return String(value || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function normalizeDateKey(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return '';
+        const yyyy = String(d.getFullYear()).padStart(4, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      }
+
+      function formatDateDisplay(value) {
+        const key = normalizeDateKey(value);
+        if (!key) return '-';
+        const [yyyy, mm, dd] = key.split('-');
+        return `${dd}/${mm}/${String(yyyy).slice(-2)}`;
+      }
+
+      function formatMoney(value) {
+        const n = Number(value || 0);
+        if (!Number.isFinite(n)) return '0.00';
+        return n.toFixed(2);
+      }
+
+      function normalizePhone(value) {
+        return String(value || '').replace(/\D/g, '');
+      }
+
+      function buildItemSignature(row) {
+        const tokensFromItems = (() => {
+          const items = Array.isArray(row?.items) ? row.items : [];
+          return items
+            .map((entry) => {
+              const itemName = String(entry?.item || '').trim().toLowerCase().replace(/\s+/g, ' ');
+              const qtyRaw = Number(entry?.quantity ?? 0);
+              const qty = Number.isFinite(qtyRaw) ? qtyRaw.toFixed(3) : '0.000';
+              return itemName ? `${itemName}:${qty}` : '';
+            })
+            .filter(Boolean);
+        })();
+
+        const tokensFromSelected = (() => {
+          const selected = String(row?.selectedItems || '').trim();
+          if (!selected) return [];
+          return selected
+            .split(',')
+            .map((part) => {
+              const text = String(part || '').trim().toLowerCase().replace(/\s+/g, ' ');
+              if (!text) return '';
+              const match = text.match(/^(.*)\sx\s(-?\d+(?:\.\d+)?)$/);
+              if (match) {
+                const itemName = String(match[1] || '').trim();
+                const qtyRaw = Number(match[2]);
+                const qty = Number.isFinite(qtyRaw) ? qtyRaw.toFixed(3) : '0.000';
+                return itemName ? `${itemName}:${qty}` : '';
+              }
+              return text;
+            })
+            .filter(Boolean);
+        })();
+
+        const tokens = tokensFromSelected.length > 0 ? tokensFromSelected : tokensFromItems;
+        if (tokens.length === 0) return '';
+        return [...tokens].sort().join('|');
+      }
+
+      function duplicateKeyForBill(row) {
+        const phone = normalizePhone(row.phoneNumber);
+        const customer = String(row.customerName || '').trim().toLowerCase();
+        const itemSignature = buildItemSignature(row);
+        const total = formatMoney(row.total || 0);
+        const payable = formatMoney(row.amountPayable || 0);
+        return [phone, customer, itemSignature, total, payable].join('|');
+      }
+
+      function billIdSequence(value) {
+        const raw = String(value || '').trim();
+        const match = raw.match(/(\d+)/);
+        if (!match) return Number.MAX_SAFE_INTEGER;
+        const n = Number(match[1]);
+        return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
+      }
+
+      async function parseJsonResponse(response) {
+        const raw = await response.text();
+        try {
+          return JSON.parse(raw);
+        } catch {
+          throw new Error('Invalid JSON from backend.');
+        }
+      }
+
+      function openDateRangeModal(type) {
+        activeReportType = type;
+        dateRangeTitle.textContent = type === 'billing' ? 'Select Billing Date Range' : 'Select Booking Date Range';
+        const today = new Date().toISOString().slice(0, 10);
+        if (!fromDateInput.value) {
+          const monthStart = new Date();
+          monthStart.setDate(1);
+          fromDateInput.value = monthStart.toISOString().slice(0, 10);
+        }
+        if (!toDateInput.value) {
+          toDateInput.value = today;
+        }
+        dateRangeModal.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeDateRangeModal() {
+        dateRangeModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function renderBookingReport(rows) {
+        bookingReportBody.innerHTML = rows
+          .map(
+            (row) => `
+              <tr>
+                <td>${escapeHtml(formatDateDisplay(row.eventDay))}</td>
+                <td>${escapeHtml(row.event || '-')}</td>
+                <td>${escapeHtml(row.name || '-')}</td>
+                <td>${escapeHtml(row.phoneNumber || '-')}</td>
+              </tr>
+            `
+          )
+          .join('');
+      }
+
+      function renderBillingReport(rows) {
+        const grouped = new Map();
+        rows.forEach((row) => {
+          const key = duplicateKeyForBill(row);
+          const list = grouped.get(key) || [];
+          list.push(row);
+          grouped.set(key, list);
+        });
+
+        const duplicateBillIds = new Set();
+        const duplicateColorByBillId = new Map();
+        const duplicatePalette = ['#ffd9d9', '#ffe7c7', '#fff4b8', '#d9f5d6', '#d6ecff', '#eadbff', '#ffdff2', '#d7f7f2'];
+        let duplicateGroupIndex = 0;
+        grouped.forEach((list) => {
+          const ids = new Set(list.map((row) => String(row.billId || '').trim()).filter(Boolean));
+          if (ids.size > 1) {
+            const color = duplicatePalette[duplicateGroupIndex % duplicatePalette.length];
+            duplicateGroupIndex += 1;
+            list.forEach((row) => duplicateBillIds.add(String(row.billId || '').trim()));
+            list.forEach((row) => duplicateColorByBillId.set(String(row.billId || '').trim(), color));
+          }
+        });
+
+        let totalTaxable = 0;
+        let totalSgst = 0;
+        let totalCgst = 0;
+        let totalDiscountAmt = 0;
+        let totalPayable = 0;
+
+        const bodyRows = rows
+          .map((row) => {
+            const total = Number(row.total || 0);
+            const gstPercent = Number(row.gst || 0);
+            const discountPercent = Number(row.discount || 0);
+            const gstAmount = (total * gstPercent) / 100;
+            const sgst = gstAmount / 2;
+            const cgst = gstAmount / 2;
+            const discountAmount = (total * discountPercent) / 100;
+            const payable = Number(row.amountPayable || total + gstAmount - discountAmount);
+
+            totalTaxable += total;
+            totalSgst += sgst;
+            totalCgst += cgst;
+            totalDiscountAmt += discountAmount;
+            totalPayable += payable;
+            const billId = String(row.billId || '').trim();
+            const duplicateClass = duplicateBillIds.has(billId) ? 'duplicate-row' : '';
+            const duplicateStyle = duplicateClass ? ` style="--dup-bg:${duplicateColorByBillId.get(billId)}"` : '';
+
+            return `
+              <tr class="${duplicateClass}"${duplicateStyle}>
+                <td>${escapeHtml(row.billId || '-')}</td>
+                <td>${escapeHtml(formatDateDisplay(row.billDate))}</td>
+                <td>${escapeHtml(row.customerName || '-')}</td>
+                <td>${escapeHtml(row.phoneNumber || '-')}</td>
+                <td>${escapeHtml(row.gstNo || '-')}</td>
+                <td>${formatMoney(total)}</td>
+                <td>${formatMoney(gstPercent)}</td>
+                <td>${formatMoney(sgst)}</td>
+                <td>${formatMoney(cgst)}</td>
+                <td>${formatMoney(discountPercent)}</td>
+                <td>${formatMoney(discountAmount)}</td>
+                <td>${formatMoney(payable)}</td>
+              </tr>
+            `;
+          })
+          .join('');
+
+        const totalsRow = `
+          <tr>
+            <td colspan="5"><strong>Totals</strong></td>
+            <td><strong>${formatMoney(totalTaxable)}</strong></td>
+            <td></td>
+            <td><strong>${formatMoney(totalSgst)}</strong></td>
+            <td><strong>${formatMoney(totalCgst)}</strong></td>
+            <td></td>
+            <td><strong>${formatMoney(totalDiscountAmt)}</strong></td>
+            <td><strong>${formatMoney(totalPayable)}</strong></td>
+          </tr>
+        `;
+
+        billingReportBody.innerHTML = `${bodyRows}${totalsRow}`;
+        return duplicateBillIds.size;
+      }
+
+      async function loadBookingReport(fromDate, toDate) {
+        reportStatus.textContent = 'Loading booking report...';
+        reportStatus.style.color = 'var(--muted)';
+        bookingReportWrap.style.display = 'none';
+        billingReportWrap.style.display = 'none';
+
+        const response = await fetch(withApiBase('/api/book-events'));
+        const data = await parseJsonResponse(response);
+        if (!response.ok) {
+          throw new Error((data && (data.error || data.details)) || 'Failed to load booking report.');
+        }
+        if (!Array.isArray(data)) {
+          throw new Error('Invalid booking report payload.');
+        }
+
+        const filtered = data
+          .filter((row) => {
+            const key = normalizeDateKey(row.eventDay);
+            return key && key >= fromDate && key <= toDate;
+          })
+          .sort((a, b) => String(a.eventDay || '').localeCompare(String(b.eventDay || '')));
+
+        if (filtered.length === 0) {
+          reportStatus.textContent = `No bookings found from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.`;
+          reportStatus.style.color = '#b42a2a';
+          bookingReportBody.innerHTML = '';
+          reportToolbar.style.display = 'none';
+          return;
+        }
+
+        renderBookingReport(filtered);
+        bookingReportWrap.style.display = 'block';
+        activeReportType = 'booking';
+        reportToolbar.style.display = 'flex';
+        bookingReportRange = { from: fromDate, to: toDate };
+        printHeading.textContent = `Booking Report - From ${formatDateDisplay(fromDate)} Till ${formatDateDisplay(toDate)}`;
+        reportStatus.textContent = `${filtered.length} booking record(s) from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.`;
+        reportStatus.style.color = '#0c7a6b';
+      }
+
+      async function loadBillingReport(fromDate, toDate) {
+        reportStatus.textContent = 'Loading billing report...';
+        reportStatus.style.color = 'var(--muted)';
+        bookingReportWrap.style.display = 'none';
+        billingReportWrap.style.display = 'none';
+
+        const response = await fetch(withApiBase('/api/bills'));
+        const data = await parseJsonResponse(response);
+        if (!response.ok) {
+          throw new Error((data && (data.error || data.details)) || 'Failed to load billing report.');
+        }
+        if (!Array.isArray(data)) {
+          throw new Error('Invalid billing report payload.');
+        }
+
+        const filtered = data
+          .filter((row) => {
+            const key = normalizeDateKey(row.billDate);
+            return key && key >= fromDate && key <= toDate;
+          })
+          .sort((a, b) => {
+            const byBillNo = billIdSequence(a.billId) - billIdSequence(b.billId);
+            if (byBillNo !== 0) return byBillNo;
+            return String(a.billDate || '').localeCompare(String(b.billDate || ''));
+          });
+
+        if (filtered.length === 0) {
+          reportStatus.textContent = `No bills found from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.`;
+          reportStatus.style.color = '#b42a2a';
+          billingReportBody.innerHTML = '';
+          reportToolbar.style.display = 'none';
+          return;
+        }
+
+        const duplicateCount = renderBillingReport(filtered);
+        billingReportWrap.style.display = 'block';
+        activeReportType = 'billing';
+        reportToolbar.style.display = 'flex';
+        bookingReportRange = { from: fromDate, to: toDate };
+        printHeading.textContent = `Billing Report - From ${formatDateDisplay(fromDate)} Till ${formatDateDisplay(toDate)}`;
+        const duplicateText =
+          duplicateCount > 0 ? ` Possible duplicate bills highlighted: ${duplicateCount}.` : ' No duplicate bills detected.';
+        reportStatus.textContent = `${filtered.length} bill record(s) from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.${duplicateText}`;
+        reportStatus.style.color = '#0c7a6b';
+      }
+
+      function applyTheme(theme) {
+        const normalized = theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', normalized);
+        if (themeToggleInput) {
+          themeToggleInput.checked = normalized === 'dark';
+        }
+        try {
+          localStorage.setItem(THEME_STORAGE_KEY, normalized);
+        } catch {
+          // Ignore storage failures.
+        }
+      }
+
+      themeToggleInput.addEventListener('change', () => {
+        applyTheme(themeToggleInput.checked ? 'dark' : 'light');
+      });
+
+      window.addEventListener('storage', (event) => {
+        if (event.key === THEME_STORAGE_KEY) {
+          applyTheme(event.newValue === 'dark' ? 'dark' : 'light');
+        }
+      });
+
+      try {
+        const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+        applyTheme(savedTheme === 'dark' ? 'dark' : 'light');
+      } catch {
+        applyTheme('light');
+      }
+
+      bookingReportBtn.addEventListener('click', () => openDateRangeModal('booking'));
+
+      billingReportBtn.addEventListener('click', () => {
+        openDateRangeModal('billing');
+      });
+
+      cancelDateRangeBtn.addEventListener('click', closeDateRangeModal);
+
+      dateRangeModal.addEventListener('click', (event) => {
+        if (event.target === dateRangeModal) closeDateRangeModal();
+      });
+
+      applyDateRangeBtn.addEventListener('click', async () => {
+        const fromDate = String(fromDateInput.value || '').trim();
+        const toDate = String(toDateInput.value || '').trim();
+
+        if (!fromDate || !toDate) {
+          reportStatus.textContent = 'Please select both From Date and To Date.';
+          reportStatus.style.color = '#b42a2a';
+          return;
+        }
+        if (fromDate > toDate) {
+          reportStatus.textContent = 'From Date cannot be after To Date.';
+          reportStatus.style.color = '#b42a2a';
+          return;
+        }
+
+        closeDateRangeModal();
+        try {
+          if (activeReportType === 'billing') {
+            await loadBillingReport(fromDate, toDate);
+          } else {
+            await loadBookingReport(fromDate, toDate);
+          }
+        } catch (error) {
+          reportStatus.textContent = error.message || 'Failed to load report.';
+          reportStatus.style.color = '#b42a2a';
+          bookingReportWrap.style.display = 'none';
+          billingReportWrap.style.display = 'none';
+          reportToolbar.style.display = 'none';
+        }
+      });
+
+      printBookingReportBtn.addEventListener('click', () => {
+        if (!bookingReportRange.from || !bookingReportRange.to) {
+          reportStatus.textContent = 'Generate a report first, then print.';
+          reportStatus.style.color = '#b42a2a';
+          return;
+        }
+        if (activeReportType === 'billing') {
+          printContent.innerHTML = billingReportWrap.innerHTML;
+        } else {
+          printContent.innerHTML = bookingReportWrap.innerHTML;
+        }
+        printContent.querySelectorAll('tr.duplicate-row').forEach((row) => {
+          row.style.background = '#efefef';
+        });
+        printContent.querySelectorAll('tr.duplicate-row td').forEach((cell) => {
+          cell.style.background = '#efefef';
+        });
+        window.print();
+      });
+    </script>
+  </body>
+</html>
