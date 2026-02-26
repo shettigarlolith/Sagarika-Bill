@@ -465,7 +465,7 @@
           </label>
           <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
           <div class="search-row">
-            <input type="tel" id="searchPhone" placeholder="Search by phone number" />
+            <input type="text" id="searchPhone" placeholder="Search by phone, booking no, or name" />
             <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
             <select id="bookingListSelect" class="btn btn-secondary" style="display: none; min-width: 260px"></select>
             <button type="button" id="editEventBtn" class="btn btn-secondary" disabled>Edit</button>
@@ -1497,6 +1497,36 @@
         bookingListSelect.style.display = 'inline-flex';
       }
 
+      function matchesTextSearch(candidate, query) {
+        return String(candidate || '').toLowerCase().includes(query);
+      }
+
+      function matchesNumberSearch(candidate, queryDigits) {
+        if (!queryDigits) {
+          return false;
+        }
+        return onlyDigits(candidate || '').includes(queryDigits);
+      }
+
+      function bookingMatchesSearchQuery(booking, rawQuery) {
+        const query = String(rawQuery || '').trim().toLowerCase();
+        const queryDigits = onlyDigits(rawQuery || '');
+        if (!query) {
+          return true;
+        }
+
+        if (query.startsWith('be')) {
+          return matchesTextSearch(booking?.bookingId, query);
+        }
+
+        return (
+          matchesTextSearch(booking?.bookingId, query) ||
+          matchesTextSearch(booking?.name, query) ||
+          matchesTextSearch(booking?.event, query) ||
+          matchesNumberSearch(booking?.phoneNumber, queryDigits)
+        );
+      }
+
       function syncBookingHeader() {
         bookingNumberViewInput.value = currentBookingId || nextBookingId || 'To be generated';
       }
@@ -1578,32 +1608,32 @@
         setFormReadOnly(true);
       }
 
-      async function searchBookingsByPhone(phoneNumber) {
-        const cleanedPhone = onlyDigits(phoneNumber).slice(0, 10);
-        if (!cleanedPhone) {
-          statusMsg.textContent = 'Enter phone number to search.';
+      async function searchBookings(rawQuery) {
+        const query = String(rawQuery || '').trim();
+        if (!query) {
+          statusMsg.textContent = 'Enter phone number, booking number, or name to search.';
           statusMsg.style.color = '#b42a2a';
           return;
         }
 
         try {
-          const query = `?phoneNumber=${encodeURIComponent(cleanedPhone)}`;
-          const data = await requestApiJson(['book-events', 'bookEvents', 'bookevent'], { query });
+          const data = await requestApiJson(['book-events', 'bookEvents', 'bookevent']);
           const rows = asArrayPayload(data);
           if (!rows) {
             throw new Error('Failed to search bookings.');
           }
+          const filtered = rows.filter((entry) => bookingMatchesSearchQuery(entry, query));
 
-          if (rows.length === 0) {
+          if (filtered.length === 0) {
             matchedBookings = [];
             currentBookingIndex = -1;
             hideBookingListSelect();
-            statusMsg.textContent = `No bookings found for phone ${cleanedPhone}.`;
+            statusMsg.textContent = `No bookings found for "${query}".`;
             statusMsg.style.color = '#b42a2a';
             return;
           }
 
-          matchedBookings = rows;
+          matchedBookings = filtered;
           currentBookingIndex = 0;
           showBookingListSelect(matchedBookings);
           bookingListSelect.value = '0';
@@ -1701,12 +1731,8 @@
         phoneNumberInput.value = onlyDigits(phoneNumberInput.value).slice(0, 10);
       });
 
-      searchPhoneInput.addEventListener('input', () => {
-        searchPhoneInput.value = onlyDigits(searchPhoneInput.value).slice(0, 10);
-      });
-
       searchBtn.addEventListener('click', () => {
-        searchBookingsByPhone(searchPhoneInput.value.trim());
+        searchBookings(searchPhoneInput.value.trim());
       });
 
       if (themeToggleInput) {

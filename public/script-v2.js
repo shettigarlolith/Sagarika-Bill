@@ -1346,10 +1346,54 @@ async function loadItemsFromExcel() {
   }
 }
 
-async function searchBillsByPhone(phoneNumber) {
-  const cleanedPhone = onlyDigits(phoneNumber).slice(0, 10);
-  if (!cleanedPhone) {
-    statusMsg.textContent = 'Enter phone number to search.';
+function matchesTextSearch(candidate, query) {
+  return String(candidate || '').toLowerCase().includes(query);
+}
+
+function matchesNumberSearch(candidate, queryDigits) {
+  if (!queryDigits) {
+    return false;
+  }
+  return onlyDigits(candidate || '').includes(queryDigits);
+}
+
+function billMatchesSearchQuery(bill, rawQuery) {
+  const query = String(rawQuery || '').trim().toLowerCase();
+  const queryDigits = onlyDigits(rawQuery || '');
+  if (!query) {
+    return true;
+  }
+
+  return (
+    matchesTextSearch(bill?.billId, query) ||
+    matchesTextSearch(bill?.customerName, query) ||
+    matchesNumberSearch(bill?.phoneNumber, queryDigits)
+  );
+}
+
+function bookingMatchesSearchQuery(booking, rawQuery) {
+  const query = String(rawQuery || '').trim().toLowerCase();
+  const queryDigits = onlyDigits(rawQuery || '');
+  if (!query) {
+    return true;
+  }
+
+  if (query.startsWith('be')) {
+    return matchesTextSearch(booking?.bookingId, query);
+  }
+
+  return (
+    matchesTextSearch(booking?.bookingId, query) ||
+    matchesTextSearch(booking?.name, query) ||
+    matchesTextSearch(booking?.event, query) ||
+    matchesNumberSearch(booking?.phoneNumber, queryDigits)
+  );
+}
+
+async function searchBills(rawQuery) {
+  const query = String(rawQuery || '').trim();
+  if (!query) {
+    statusMsg.textContent = 'Enter phone number, bill number, or name to search.';
     statusMsg.style.color = '#b42a2a';
     return;
   }
@@ -1358,21 +1402,21 @@ async function searchBillsByPhone(phoneNumber) {
     matchedBookingsForImport = [];
     hideBookingSelector();
 
-    const query = `&phoneNumber=${encodeURIComponent(cleanedPhone)}`;
-    const response = await fetch(apiUrl('bills', query));
+    const response = await fetch(apiUrl('bills'));
     const data = await parseJsonResponse(response);
+    const filtered = Array.isArray(data) ? data.filter((bill) => billMatchesSearchQuery(bill, query)) : [];
 
-    if (!Array.isArray(data) || data.length === 0) {
+    if (filtered.length === 0) {
       matchedBills = [];
       currentBillIndex = -1;
       hideBillSelector();
       editBillBtn.disabled = true;
-      statusMsg.textContent = `No bills found for phone ${cleanedPhone}.`;
+      statusMsg.textContent = `No bills found for "${query}".`;
       statusMsg.style.color = '#b42a2a';
       return;
     }
 
-    matchedBills = data;
+    matchedBills = filtered;
     currentBillIndex = 0;
     showBillSelector(matchedBills);
     billSelect.value = '0';
@@ -1390,14 +1434,12 @@ async function searchBillsByPhone(phoneNumber) {
   }
 }
 
-async function fetchBookEventsByPhone(cleanedPhone) {
-  const localQuery = `?phoneNumber=${encodeURIComponent(cleanedPhone)}`;
-  const scriptQuery = `&phoneNumber=${encodeURIComponent(cleanedPhone)}`;
+async function fetchBookEventsByQuery(rawQuery) {
   const candidates = [
-    `/api/book-events${localQuery}`,
-    apiUrl('book-events', scriptQuery),
-    apiUrl('bookEvents', scriptQuery),
-    apiUrl('bookevent', scriptQuery)
+    '/api/book-events',
+    apiUrl('book-events'),
+    apiUrl('bookEvents'),
+    apiUrl('bookevent')
   ];
 
   function asArray(data) {
@@ -1456,7 +1498,7 @@ async function fetchBookEventsByPhone(cleanedPhone) {
       if (!rows) {
         throw new Error('Invalid booking response format from backend.');
       }
-      return rows.map(normalizeBooking);
+      return rows.map(normalizeBooking).filter((booking) => bookingMatchesSearchQuery(booking, rawQuery));
     } catch (error) {
       lastError = error;
     }
@@ -1544,10 +1586,10 @@ function showBookingSelector(bookings) {
   bookingSelect.style.display = 'inline-flex';
 }
 
-async function importBookingByPhone(phoneNumber) {
-  const cleanedPhone = onlyDigits(phoneNumber).slice(0, 10);
-  if (!cleanedPhone) {
-    statusMsg.textContent = 'Enter phone number to load booking.';
+async function importBookingByQuery(rawQuery) {
+  const query = String(rawQuery || '').trim();
+  if (!query) {
+    statusMsg.textContent = 'Enter phone number, booking number, or name to load booking.';
     statusMsg.style.color = '#b42a2a';
     return;
   }
@@ -1557,11 +1599,11 @@ async function importBookingByPhone(phoneNumber) {
     currentBillIndex = -1;
     hideBillSelector();
 
-    const bookings = await fetchBookEventsByPhone(cleanedPhone);
+    const bookings = await fetchBookEventsByQuery(query);
     if (bookings.length === 0) {
       matchedBookingsForImport = [];
       hideBookingSelector();
-      statusMsg.textContent = `No bookings found for phone ${cleanedPhone}.`;
+      statusMsg.textContent = `No bookings found for "${query}".`;
       statusMsg.style.color = '#b42a2a';
       return;
     }
@@ -1609,10 +1651,6 @@ phoneNumberInput.addEventListener('input', () => {
   unlockSaveOnChange();
 });
 
-searchPhoneInput.addEventListener('input', () => {
-  searchPhoneInput.value = onlyDigits(searchPhoneInput.value).slice(0, 10);
-});
-
 billForm.addEventListener('input', () => {
   unlockSaveOnChange();
   saveDraftToStorage();
@@ -1639,7 +1677,7 @@ window.addEventListener('storage', (event) => {
 searchBtn.addEventListener('click', () => {
   matchedBookingsForImport = [];
   hideBookingSelector();
-  searchBillsByPhone(searchPhoneInput.value.trim());
+  searchBills(searchPhoneInput.value.trim());
 });
 
 if (loadBookingBtn) {
@@ -1647,7 +1685,7 @@ if (loadBookingBtn) {
     matchedBills = [];
     currentBillIndex = -1;
     hideBillSelector();
-    importBookingByPhone(searchPhoneInput.value.trim());
+    importBookingByQuery(searchPhoneInput.value.trim());
   });
 }
 
