@@ -67,6 +67,11 @@ let nextBillNumber = '0001';
 let loadedBillId = '';
 let loadedBillSignature = '';
 let matchedBookingsForImport = [];
+let itemSuggestionMenu = null;
+let activeItemInput = null;
+let activeItemSuggestions = [];
+let activeItemSuggestionIndex = -1;
+let hideItemSuggestionTimer = null;
 const DRAFT_STORAGE_KEY = 'sagarika_bill_draft_v1';
 const THEME_STORAGE_KEY = 'sagarika_theme_v1';
 
@@ -323,6 +328,206 @@ function toNumericQuantity(value) {
   return Number(raw);
 }
 
+function ensureItemSuggestionMenu() {
+  if (itemSuggestionMenu) {
+    return itemSuggestionMenu;
+  }
+
+  itemSuggestionMenu = document.createElement('div');
+  itemSuggestionMenu.className = 'item-suggestions-menu';
+  itemSuggestionMenu.style.display = 'none';
+  itemSuggestionMenu.addEventListener('mousedown', (event) => {
+    const option = event.target.closest('.item-suggestions-option');
+    if (!option) {
+      return;
+    }
+    event.preventDefault();
+    const index = Number(option.dataset.index);
+    const selectedValue = activeItemSuggestions[index];
+    if (!selectedValue) {
+      return;
+    }
+    selectItemSuggestion(selectedValue);
+  });
+  document.body.appendChild(itemSuggestionMenu);
+  return itemSuggestionMenu;
+}
+
+function getFilteredItemSuggestions(query) {
+  const normalized = String(query || '').trim().toLowerCase();
+  const unique = [...new Set(storeItems.map((name) => String(name || '').trim()).filter(Boolean))];
+  if (!normalized) {
+    return unique.slice(0, 12);
+  }
+
+  const startsWith = [];
+  const includes = [];
+  unique.forEach((name) => {
+    const candidate = name.toLowerCase();
+    if (candidate.startsWith(normalized)) {
+      startsWith.push(name);
+    } else if (candidate.includes(normalized)) {
+      includes.push(name);
+    }
+  });
+
+  return [...startsWith, ...includes].slice(0, 12);
+}
+
+function hideItemSuggestionMenu() {
+  if (hideItemSuggestionTimer) {
+    clearTimeout(hideItemSuggestionTimer);
+    hideItemSuggestionTimer = null;
+  }
+  if (itemSuggestionMenu) {
+    itemSuggestionMenu.style.display = 'none';
+  }
+  activeItemInput = null;
+  activeItemSuggestions = [];
+  activeItemSuggestionIndex = -1;
+}
+
+function queueHideItemSuggestionMenu() {
+  if (hideItemSuggestionTimer) {
+    clearTimeout(hideItemSuggestionTimer);
+  }
+  hideItemSuggestionTimer = setTimeout(() => {
+    hideItemSuggestionMenu();
+  }, 140);
+}
+
+function applyActiveItemSuggestionState() {
+  if (!itemSuggestionMenu) {
+    return;
+  }
+  [...itemSuggestionMenu.querySelectorAll('.item-suggestions-option')].forEach((option, index) => {
+    option.classList.toggle('is-active', index === activeItemSuggestionIndex);
+  });
+}
+
+function renderItemSuggestionMenu() {
+  const menu = ensureItemSuggestionMenu();
+  if (!activeItemInput || activeItemInput.disabled || isFormReadOnly || activeItemSuggestions.length === 0) {
+    menu.style.display = 'none';
+    return;
+  }
+
+  menu.innerHTML = activeItemSuggestions
+    .map(
+      (name, index) =>
+        `<div class="item-suggestions-option${index === activeItemSuggestionIndex ? ' is-active' : ''}" data-index="${index}">${name}</div>`
+    )
+    .join('');
+
+  const rect = activeItemInput.getBoundingClientRect();
+  const gap = 6;
+  menu.style.display = 'block';
+  menu.style.visibility = 'hidden';
+  menu.style.width = `${Math.max(rect.width, 180)}px`;
+
+  const measuredHeight = menu.offsetHeight || 0;
+  const minTop = 8;
+  const maxTop = Math.max(minTop, window.innerHeight - measuredHeight - 8);
+  const preferredTop = rect.top - measuredHeight - gap;
+  const fallbackTop = Math.min(maxTop, rect.bottom + gap);
+  const top = preferredTop >= minTop ? preferredTop : fallbackTop;
+  const maxLeft = Math.max(8, window.innerWidth - menu.offsetWidth - 8);
+  const left = Math.min(Math.max(8, rect.left), maxLeft);
+
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.style.visibility = 'visible';
+}
+
+function updateItemSuggestionMenu(inputElement) {
+  if (!inputElement || inputElement.disabled || isFormReadOnly) {
+    hideItemSuggestionMenu();
+    return;
+  }
+  if (hideItemSuggestionTimer) {
+    clearTimeout(hideItemSuggestionTimer);
+    hideItemSuggestionTimer = null;
+  }
+  activeItemInput = inputElement;
+  activeItemSuggestions = getFilteredItemSuggestions(inputElement.value);
+  activeItemSuggestionIndex = activeItemSuggestions.length ? 0 : -1;
+  renderItemSuggestionMenu();
+}
+
+function selectItemSuggestion(value) {
+  if (!activeItemInput) {
+    return;
+  }
+  activeItemInput.value = String(value || '');
+  recalculate();
+  unlockSaveOnChange();
+  saveDraftToStorage();
+  hideItemSuggestionMenu();
+}
+
+function onItemInputKeydown(event) {
+  if (event.key === 'Escape') {
+    hideItemSuggestionMenu();
+    return;
+  }
+
+  if (!activeItemInput || activeItemInput !== event.target || activeItemSuggestions.length === 0) {
+    return;
+  }
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    activeItemSuggestionIndex = (activeItemSuggestionIndex + 1) % activeItemSuggestions.length;
+    applyActiveItemSuggestionState();
+    return;
+  }
+
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    activeItemSuggestionIndex =
+      (activeItemSuggestionIndex - 1 + activeItemSuggestions.length) % activeItemSuggestions.length;
+    applyActiveItemSuggestionState();
+    return;
+  }
+
+  if (event.key === 'Enter' && activeItemSuggestionIndex >= 0) {
+    event.preventDefault();
+    const selectedValue = activeItemSuggestions[activeItemSuggestionIndex];
+    if (selectedValue) {
+      selectItemSuggestion(selectedValue);
+    }
+  }
+}
+
+document.addEventListener('click', (event) => {
+  if (!itemSuggestionMenu || itemSuggestionMenu.style.display === 'none') {
+    return;
+  }
+
+  const clickTarget = event.target;
+  if (clickTarget === activeItemInput || itemSuggestionMenu.contains(clickTarget)) {
+    return;
+  }
+
+  hideItemSuggestionMenu();
+});
+
+window.addEventListener('resize', () => {
+  if (activeItemInput) {
+    renderItemSuggestionMenu();
+  }
+});
+
+window.addEventListener(
+  'scroll',
+  () => {
+    if (activeItemInput) {
+      renderItemSuggestionMenu();
+    }
+  },
+  true
+);
+
 function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
   const row = document.createElement('tr');
   const selectedItemValue = String(item.item || '').trim();
@@ -332,7 +537,7 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
   row.innerHTML = `
     <td><input type="number" class="slNo" min="1" value="${item.slNo}" required /></td>
     <td>
-      <input type="text" class="item" list="billItemOptions" placeholder="Type item name" value="${selectedItemValue}" required />
+      <input type="text" class="item" placeholder="Type item name" value="${selectedItemValue}" autocomplete="off" required />
     </td>
     <td><input type="text" class="quantity" value="${quantityValue}" placeholder="#" required /></td>
     <td><input type="number" class="amount" min="0" step="0.01" value="${Number(item.amount || 0).toFixed(2)}" ${manualMode ? '' : 'readonly'} /></td>
@@ -345,9 +550,19 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
     recalculate();
     renumberRows();
     saveDraftToStorage();
+    if (activeItemInput && !document.body.contains(activeItemInput)) {
+      hideItemSuggestionMenu();
+    }
   });
 
-  row.querySelector('.item').addEventListener('input', recalculate);
+  const itemInput = row.querySelector('.item');
+  itemInput.addEventListener('focus', () => updateItemSuggestionMenu(itemInput));
+  itemInput.addEventListener('input', () => {
+    recalculate();
+    updateItemSuggestionMenu(itemInput);
+  });
+  itemInput.addEventListener('keydown', onItemInputKeydown);
+  itemInput.addEventListener('blur', queueHideItemSuggestionMenu);
   row.querySelector('.quantity').addEventListener('focus', (event) => {
     if (event.target.value.trim() === '#') {
       event.target.value = '';
@@ -387,11 +602,13 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
 }
 
 function renderItemSuggestions() {
-  if (!billItemOptions) {
-    return;
+  if (billItemOptions) {
+    billItemOptions.innerHTML = storeItems.map((name) => `<option value="${name}"></option>`).join('');
   }
 
-  billItemOptions.innerHTML = storeItems.map((name) => `<option value="${name}"></option>`).join('');
+  if (activeItemInput) {
+    updateItemSuggestionMenu(activeItemInput);
+  }
 }
 
 function renumberRows() {
@@ -489,6 +706,9 @@ function clearDraftFromStorage() {
 
 function setFormReadOnly(readOnly) {
   isFormReadOnly = readOnly;
+  if (readOnly) {
+    hideItemSuggestionMenu();
+  }
 
   billDateInput.disabled = readOnly;
   if (eventDayInput) {

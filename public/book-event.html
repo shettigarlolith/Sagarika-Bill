@@ -181,6 +181,31 @@
         gap: 6px;
       }
 
+      .item-suggestions-menu {
+        position: fixed;
+        z-index: 2500;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+        max-height: 220px;
+        overflow-y: auto;
+      }
+
+      .item-suggestions-option {
+        padding: 9px 12px;
+        cursor: pointer;
+        color: var(--text);
+        background: var(--card);
+        font-size: 14px;
+      }
+
+      .item-suggestions-option:hover,
+      .item-suggestions-option.is-active {
+        background: var(--btn-secondary-bg);
+        color: var(--btn-secondary-text);
+      }
+
       .event-print-template {
         display: none;
       }
@@ -663,6 +688,11 @@
       let calendarBookings = [];
       let calendarBookingMap = new Map();
       let selectedCalendarDateKey = new Date().toISOString().slice(0, 10);
+      let itemSuggestionMenu = null;
+      let activeItemInput = null;
+      let activeItemSuggestions = [];
+      let activeItemSuggestionIndex = -1;
+      let hideItemSuggestionTimer = null;
 
       function onlyDigits(value) {
         return String(value || '').replace(/\D/g, '');
@@ -749,12 +779,214 @@
         return null;
       }
 
+      function ensureItemSuggestionMenu() {
+        if (itemSuggestionMenu) {
+          return itemSuggestionMenu;
+        }
+
+        itemSuggestionMenu = document.createElement('div');
+        itemSuggestionMenu.className = 'item-suggestions-menu';
+        itemSuggestionMenu.style.display = 'none';
+        itemSuggestionMenu.addEventListener('mousedown', (event) => {
+          const option = event.target.closest('.item-suggestions-option');
+          if (!option) return;
+          event.preventDefault();
+          const index = Number(option.dataset.index);
+          const selectedValue = activeItemSuggestions[index];
+          if (!selectedValue) return;
+          selectItemSuggestion(selectedValue);
+        });
+        document.body.appendChild(itemSuggestionMenu);
+        return itemSuggestionMenu;
+      }
+
+      function getFilteredItemSuggestions(query) {
+        const normalized = String(query || '').trim().toLowerCase();
+        const unique = [...new Set(storeItems.map((name) => String(name || '').trim()).filter(Boolean))];
+        if (!normalized) {
+          return unique.slice(0, 12);
+        }
+
+        const startsWith = [];
+        const includes = [];
+        unique.forEach((name) => {
+          const candidate = name.toLowerCase();
+          if (candidate.startsWith(normalized)) {
+            startsWith.push(name);
+          } else if (candidate.includes(normalized)) {
+            includes.push(name);
+          }
+        });
+
+        return [...startsWith, ...includes].slice(0, 12);
+      }
+
+      function hideItemSuggestionMenu() {
+        if (hideItemSuggestionTimer) {
+          clearTimeout(hideItemSuggestionTimer);
+          hideItemSuggestionTimer = null;
+        }
+        if (itemSuggestionMenu) {
+          itemSuggestionMenu.style.display = 'none';
+        }
+        activeItemInput = null;
+        activeItemSuggestions = [];
+        activeItemSuggestionIndex = -1;
+      }
+
+      function queueHideItemSuggestionMenu() {
+        if (hideItemSuggestionTimer) {
+          clearTimeout(hideItemSuggestionTimer);
+        }
+        hideItemSuggestionTimer = setTimeout(() => {
+          hideItemSuggestionMenu();
+        }, 140);
+      }
+
+      function applyActiveItemSuggestionState() {
+        if (!itemSuggestionMenu) return;
+        [...itemSuggestionMenu.querySelectorAll('.item-suggestions-option')].forEach((option, index) => {
+          option.classList.toggle('is-active', index === activeItemSuggestionIndex);
+        });
+      }
+
+      function renderItemSuggestionMenu() {
+        const menu = ensureItemSuggestionMenu();
+        if (
+          !activeItemInput ||
+          !document.body.contains(activeItemInput) ||
+          activeItemInput.disabled ||
+          isFormReadOnly
+        ) {
+          hideItemSuggestionMenu();
+          return;
+        }
+
+        if (activeItemSuggestions.length === 0) {
+          menu.style.display = 'none';
+          return;
+        }
+
+        menu.innerHTML = activeItemSuggestions
+          .map(
+            (name, index) =>
+              `<div class="item-suggestions-option${index === activeItemSuggestionIndex ? ' is-active' : ''}" data-index="${index}">${name}</div>`
+          )
+          .join('');
+
+        const rect = activeItemInput.getBoundingClientRect();
+        const gap = 6;
+        menu.style.display = 'block';
+        menu.style.visibility = 'hidden';
+        menu.style.width = `${Math.max(rect.width, 180)}px`;
+
+        const measuredHeight = menu.offsetHeight || 0;
+        const minTop = 8;
+        const maxTop = Math.max(minTop, window.innerHeight - measuredHeight - 8);
+        const preferredTop = rect.top - measuredHeight - gap;
+        const fallbackTop = Math.min(maxTop, rect.bottom + gap);
+        const top = preferredTop >= minTop ? preferredTop : fallbackTop;
+        const maxLeft = Math.max(8, window.innerWidth - menu.offsetWidth - 8);
+        const left = Math.min(Math.max(8, rect.left), maxLeft);
+
+        menu.style.left = `${left}px`;
+        menu.style.top = `${top}px`;
+        menu.style.visibility = 'visible';
+      }
+
+      function updateItemSuggestionMenu(inputElement) {
+        if (!inputElement || inputElement.disabled || isFormReadOnly) {
+          hideItemSuggestionMenu();
+          return;
+        }
+        if (hideItemSuggestionTimer) {
+          clearTimeout(hideItemSuggestionTimer);
+          hideItemSuggestionTimer = null;
+        }
+        activeItemInput = inputElement;
+        activeItemSuggestions = getFilteredItemSuggestions(inputElement.value);
+        activeItemSuggestionIndex = activeItemSuggestions.length ? 0 : -1;
+        renderItemSuggestionMenu();
+      }
+
+      function selectItemSuggestion(value) {
+        if (!activeItemInput) return;
+        activeItemInput.value = String(value || '');
+        hideItemSuggestionMenu();
+      }
+
+      function onItemInputKeydown(event) {
+        if (event.key === 'Escape') {
+          hideItemSuggestionMenu();
+          return;
+        }
+
+        if (!activeItemInput || activeItemInput !== event.target || activeItemSuggestions.length === 0) {
+          return;
+        }
+
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          activeItemSuggestionIndex = (activeItemSuggestionIndex + 1) % activeItemSuggestions.length;
+          applyActiveItemSuggestionState();
+          return;
+        }
+
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          activeItemSuggestionIndex =
+            (activeItemSuggestionIndex - 1 + activeItemSuggestions.length) % activeItemSuggestions.length;
+          applyActiveItemSuggestionState();
+          return;
+        }
+
+        if (event.key === 'Enter' && activeItemSuggestionIndex >= 0) {
+          event.preventDefault();
+          const selectedValue = activeItemSuggestions[activeItemSuggestionIndex];
+          if (selectedValue) {
+            selectItemSuggestion(selectedValue);
+          }
+        }
+      }
+
+      document.addEventListener('click', (event) => {
+        if (!itemSuggestionMenu || itemSuggestionMenu.style.display === 'none') {
+          return;
+        }
+        const clickTarget = event.target;
+        if (clickTarget === activeItemInput || itemSuggestionMenu.contains(clickTarget)) {
+          return;
+        }
+        hideItemSuggestionMenu();
+      });
+
+      window.addEventListener('resize', () => {
+        if (activeItemInput) {
+          renderItemSuggestionMenu();
+        }
+      });
+
+      window.addEventListener(
+        'scroll',
+        () => {
+          if (activeItemInput) {
+            renderItemSuggestionMenu();
+          }
+        },
+        true
+      );
+
       function createRow(item = '', quantity = 1) {
         const row = document.createElement('tr');
         row.innerHTML =
-          `<td><input class="event-item" type="text" list="eventItemOptions" placeholder="Type item name" value="${item}" required /></td>` +
+          `<td><input class="event-item" type="text" placeholder="Type item name" value="${item}" autocomplete="off" required /></td>` +
           `<td><input class="event-qty" type="number" min="1" step="1" value="${quantity}" required /></td>` +
           '<td><button type="button" class="btn btn-danger remove-item-btn">Remove</button></td>';
+        const itemInput = row.querySelector('.event-item');
+        itemInput.addEventListener('focus', () => updateItemSuggestionMenu(itemInput));
+        itemInput.addEventListener('input', () => updateItemSuggestionMenu(itemInput));
+        itemInput.addEventListener('keydown', onItemInputKeydown);
+        itemInput.addEventListener('blur', queueHideItemSuggestionMenu);
         bindRemove(row.querySelector('.remove-item-btn'));
         if (isFormReadOnly) {
           row.querySelector('.event-item').disabled = true;
@@ -765,9 +997,14 @@
       }
 
       function renderItemSuggestions() {
-        eventItemOptions.innerHTML = storeItems
-          .map((item) => `<option value="${item}"></option>`)
-          .join('');
+        if (eventItemOptions) {
+          eventItemOptions.innerHTML = storeItems
+            .map((item) => `<option value="${item}"></option>`)
+            .join('');
+        }
+        if (activeItemInput) {
+          updateItemSuggestionMenu(activeItemInput);
+        }
       }
 
       function bindRemove(button) {
@@ -775,6 +1012,9 @@
           if (isFormReadOnly) return;
           if (eventItemsBody.children.length === 1) return;
           button.closest('tr').remove();
+          if (activeItemInput && !document.body.contains(activeItemInput)) {
+            hideItemSuggestionMenu();
+          }
         });
       }
 
@@ -1154,6 +1394,9 @@
 
       function setFormReadOnly(readOnly) {
         isFormReadOnly = readOnly;
+        if (readOnly) {
+          hideItemSuggestionMenu();
+        }
         eventDayInput.disabled = readOnly;
         eventNameInput.readOnly = readOnly;
         customerNameInput.readOnly = readOnly;
