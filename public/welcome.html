@@ -80,6 +80,15 @@
         font-weight: 700;
       }
 
+      .hero-branch {
+        margin: -4px 0 0;
+        color: #f28c28;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.18em;
+      }
+
       .hero-actions {
         margin-top: 12px;
         width: min(460px, 100%);
@@ -452,7 +461,12 @@
     </style>
     <script>
       (function () {
-        if (sessionStorage.getItem('sagarika_auth') === 'ok') return;
+        if (sessionStorage.getItem('sagarika_auth') === 'ok' && sessionStorage.getItem('sagarika_token')) return;
+        sessionStorage.removeItem('sagarika_auth');
+        sessionStorage.removeItem('sagarika_token');
+        sessionStorage.removeItem('sagarika_user');
+        sessionStorage.removeItem('sagarika_role');
+        sessionStorage.removeItem('sagarika_bill_to');
         const page = location.pathname.split('/').pop() || 'welcome.html';
         location.replace(`login.html?next=${encodeURIComponent(page)}`);
       })();
@@ -462,7 +476,22 @@
         sessionStorage.removeItem('sagarika_token');
         sessionStorage.removeItem('sagarika_user');
         sessionStorage.removeItem('sagarika_role');
+        sessionStorage.removeItem('sagarika_bill_to');
         location.replace('login.html');
+      }
+
+      function getBranchLabel() {
+        const savedBillTo = String(sessionStorage.getItem('sagarika_bill_to') || '').trim().toUpperCase();
+        if (savedBillTo === 'PEKSHIKERE') return 'PAKSHIKERE';
+        if (savedBillTo === 'SAGARA' || savedBillTo === 'PAKSHIKERE') return savedBillTo;
+        const username = String(sessionStorage.getItem('sagarika_user') || '').trim().toLowerCase();
+        if (username === 'sagaraadmin' || username === 'sagarika') return 'SAGARA';
+        if (username === 'pakshikereadmin' || username === 'loli') return 'PAKSHIKERE';
+        return '';
+      }
+
+      function getAuthToken() {
+        return String(sessionStorage.getItem('sagarika_token') || '').trim();
       }
     </script>
   </head>
@@ -476,6 +505,7 @@
           <input id="themeToggle" type="checkbox" />
           <span>Night Mode</span>
         </label>
+        <a class="btn btn-secondary" href="login.html">Dashboard</a>
         <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
       </section>
 
@@ -485,6 +515,7 @@
             <img class="hero-logo" src="assets/sagarika-logo.svg" alt="Sagarika Logo" />
           </div>
           <h1 class="hero-title">SAGARIKA</h1>
+          <p id="heroBranch" class="hero-branch" style="display: none"></p>
           <p class="hero-subtitle">One place for all the details.</p>
 
           <div class="hero-actions">
@@ -545,6 +576,7 @@
     <script src="config.js"></script>
     <script>
       const THEME_STORAGE_KEY = 'sagarika_theme_v1';
+      const heroBranch = document.getElementById('heroBranch');
       const themeToggleInput = document.getElementById('themeToggle');
       const calendarGrid = document.getElementById('calendarGrid');
       const calendarStatus = document.getElementById('calendarStatus');
@@ -556,6 +588,12 @@
       const bookingModalClose = document.getElementById('bookingModalClose');
       const bookingModalContent = document.getElementById('bookingModalContent');
       const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
+      const branchLabel = getBranchLabel();
+
+      if (heroBranch && branchLabel) {
+        heroBranch.textContent = branchLabel;
+        heroBranch.style.display = 'block';
+      }
 
       let calendarMonthCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
       let selectedDateKey = new Date().toISOString().slice(0, 10);
@@ -579,6 +617,17 @@
         return `${BACKEND_BASE_URL}${path}`;
       }
 
+      function authFetch(path, options = {}) {
+        const nextOptions = { ...options };
+        const headers = { ...(nextOptions.headers || {}) };
+        const token = getAuthToken();
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+        nextOptions.headers = headers;
+        return fetch(withApiBase(path), nextOptions);
+      }
+
       async function parseJsonResponse(response) {
         const text = await response.text();
         try {
@@ -594,7 +643,7 @@
 
         for (const resource of resources) {
           try {
-            const response = await fetch(withApiBase(`/api/${resource}`));
+            const response = await authFetch(`/api/${resource}`);
             const data = await parseJsonResponse(response);
             if (!response.ok) {
               throw new Error(data.error || `Request failed (HTTP ${response.status}).`);

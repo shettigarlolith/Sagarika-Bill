@@ -411,6 +411,23 @@ function validateBillAndGetPayload() {
   };
 }
 
+function getAuthToken() {
+  return String(sessionStorage.getItem('sagarika_token') || '').trim();
+}
+
+function authFetch(url, options = {}) {
+  const nextOptions = { ...options };
+  const headers = { ...(nextOptions.headers || {}) };
+  const token = getAuthToken();
+  const backendBaseUrl = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
+  const finalUrl = String(url || '').startsWith('/api/') && backendBaseUrl ? `${backendBaseUrl}${url}` : url;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  nextOptions.headers = headers;
+  return fetch(finalUrl, nextOptions);
+}
+
 async function saveCurrentBill(saveLabel = 'Saving...') {
   if (isSaving) {
     statusMsg.textContent = 'Save already in progress.';
@@ -426,7 +443,7 @@ async function saveCurrentBill(saveLabel = 'Saving...') {
   setSavingState(true, saveLabel);
 
   try {
-    const response = await fetch('/api/bills', {
+    const response = await authFetch('/api/bills', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -464,7 +481,7 @@ function unlockSaveOnChange() {
 
 async function loadItemsFromExcel() {
   try {
-    const response = await fetch('/api/items');
+    const response = await authFetch('/api/items');
     const data = await parseJsonResponse(response);
 
     if (!response.ok || !Array.isArray(data)) {
@@ -504,7 +521,7 @@ async function searchBillsByPhone(phoneNumber) {
 
   try {
     const query = `?phoneNumber=${encodeURIComponent(cleanedPhone)}`;
-    const response = await fetch(`/api/bills${query}`);
+    const response = await authFetch(`/api/bills${query}`);
     const data = await parseJsonResponse(response);
 
     if (!Array.isArray(data) || data.length === 0) {

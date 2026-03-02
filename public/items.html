@@ -13,7 +13,12 @@
     <link rel="stylesheet" href="styles-v2.css" />
     <script>
       (function () {
-        if (sessionStorage.getItem('sagarika_auth') === 'ok') return;
+        if (sessionStorage.getItem('sagarika_auth') === 'ok' && sessionStorage.getItem('sagarika_token')) return;
+        sessionStorage.removeItem('sagarika_auth');
+        sessionStorage.removeItem('sagarika_token');
+        sessionStorage.removeItem('sagarika_user');
+        sessionStorage.removeItem('sagarika_role');
+        sessionStorage.removeItem('sagarika_bill_to');
         const page = location.pathname.split('/').pop() || 'items.html';
         location.replace(`login.html?next=${encodeURIComponent(page)}`);
       })();
@@ -23,6 +28,7 @@
         sessionStorage.removeItem('sagarika_token');
         sessionStorage.removeItem('sagarika_user');
         sessionStorage.removeItem('sagarika_role');
+        sessionStorage.removeItem('sagarika_bill_to');
         location.replace('login.html');
       }
     </script>

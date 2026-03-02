@@ -17,6 +17,7 @@
         sessionStorage.removeItem('sagarika_token');
         sessionStorage.removeItem('sagarika_user');
         sessionStorage.removeItem('sagarika_role');
+        sessionStorage.removeItem('sagarika_bill_to');
         location.replace('login.html');
       }
     </script>
@@ -78,6 +79,53 @@
         background: linear-gradient(135deg, #0c7a6b, #1e927f);
         color: #fff;
       }
+
+      .admin-branch-label {
+        margin: 8px 0 0;
+        color: #f28c28;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        display: none;
+      }
+
+      .password-tools {
+        margin-top: 6px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .password-toggle {
+        border: 0;
+        background: none;
+        padding: 0;
+        color: #f28c28;
+        cursor: pointer;
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .password-toggle svg {
+        width: 18px;
+        height: 18px;
+        display: block;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
     </style>
   </head>
   <body>
@@ -87,7 +135,8 @@
     <main class="container login-wrap">
       <section class="card">
         <p class="kicker">Secure Access</p>
-        <h1 class="login-title">Sagarika Login</h1>
+        <h1 id="pageTitle" class="login-title">Sagarika Login</h1>
+        <p id="adminBranchLabel" class="admin-branch-label"></p>
         <form id="authForm" class="meta-grid">
           <label>
             Username
@@ -96,6 +145,33 @@
           <label>
             Password
             <input type="password" id="password" autocomplete="current-password" required />
+            <span class="password-tools">
+              <button type="button" id="passwordToggleBtn" class="password-toggle" aria-label="View Password" title="View Password">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M2 12C4.6 7.8 8 5.7 12 5.7C16 5.7 19.4 7.8 22 12C19.4 16.2 16 18.3 12 18.3C8 18.3 4.6 16.2 2 12Z"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <circle cx="12" cy="12" r="3.1" stroke="currentColor" stroke-width="1.8" />
+                </svg>
+                <span class="sr-only">View Password</span>
+              </button>
+            </span>
+          </label>
+          <label id="confirmPasswordField" style="display: none">
+            Re-type Password
+            <input type="password" id="confirmPassword" autocomplete="new-password" />
+          </label>
+          <label id="billToField" style="display: none">
+            Bill To
+            <select id="billTo">
+              <option value="" selected disabled>Select Bill To</option>
+              <option value="SAGARA">SAGARA</option>
+              <option value="PAKSHIKERE">PAKSHIKERE</option>
+            </select>
           </label>
           <div class="submit-wrap">
             <button type="button" id="continueBtn" class="btn btn-secondary" style="display: none">Continue to App</button>
@@ -105,6 +181,9 @@
           <button type="submit" id="authSubmitBtn" class="btn btn-primary" form="authForm">Login</button>
           <button type="button" id="modeRegisterBtn" class="btn btn-secondary">Create User</button>
           <button type="button" id="logoutInlineBtn" class="btn btn-danger" onclick="logoutUser()" style="display: none">Logout</button>
+        </div>
+        <div class="submit-wrap">
+          <button type="button" id="openAppBtn" class="btn btn-secondary" style="display: none">Open App</button>
         </div>
         <p id="authHint" style="margin: 8px 0 0; color: #5f7383; font-size: 13px">
           Admin and approved users can login.

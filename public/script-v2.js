@@ -40,8 +40,19 @@ const ptEWay = document.getElementById('ptEWay');
 const ptDate = document.getElementById('ptDate');
 const ptCustomer = document.getElementById('ptCustomer');
 const ptPhone = document.getElementById('ptPhone');
+const ptHeaderGstin = document.getElementById('ptHeaderGstin');
+const ptHeaderPhones = document.getElementById('ptHeaderPhones');
+const ptHeaderAddress = document.getElementById('ptHeaderAddress');
 const ptCustomerGstNo = document.getElementById('ptCustomerGstNo');
 const ptAddress = document.getElementById('ptAddress');
+const ptBankTitle = document.getElementById('ptBankTitle');
+const ptBankLine1 = document.getElementById('ptBankLine1');
+const ptBankLine2 = document.getElementById('ptBankLine2');
+const ptBankLine3 = document.getElementById('ptBankLine3');
+const ptBankLine4 = document.getElementById('ptBankLine4');
+const ptBankLine5 = document.getElementById('ptBankLine5');
+const ptSignLine1 = document.getElementById('ptSignLine1');
+const ptSignLine2 = document.getElementById('ptSignLine2');
 const ptRows = document.getElementById('ptRows');
 const ptNetTotal = document.getElementById('ptNetTotal');
 const ptSgstRate = document.getElementById('ptSgstRate');
@@ -53,6 +64,7 @@ const ptGrandTotal = document.getElementById('ptGrandTotal');
 const ptAmountWords = document.getElementById('ptAmountWords');
 const ptNoteLine = document.getElementById('ptNoteLine');
 const ptNote = document.getElementById('ptNote');
+const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
 const LOCAL_API_BASE = '/api';
 
 let productPrices = {};
@@ -91,7 +103,7 @@ function renderBillNumber() {
 
 async function refreshNextBillNumber() {
   try {
-    const response = await fetch('/api/bills/next-bill-number');
+    const response = await authFetch('/api/bills/next-bill-number');
     const data = await parseJsonResponse(response);
     if (!response.ok) {
       return;
@@ -286,7 +298,34 @@ function apiUrl(resource, query = '') {
   const normalizedResource = resourceMap[normalizedResourceKey] || normalizedResourceKey;
   const normalizedQuery = String(query || '').trim().replace(/^[?&]+/, '');
   const queryPart = normalizedQuery ? `?${normalizedQuery}` : '';
-  return `${LOCAL_API_BASE}/${normalizedResource}${queryPart}`;
+  const path = `${LOCAL_API_BASE}/${normalizedResource}${queryPart}`;
+  if (!BACKEND_BASE_URL) {
+    return path;
+  }
+  return `${BACKEND_BASE_URL}${path}`;
+}
+
+function getAuthToken() {
+  return String(sessionStorage.getItem('sagarika_token') || '').trim();
+}
+
+function getActiveBillTo() {
+  const savedBillTo = String(sessionStorage.getItem('sagarika_bill_to') || '').trim().toUpperCase();
+  if (savedBillTo === 'PEKSHIKERE') return 'PAKSHIKERE';
+  if (savedBillTo === 'SAGARA' || savedBillTo === 'PAKSHIKERE') return savedBillTo;
+  return '';
+}
+
+function authFetch(url, options = {}) {
+  const nextOptions = { ...options };
+  const headers = { ...(nextOptions.headers || {}) };
+  const token = getAuthToken();
+  const finalUrl = String(url || '').startsWith('/api/') && BACKEND_BASE_URL ? `${BACKEND_BASE_URL}${url}` : url;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  nextOptions.headers = headers;
+  return fetch(finalUrl, nextOptions);
 }
 
 function applyTheme(theme) {
@@ -991,6 +1030,7 @@ function printWithSuggestedFileName() {
 
 function renderPrintTemplate() {
   const rows = buildPrintRows();
+  const activeBillTo = getActiveBillTo();
   const total = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const gstPercent = Number(gstInput.value || 0);
   const discountPercent = Number(discountInput.value || 0);
@@ -1008,6 +1048,38 @@ function renderPrintTemplate() {
   ptDate.textContent = formatDateForPrint(billDateInput.value);
   ptCustomer.textContent = customerNameInput.value || 'Walk-in Customer';
   ptPhone.textContent = phoneNumberInput.value || '-';
+  if (ptHeaderGstin) {
+    ptHeaderGstin.textContent = activeBillTo === 'PAKSHIKERE' ? '29AFVFS9308D1ZC' : '29AJQPR8127A1ZV.';
+  }
+  if (ptHeaderPhones) {
+    ptHeaderPhones.textContent =
+      activeBillTo === 'PAKSHIKERE' ? '9481922005 9880837710' : '9916279036 , 9483399099';
+  }
+  if (ptHeaderAddress) {
+    ptHeaderAddress.textContent =
+      activeBillTo === 'PAKSHIKERE'
+        ? 'Door No-3-78(3) Sagarika Commercial Complex, Main Road, Pakshikere, Mangalore, DK-574146'
+        : 'Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist.';
+  }
+  if (activeBillTo === 'PAKSHIKERE') {
+    if (ptBankTitle) ptBankTitle.textContent = 'Bank Details:';
+    if (ptBankLine1) ptBankLine1.textContent = 'A/c Type: Current Account';
+    if (ptBankLine2) ptBankLine2.textContent = 'Branch: Kinnigoli';
+    if (ptBankLine3) ptBankLine3.textContent = 'A/C Name: SAGARIKA ENTERPRISES';
+    if (ptBankLine4) ptBankLine4.textContent = 'A/c No.: 37570200001493';
+    if (ptBankLine5) ptBankLine5.textContent = 'IFSC Code: BARB0KINNIG (Fifth Digit Zero)';
+    if (ptSignLine1) ptSignLine1.textContent = 'Signature';
+    if (ptSignLine2) ptSignLine2.textContent = 'SAGARIKA ENTERPRISES';
+  } else {
+    if (ptBankTitle) ptBankTitle.textContent = 'Bank Details :';
+    if (ptBankLine1) ptBankLine1.textContent = 'Account Name : SAGARIKA SHAMIYANA & DECORATERS';
+    if (ptBankLine2) ptBankLine2.textContent = 'A/c No : 7122000100106701 ,';
+    if (ptBankLine3) ptBankLine3.textContent = 'IFSC Code : KARB0000712';
+    if (ptBankLine4) ptBankLine4.textContent = 'BANK : Karnataka Bank,';
+    if (ptBankLine5) ptBankLine5.textContent = 'BRANCH : sagara , karnataka.';
+    if (ptSignLine1) ptSignLine1.textContent = 'Girish R';
+    if (ptSignLine2) ptSignLine2.textContent = 'AUTHORISED SIGNATORY';
+  }
   ptCustomerGstNo.textContent = gstNoInput.value.trim() || '-';
   ptAddress.textContent = addressInput.value || '-';
   ptRows.innerHTML = '';
@@ -1169,7 +1241,7 @@ async function findExistingBillForPayload(payload) {
   }
 
   try {
-    const response = await fetch(apiUrl('bills', `phoneNumber=${encodeURIComponent(phone)}`));
+    const response = await authFetch(apiUrl('bills', `phoneNumber=${encodeURIComponent(phone)}`));
     const data = await parseJsonResponse(response);
     if (!response.ok || !Array.isArray(data) || data.length === 0) {
       return null;
@@ -1238,7 +1310,7 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create') {
     const endpoint = isUpdateMode ? apiUrl(`bills/${encodeURIComponent(loadedBillId)}`) : apiUrl('bills');
     const method = isUpdateMode ? 'PUT' : 'POST';
 
-    const response = await fetch(endpoint, {
+    const response = await authFetch(endpoint, {
       method,
       headers: {
         'Content-Type': 'application/json'
@@ -1309,7 +1381,7 @@ function unlockSaveOnChange() {
 
 async function loadItemsFromExcel() {
   try {
-    const response = await fetch(apiUrl('items'));
+    const response = await authFetch(apiUrl('items'));
     const data = await parseJsonResponse(response);
 
     if (!response.ok || !Array.isArray(data)) {
@@ -1402,9 +1474,18 @@ async function searchBills(rawQuery) {
     matchedBookingsForImport = [];
     hideBookingSelector();
 
-    const response = await fetch(apiUrl('bills'));
+    const queryDigits = onlyDigits(query);
+    const usePhoneFilter = queryDigits.length >= 7 && queryDigits.length === query.replace(/\D/g, '').length;
+    const response = await authFetch(
+      usePhoneFilter ? apiUrl('bills', `phoneNumber=${encodeURIComponent(queryDigits)}`) : apiUrl('bills')
+    );
     const data = await parseJsonResponse(response);
-    const filtered = Array.isArray(data) ? data.filter((bill) => billMatchesSearchQuery(bill, query)) : [];
+    if (!response.ok) {
+      throw new Error((data && (data.error || data.details)) || 'Failed to search bills.');
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    const filtered = usePhoneFilter ? rows : rows.filter((bill) => billMatchesSearchQuery(bill, query));
 
     if (filtered.length === 0) {
       matchedBills = [];
@@ -1485,7 +1566,7 @@ async function fetchBookEventsByQuery(rawQuery) {
 
   for (const url of candidates) {
     try {
-      const response = await fetch(url);
+      const response = await authFetch(url);
       const data = await parseJsonResponse(response);
       if (!response.ok) {
         throw new Error((data && (data.error || data.details)) || 'Failed to search bookings.');

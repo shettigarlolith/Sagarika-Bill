@@ -430,7 +430,12 @@
     </style>
     <script>
       (function () {
-        if (sessionStorage.getItem('sagarika_auth') === 'ok') return;
+        if (sessionStorage.getItem('sagarika_auth') === 'ok' && sessionStorage.getItem('sagarika_token')) return;
+        sessionStorage.removeItem('sagarika_auth');
+        sessionStorage.removeItem('sagarika_token');
+        sessionStorage.removeItem('sagarika_user');
+        sessionStorage.removeItem('sagarika_role');
+        sessionStorage.removeItem('sagarika_bill_to');
         const page = location.pathname.split('/').pop() || 'book-event.html';
         location.replace(`login.html?next=${encodeURIComponent(page)}`);
       })();
@@ -440,6 +445,7 @@
         sessionStorage.removeItem('sagarika_token');
         sessionStorage.removeItem('sagarika_user');
         sessionStorage.removeItem('sagarika_role');
+        sessionStorage.removeItem('sagarika_bill_to');
         location.replace('login.html');
       }
     </script>
@@ -579,15 +585,15 @@
     </div>
 
     <section id="printTemplate" class="print-template event-print-template">
-      <div class="print-page">
+        <div class="print-page">
         <div class="event-invoice-topline">
           <div class="event-invoice-mobile">
-            <div><strong>Mobile No. :</strong> 9916279036 , 9483399099</div>
+            <div><strong>Mobile No. :</strong> <span id="ptHeaderPhones">9916279036 , 9483399099</span></div>
           </div>
         </div>
         <div class="event-invoice-title">BOOKING INVOICE</div>
         <div class="event-invoice-brand">SAGARIKA ENTERPRISES</div>
-        <div class="event-invoice-address">
+        <div id="ptHeaderAddress" class="event-invoice-address">
           Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist.
         </div>
 
@@ -668,12 +674,13 @@
       const ptEventDate = document.getElementById('ptEventDate');
       const ptCustomer = document.getElementById('ptCustomer');
       const ptPhone = document.getElementById('ptPhone');
+      const ptHeaderPhones = document.getElementById('ptHeaderPhones');
+      const ptHeaderAddress = document.getElementById('ptHeaderAddress');
       const ptAddress = document.getElementById('ptAddress');
       const ptRows = document.getElementById('ptRows');
       const ptNote = document.getElementById('ptNote');
       const ptNoteLine = document.getElementById('ptNoteLine');
-      const APPS_SCRIPT_URL =
-        'https://script.google.com/macros/s/AKfycbycQP83g4Buo1D_KMohHbU10016skIRsQjhKvc4Rg5tMVgbtU6wCXubxqOEx_cMB0jwCQ/exec';
+      const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
       const THEME_STORAGE_KEY = 'sagarika_theme_v1';
       let productPrices = {};
       let storeItems = [];
@@ -698,8 +705,18 @@
         return String(value || '').replace(/\D/g, '');
       }
 
-      function apiUrl(resource, query = '') {
-        return `${APPS_SCRIPT_URL}?resource=${encodeURIComponent(resource)}${query}`;
+      function getActiveBillTo() {
+        const savedBillTo = String(sessionStorage.getItem('sagarika_bill_to') || '').trim().toUpperCase();
+        if (savedBillTo === 'PEKSHIKERE') return 'PAKSHIKERE';
+        if (savedBillTo === 'SAGARA' || savedBillTo === 'PAKSHIKERE') return savedBillTo;
+        return '';
+      }
+
+      function localApiUrl(path) {
+        if (!BACKEND_BASE_URL) {
+          return path;
+        }
+        return `${BACKEND_BASE_URL}${path}`;
       }
 
       function applyTheme(theme) {
@@ -729,25 +746,18 @@
       async function requestApiJson(resource, { method = 'GET', query = '', body = null } = {}) {
         const resources = Array.isArray(resource) ? resource : [resource];
         const localQuery = query ? (query.startsWith('?') ? query : `?${query}`) : '';
-        const scriptQuery = localQuery ? `&${localQuery.slice(1)}` : '';
-        const urls = [];
-        if (resources.length > 0) {
-          urls.push(`/api/${resources[0]}${localQuery}`);
-        }
-        resources.forEach((r) => {
-          urls.push(apiUrl(r, scriptQuery));
-        });
         let lastError = new Error('Failed to connect to backend.');
+        const token = String(sessionStorage.getItem('sagarika_token') || '').trim();
 
-        for (const url of urls) {
+        for (const resourceName of resources) {
+          const url = localApiUrl(`/api/${resourceName}${localQuery}`);
           try {
             const options = { method };
+            if (token) {
+              options.headers = { Authorization: `Bearer ${token}` };
+            }
             if (body !== null) {
-              // Apps Script POST from GitHub Pages must stay "simple request" (no JSON header),
-              // otherwise browser sends CORS preflight and fails with "Failed to fetch".
-              if (url.startsWith('/api/')) {
-                options.headers = { 'Content-Type': 'application/json' };
-              }
+              options.headers = { ...(options.headers || {}), 'Content-Type': 'application/json' };
               options.body = JSON.stringify(body);
             }
 
@@ -755,6 +765,9 @@
             const data = await parseJsonResponse(response);
 
             if (!response.ok) {
+              if (response.status === 401 || response.status === 403) {
+                throw new Error((data && (data.error || data.details)) || 'Unauthorized.');
+              }
               throw new Error((data && (data.error || data.details)) || 'Request failed.');
             }
             if (data && (data.error || data.details)) {
@@ -763,6 +776,9 @@
 
             return data;
           } catch (error) {
+            if (error && /unauthorized|permission required/i.test(String(error.message || ''))) {
+              throw error;
+            }
             lastError = error;
           }
         }
@@ -1346,12 +1362,23 @@
 
       function renderPrintTemplate() {
         const rows = buildPrintRows();
+        const activeBillTo = getActiveBillTo();
 
         ptBillNo.textContent = currentBookingId || 'To be generated';
         ptDate.textContent = formatDateForPrint(currentDateViewInput.value || new Date().toISOString().slice(0, 10));
         ptEventDate.textContent = formatDateForPrint(eventDayInput.value);
         ptCustomer.textContent = customerNameInput.value || 'Walk-in Customer';
         ptPhone.textContent = phoneNumberInput.value || '-';
+        if (ptHeaderPhones) {
+          ptHeaderPhones.textContent =
+            activeBillTo === 'PAKSHIKERE' ? '9481922005 9880837710' : '9916279036 , 9483399099';
+        }
+        if (ptHeaderAddress) {
+          ptHeaderAddress.textContent =
+            activeBillTo === 'PAKSHIKERE'
+              ? 'Door No-3-78(3) Sagarika Commercial Complex, Main Road, Pakshikere, Mangalore, DK-574146'
+              : 'Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist.';
+        }
         ptAddress.textContent = addressInput.value || '-';
         ptRows.innerHTML = '';
 

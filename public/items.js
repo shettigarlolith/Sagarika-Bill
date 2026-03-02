@@ -3,12 +3,30 @@ const addItemRowBtn = document.getElementById('addItemRowBtn');
 const saveItemListBtn = document.getElementById('saveItemListBtn');
 const itemStatus = document.getElementById('itemStatus');
 const themeToggleInput = document.getElementById('themeToggle');
-const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbycQP83g4Buo1D_KMohHbU10016skIRsQjhKvc4Rg5tMVgbtU6wCXubxqOEx_cMB0jwCQ/exec';
+const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
 const THEME_STORAGE_KEY = 'sagarika_theme_v1';
 
 function apiUrl(resource) {
-  return `${APPS_SCRIPT_URL}?resource=${encodeURIComponent(resource)}`;
+  const path = `/api/${encodeURIComponent(resource)}`;
+  if (!BACKEND_BASE_URL) {
+    return path;
+  }
+  return `${BACKEND_BASE_URL}${path}`;
+}
+
+function getAuthToken() {
+  return String(sessionStorage.getItem('sagarika_token') || '').trim();
+}
+
+function authFetch(url, options = {}) {
+  const nextOptions = { ...options };
+  const headers = { ...(nextOptions.headers || {}) };
+  const token = getAuthToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  nextOptions.headers = headers;
+  return fetch(url, nextOptions);
 }
 
 function applyTheme(theme) {
@@ -53,7 +71,7 @@ async function loadItems() {
   itemStatus.style.color = '#355062';
 
   try {
-    const res = await fetch(apiUrl('items'));
+    const res = await authFetch(apiUrl('items'));
     const data = await parseJsonResponse(res);
 
     if (!res.ok || !Array.isArray(data)) {
@@ -102,8 +120,9 @@ async function saveItems() {
     saveItemListBtn.disabled = true;
     saveItemListBtn.textContent = 'Saving...';
 
-    const res = await fetch(apiUrl('items'), {
+    const res = await authFetch(apiUrl('items'), {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items })
     });
 

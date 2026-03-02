@@ -18,8 +18,10 @@ const PORT = process.env.PORT || 3000;
 const dataDir = path.join(__dirname, 'data');
 const excelPath = path.join(dataDir, 'bills.xlsx');
 
-const GOOGLE_SHEET_ID =
+const MASTER_GOOGLE_SHEET_ID =
   process.env.GOOGLE_SHEET_ID || '1mW8betWY7QT4n1kCbIyWyedaNeUFzQGBXOmdc8-0ZkM';
+const PAKSHIKERE_GOOGLE_SHEET_ID =
+  process.env.PAKSHIKERE_GOOGLE_SHEET_ID || '19Rs--oEDMjZHr3XgmnZLlL8UMlloo853O4mLxB0zkXQ';
 const GOOGLE_SERVICE_ACCOUNT_FILE =
   process.env.GOOGLE_SERVICE_ACCOUNT_FILE ||
   path.join(__dirname, 'credentials', 'google-service-account.json');
@@ -27,8 +29,21 @@ const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
 const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY || '';
 const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID || '';
-const ADMIN_USERNAME = 'lolith';
-const ADMIN_PASSWORD = 'lolith123@';
+const BUSINESS_SHEET_NAMES = ['Bills', 'BillItems', 'Item List', 'BookEvent'];
+const MASTER_SHEET_NAMES = [...BUSINESS_SHEET_NAMES, 'Users'];
+const PAKSHIKERE_SHEET_NAMES = [...BUSINESS_SHEET_NAMES, 'Users'];
+const FIXED_ADMIN_USERS = [
+  {
+    username: 'sagaraadmin',
+    billTo: 'SAGARA',
+    passwordEnvVar: 'SAGARIKA_ADMIN_PASSWORD_SAGARA'
+  },
+  {
+    username: 'pakshikereadmin',
+    billTo: 'PAKSHIKERE',
+    passwordEnvVar: 'SAGARIKA_ADMIN_PASSWORD_PAKSHIKERE'
+  }
+];
 const SESSION_TTL_MS = 1000 * 60 * 60 * 8;
 
 const defaultItemList = [
@@ -118,11 +133,23 @@ function normalizeUserRecords(usersRaw) {
     return 'pending';
   };
 
+  const normalizeBillTo = (value) => {
+    const billTo = String(value || '').trim().toUpperCase();
+    if (billTo === 'PEKSHIKERE') {
+      return 'PAKSHIKERE';
+    }
+    if (billTo === 'SAGARA' || billTo === 'PAKSHIKERE') {
+      return billTo;
+    }
+    return 'SAGARA';
+  };
+
   return (Array.isArray(usersRaw) ? usersRaw : [])
     .map((row) => ({
       username: normalizeUsername(row.username),
       passwordHash: String(row.passwordHash || '').trim(),
       salt: String(row.salt || '').trim(),
+      billTo: normalizeBillTo(row.billTo),
       role: String(row.role || 'user').toLowerCase() === 'admin' ? 'admin' : 'user',
       status: normalizeStatus(row.status),
       createdAt: String(row.createdAt || ''),
@@ -183,7 +210,26 @@ function ensureWorkbook() {
 }
 
 function normalizePhoneNumber(value) {
-  return String(value || '').replace(/\D/g, '');
+  const raw = String(value ?? '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  const directDigits = raw.replace(/\D/g, '');
+  if (directDigits.length === 10) {
+    return directDigits;
+  }
+
+  // Google Sheets may return large phone numbers in numeric/scientific format.
+  const numeric = Number(raw.replace(/,/g, ''));
+  if (Number.isFinite(numeric) && Math.abs(numeric) >= 1000000000) {
+    const roundedDigits = String(Math.trunc(numeric)).replace(/\D/g, '');
+    if (roundedDigits.length >= 10) {
+      return roundedDigits.slice(-10);
+    }
+  }
+
+  return directDigits;
 }
 
 function getNextBillSequence(bills) {
@@ -299,6 +345,17 @@ function normalizeUsername(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeBillTo(value) {
+  const billTo = String(value || '').trim().toUpperCase();
+  if (billTo === 'PEKSHIKERE') {
+    return 'PAKSHIKERE';
+  }
+  if (billTo === 'SAGARA' || billTo === 'PAKSHIKERE') {
+    return billTo;
+  }
+  return 'SAGARA';
+}
+
 function hashPassword(password, salt) {
   return crypto.pbkdf2Sync(String(password || ''), salt, 100000, 64, 'sha512').toString('hex');
 }
@@ -309,7 +366,7 @@ function createPasswordRecord(password) {
   return { salt, passwordHash };
 }
 
-function createUserRecord({ username, password, role = 'user', status = 'pending', approvedBy = '' }) {
+function createUserRecord({ username, password, billTo = 'SAGARA', role = 'user', status = 'pending', approvedBy = '' }) {
   const normalizedUsername = normalizeUsername(username);
   const { salt, passwordHash } = createPasswordRecord(password);
   const now = new Date().toISOString();
@@ -317,6 +374,7 @@ function createUserRecord({ username, password, role = 'user', status = 'pending
     username: normalizedUsername,
     passwordHash,
     salt,
+    billTo: normalizeBillTo(billTo),
     role,
     status,
     createdAt: now,
@@ -325,10 +383,15 @@ function createUserRecord({ username, password, role = 'user', status = 'pending
   };
 }
 
-function buildDefaultAdminUser() {
+function getFixedAdminBootstrapPassword(config) {
+  return String(process.env[config?.passwordEnvVar] || '').trim();
+}
+
+function buildFixedAdminUser(config, password) {
   return createUserRecord({
-    username: ADMIN_USERNAME,
-    password: ADMIN_PASSWORD,
+    username: config.username,
+    password,
+    billTo: config.billTo,
     role: 'admin',
     status: 'approved',
     approvedBy: 'system'
@@ -338,6 +401,7 @@ function buildDefaultAdminUser() {
 function sanitizeUser(user) {
   return {
     username: String(user.username || ''),
+    billTo: normalizeBillTo(user.billTo),
     role: String(user.role || 'user'),
     status: String(user.status || 'pending'),
     createdAt: String(user.createdAt || ''),
@@ -346,34 +410,103 @@ function sanitizeUser(user) {
   };
 }
 
-function ensureDefaultAdminUser(users) {
-  const adminUsername = normalizeUsername(ADMIN_USERNAME);
-  const existing = users.find((user) => normalizeUsername(user.username) === adminUsername);
-  if (!existing) {
-    users.push(buildDefaultAdminUser());
-    return { users, changed: true };
-  }
-
+function applyPresetUserBillTo(users) {
   let changed = false;
-  if (existing.role !== 'admin') {
-    existing.role = 'admin';
-    changed = true;
-  }
-  if (existing.status !== 'approved') {
-    existing.status = 'approved';
-    existing.approvedAt = new Date().toISOString();
-    existing.approvedBy = 'system';
-    changed = true;
-  }
+  const presetBillToByUsername = new Map([
+    ['sagaraadmin', 'SAGARA'],
+    ['pakshikereadmin', 'PAKSHIKERE'],
+    ['sagarika', 'SAGARA'],
+    ['loli', 'PAKSHIKERE']
+  ]);
+
+  users.forEach((user) => {
+    const username = normalizeUsername(user.username);
+    const presetBillTo = presetBillToByUsername.get(username);
+    if (!presetBillTo) {
+      return;
+    }
+
+    const nextBillTo = normalizeBillTo(presetBillTo);
+    if (normalizeBillTo(user.billTo) !== nextBillTo) {
+      user.billTo = nextBillTo;
+      changed = true;
+    }
+  });
 
   return { users, changed };
 }
 
+function getFixedAdminBillTo(username) {
+  const safeUsername = normalizeUsername(username);
+  const config = FIXED_ADMIN_USERS.find((entry) => normalizeUsername(entry.username) === safeUsername);
+  return config ? normalizeBillTo(config.billTo) : '';
+}
+
+function removeLegacyUsers(users) {
+  const blockedUsers = new Set(['lolith']);
+  const nextUsers = users.filter((user) => !blockedUsers.has(normalizeUsername(user.username)));
+  return {
+    users: nextUsers,
+    changed: nextUsers.length !== users.length
+  };
+}
+
+function ensureDefaultAdminUser(users) {
+  let changed = false;
+
+  const cleanedUsers = removeLegacyUsers(users);
+  users = cleanedUsers.users;
+  changed = cleanedUsers.changed;
+
+  FIXED_ADMIN_USERS.forEach((config) => {
+    const username = normalizeUsername(config.username);
+    const existing = users.find((user) => normalizeUsername(user.username) === username);
+
+    if (!existing) {
+      const bootstrapPassword = getFixedAdminBootstrapPassword(config);
+      if (!bootstrapPassword) {
+        return;
+      }
+      users.push(buildFixedAdminUser(config, bootstrapPassword));
+      changed = true;
+      return;
+    }
+
+    if (existing.role !== 'admin') {
+      existing.role = 'admin';
+      changed = true;
+    }
+
+    if (existing.status !== 'approved') {
+      existing.status = 'approved';
+      existing.approvedAt = new Date().toISOString();
+      existing.approvedBy = 'system';
+      changed = true;
+    }
+
+    if (String(existing.approvedBy || '') !== 'system') {
+      existing.approvedBy = 'system';
+      changed = true;
+    }
+
+    const targetBillTo = normalizeBillTo(config.billTo);
+    if (normalizeBillTo(existing.billTo) !== targetBillTo) {
+      existing.billTo = targetBillTo;
+      changed = true;
+    }
+  });
+
+  const presetUsers = applyPresetUserBillTo(users);
+  return { users: presetUsers.users, changed: changed || presetUsers.changed };
+}
+
 function createSession(user) {
   const token = crypto.randomBytes(24).toString('hex');
+  const fixedAdminBillTo = getFixedAdminBillTo(user.username);
   activeSessions.set(token, {
     username: String(user.username || ''),
     role: String(user.role || 'user'),
+    billTo: fixedAdminBillTo || normalizeBillTo(user.billTo),
     createdAt: Date.now()
   });
   return token;
@@ -414,6 +547,16 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
+function requireAuth(req, res, next) {
+  const session = getSessionFromRequest(req);
+  if (!session) {
+    return res.status(401).json({ error: 'Unauthorized.' });
+  }
+
+  req.session = session;
+  return next();
+}
+
 function revokeUserSessions(username) {
   const safeUsername = normalizeUsername(username);
   for (const [token, session] of activeSessions.entries()) {
@@ -421,6 +564,30 @@ function revokeUserSessions(username) {
       activeSessions.delete(token);
     }
   }
+}
+
+function getBusinessSheetIdForBillTo(billTo) {
+  return normalizeBillTo(billTo) === 'PAKSHIKERE' ? PAKSHIKERE_GOOGLE_SHEET_ID : MASTER_GOOGLE_SHEET_ID;
+}
+
+function getBusinessSheetIdForSession(session) {
+  return getBusinessSheetIdForBillTo(session?.billTo);
+}
+
+function isSameBillToScope(session, user) {
+  const fixedAdminBillTo = getFixedAdminBillTo(session?.username);
+  const sessionBillTo = fixedAdminBillTo || normalizeBillTo(session?.billTo);
+  return sessionBillTo === normalizeBillTo(user?.billTo);
+}
+
+function canAdminManageUser(session, user) {
+  if (!session || !user) {
+    return false;
+  }
+  if (String(user.role || 'user') === 'admin') {
+    return false;
+  }
+  return isSameBillToScope(session, user);
 }
 
 function validatePasswordStrength(password) {
@@ -434,7 +601,7 @@ function isGoogleConfigured() {
   const hasJson = Boolean(GOOGLE_SERVICE_ACCOUNT_JSON);
   const hasPair = Boolean(GOOGLE_SERVICE_ACCOUNT_EMAIL && GOOGLE_PRIVATE_KEY);
   const hasFile = fs.existsSync(GOOGLE_SERVICE_ACCOUNT_FILE);
-  return Boolean(googleLib && GOOGLE_SHEET_ID && (hasJson || hasPair || hasFile));
+  return Boolean(googleLib && MASTER_GOOGLE_SHEET_ID && PAKSHIKERE_GOOGLE_SHEET_ID && (hasJson || hasPair || hasFile));
 }
 
 async function getSheetsClient() {
@@ -642,42 +809,76 @@ function compactBillItemsRows(billItems) {
     .sort((a, b) => a.billId.localeCompare(b.billId, undefined, { numeric: true, sensitivity: 'base' }));
 }
 
-async function ensureGoogleSheetsWorkbook() {
+async function ensureGoogleSheetsWorkbookFor(spreadsheetId, requiredSheets) {
   const sheets = await getSheetsClient();
   const meta = await sheets.spreadsheets.get({
-    spreadsheetId: GOOGLE_SHEET_ID,
+    spreadsheetId,
     fields: 'sheets.properties.title'
   });
 
   const existing = new Set((meta.data.sheets || []).map((s) => s.properties?.title).filter(Boolean));
-  const required = ['Bills', 'BillItems', 'Item List', 'BookEvent', 'Users'];
-
-  const requests = required
+  const requests = (Array.isArray(requiredSheets) ? requiredSheets : [])
     .filter((title) => !existing.has(title))
     .map((title) => ({ addSheet: { properties: { title } } }));
 
   if (requests.length > 0) {
     await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: GOOGLE_SHEET_ID,
+      spreadsheetId,
       requestBody: { requests }
     });
   }
-
-  const itemList = await readGoogleRows('Item List');
-  if (itemList.length === 0) {
-    await writeGoogleRows('Item List', defaultItemList);
-  }
-
-  const usersRaw = await readGoogleRows('Users');
-  const users = normalizeUserRecords(usersRaw);
-  const ensuredUsers = ensureDefaultAdminUser(users);
-  if (ensuredUsers.changed) {
-    await writeGoogleRows('Users', ensuredUsers.users);
-  }
 }
 
-async function readGoogleRows(sheetName) {
-  const cacheKey = String(sheetName || '').trim();
+async function syncPakshikereUsersSheet(users) {
+  const filteredUsers = (Array.isArray(users) ? users : []).filter(
+    (user) => normalizeBillTo(user?.billTo) === 'PAKSHIKERE'
+  );
+  await writeGoogleRows('Users', filteredUsers, { spreadsheetId: PAKSHIKERE_GOOGLE_SHEET_ID });
+}
+
+async function syncGoogleUserSheets(users) {
+  const allUsers = Array.isArray(users) ? users : [];
+  const sagaraUsers = allUsers.filter((user) => normalizeBillTo(user?.billTo) !== 'PAKSHIKERE');
+  await writeGoogleRows('Users', sagaraUsers, { spreadsheetId: MASTER_GOOGLE_SHEET_ID });
+  await syncPakshikereUsersSheet(allUsers);
+}
+
+function dedupeUsersByUsername(users) {
+  const byUsername = new Map();
+  (Array.isArray(users) ? users : []).forEach((user) => {
+    const username = normalizeUsername(user?.username);
+    if (!username) {
+      return;
+    }
+    byUsername.set(username, user);
+  });
+  return [...byUsername.values()];
+}
+
+async function ensureGoogleSheetsWorkbook() {
+  await ensureGoogleSheetsWorkbookFor(MASTER_GOOGLE_SHEET_ID, MASTER_SHEET_NAMES);
+  await ensureGoogleSheetsWorkbookFor(PAKSHIKERE_GOOGLE_SHEET_ID, PAKSHIKERE_SHEET_NAMES);
+
+  const itemList = await readGoogleRows('Item List', { spreadsheetId: MASTER_GOOGLE_SHEET_ID });
+  if (itemList.length === 0) {
+    await writeGoogleRows('Item List', defaultItemList, { spreadsheetId: MASTER_GOOGLE_SHEET_ID });
+  }
+
+  const pakshikereItemList = await readGoogleRows('Item List', { spreadsheetId: PAKSHIKERE_GOOGLE_SHEET_ID });
+  if (pakshikereItemList.length === 0) {
+    await writeGoogleRows('Item List', defaultItemList, { spreadsheetId: PAKSHIKERE_GOOGLE_SHEET_ID });
+  }
+
+  const usersRaw = await readGoogleRows('Users', { spreadsheetId: MASTER_GOOGLE_SHEET_ID });
+  const pakshikereUsersRaw = await readGoogleRows('Users', { spreadsheetId: PAKSHIKERE_GOOGLE_SHEET_ID });
+  const users = dedupeUsersByUsername(normalizeUserRecords([...usersRaw, ...pakshikereUsersRaw]));
+  const ensuredUsers = ensureDefaultAdminUser(users);
+  await syncGoogleUserSheets(ensuredUsers.users);
+}
+
+async function readGoogleRows(sheetName, options = {}) {
+  const spreadsheetId = String(options.spreadsheetId || MASTER_GOOGLE_SHEET_ID).trim();
+  const cacheKey = `${spreadsheetId}::${String(sheetName || '').trim()}`;
   const now = Date.now();
   const cached = googleSheetReadCache.get(cacheKey);
   if (cached && cached.expiresAt > now) {
@@ -686,7 +887,7 @@ async function readGoogleRows(sheetName) {
 
   const sheets = await getSheetsClient();
   const result = await sheets.spreadsheets.values.get({
-    spreadsheetId: GOOGLE_SHEET_ID,
+    spreadsheetId,
     range: `${sheetName}!A1:ZZ20000`
   });
   const rows = valueMatrixToRows(result.data.values || []);
@@ -699,23 +900,24 @@ async function readGoogleRows(sheetName) {
   return rows.map((row) => ({ ...row }));
 }
 
-async function writeGoogleRows(sheetName, rows) {
+async function writeGoogleRows(sheetName, rows, options = {}) {
+  const spreadsheetId = String(options.spreadsheetId || MASTER_GOOGLE_SHEET_ID).trim();
   const sheets = await getSheetsClient();
   const values = rowsToValueMatrix(rows);
 
   await sheets.spreadsheets.values.clear({
-    spreadsheetId: GOOGLE_SHEET_ID,
+    spreadsheetId,
     range: `${sheetName}!A:ZZ`
   });
 
   await sheets.spreadsheets.values.update({
-    spreadsheetId: GOOGLE_SHEET_ID,
+    spreadsheetId,
     range: `${sheetName}!A1`,
     valueInputOption: 'RAW',
     requestBody: { values }
   });
 
-  googleSheetReadCache.delete(String(sheetName || '').trim());
+  googleSheetReadCache.delete(`${spreadsheetId}::${String(sheetName || '').trim()}`);
 }
 
 async function getStorageMode() {
@@ -740,7 +942,7 @@ async function getStorageMode() {
   return storageMode;
 }
 
-async function getAllData(options = {}) {
+async function getAllData(options = {}, session = null) {
   const {
     includeBills = true,
     includeBillItems = true,
@@ -750,10 +952,12 @@ async function getAllData(options = {}) {
   const mode = await getStorageMode();
 
   if (mode === 'google') {
-    const billsRaw = includeBills ? await readGoogleRows('Bills') : [];
-    const itemListRaw = includeItemList ? await readGoogleRows('Item List') : [];
-    const billItemsRaw = includeBillItems ? await readGoogleRows('BillItems') : [];
-    const bookEventsRaw = includeBookEvents ? await readGoogleRows('BookEvent') : [];
+    const spreadsheetId = getBusinessSheetIdForSession(session);
+    const googleOptions = { spreadsheetId };
+    const billsRaw = includeBills ? await readGoogleRows('Bills', googleOptions) : [];
+    const itemListRaw = includeItemList ? await readGoogleRows('Item List', googleOptions) : [];
+    const billItemsRaw = includeBillItems ? await readGoogleRows('BillItems', googleOptions) : [];
+    const bookEventsRaw = includeBookEvents ? await readGoogleRows('BookEvent', googleOptions) : [];
 
     const bills = includeBills ? normalizeNumericFields(billsRaw, ['total', 'gst', 'discount', 'amountPayable']) : [];
     const billItems = includeBillItems
@@ -777,10 +981,10 @@ async function getAllData(options = {}) {
   return { mode, bills, billItems, itemList, bookEvents };
 }
 
-async function saveItemList(itemList) {
+async function saveItemList(itemList, session = null) {
   const mode = await getStorageMode();
   if (mode === 'google') {
-    await writeGoogleRows('Item List', itemList);
+    await writeGoogleRows('Item List', itemList, { spreadsheetId: getBusinessSheetIdForSession(session) });
     return;
   }
 
@@ -789,13 +993,14 @@ async function saveItemList(itemList) {
   XLSX.writeFile(workbook, excelPath);
 }
 
-async function saveBillsAndItems(bills, billItems) {
+async function saveBillsAndItems(bills, billItems, session = null) {
   const compactedBillItems = compactBillItemsRows(billItems);
 
   const mode = await getStorageMode();
   if (mode === 'google') {
-    await writeGoogleRows('Bills', bills);
-    await writeGoogleRows('BillItems', compactedBillItems);
+    const spreadsheetId = getBusinessSheetIdForSession(session);
+    await writeGoogleRows('Bills', bills, { spreadsheetId });
+    await writeGoogleRows('BillItems', compactedBillItems, { spreadsheetId });
     return;
   }
 
@@ -805,10 +1010,10 @@ async function saveBillsAndItems(bills, billItems) {
   XLSX.writeFile(workbook, excelPath);
 }
 
-async function saveBookEvents(bookEvents) {
+async function saveBookEvents(bookEvents, session = null) {
   const mode = await getStorageMode();
   if (mode === 'google') {
-    await writeGoogleRows('BookEvent', bookEvents);
+    await writeGoogleRows('BookEvent', bookEvents, { spreadsheetId: getBusinessSheetIdForSession(session) });
     return;
   }
 
@@ -820,11 +1025,11 @@ async function saveBookEvents(bookEvents) {
 async function getUsers() {
   const mode = await getStorageMode();
   if (mode === 'google') {
-    const users = normalizeUserRecords(await readGoogleRows('Users'));
+    const masterUsersRaw = await readGoogleRows('Users', { spreadsheetId: MASTER_GOOGLE_SHEET_ID });
+    const pakshikereUsersRaw = await readGoogleRows('Users', { spreadsheetId: PAKSHIKERE_GOOGLE_SHEET_ID });
+    const users = dedupeUsersByUsername(normalizeUserRecords([...masterUsersRaw, ...pakshikereUsersRaw]));
     const ensuredUsers = ensureDefaultAdminUser(users);
-    if (ensuredUsers.changed) {
-      await writeGoogleRows('Users', ensuredUsers.users);
-    }
+    await syncGoogleUserSheets(ensuredUsers.users);
     return ensuredUsers.users;
   }
 
@@ -841,7 +1046,7 @@ async function getUsers() {
 async function saveUsers(users) {
   const mode = await getStorageMode();
   if (mode === 'google') {
-    await writeGoogleRows('Users', users);
+    await syncGoogleUserSheets(users);
     return;
   }
 
@@ -947,6 +1152,7 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const username = normalizeUsername(req.body?.username);
     const password = String(req.body?.password || '');
+    const billTo = normalizeBillTo(req.body?.billTo);
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required.' });
@@ -972,7 +1178,7 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(409).json({ error: 'Username already exists.' });
     }
 
-    users.push(createUserRecord({ username, password, role: 'user', status: 'pending' }));
+    users.push(createUserRecord({ username, password, billTo, role: 'user', status: 'pending' }));
     await saveUsers(users);
 
     return res.status(201).json({
@@ -987,7 +1193,7 @@ app.get('/api/auth/pending-users', requireAdmin, async (req, res) => {
   try {
     const users = await getUsers();
     const pendingUsers = users
-      .filter((user) => user.role !== 'admin' && user.status === 'pending')
+      .filter((user) => canAdminManageUser(req.session, user) && user.status === 'pending')
       .map((user) => sanitizeUser(user));
 
     return res.json(pendingUsers);
@@ -1013,6 +1219,10 @@ app.post('/api/auth/approve-user', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Admin user does not require approval.' });
     }
 
+    if (!canAdminManageUser(req.session, user)) {
+      return res.status(403).json({ error: 'You can only manage users in your own Bill To group.' });
+    }
+
     if (user.status === 'approved') {
       return res.json({ message: 'User already approved.', user: sanitizeUser(user) });
     }
@@ -1032,13 +1242,9 @@ app.get('/api/auth/users', requireAdmin, async (req, res) => {
   try {
     const users = await getUsers();
     const result = users
+      .filter((user) => canAdminManageUser(req.session, user))
       .map((user) => sanitizeUser(user))
-      .sort((a, b) => {
-        if (a.role !== b.role) {
-          return a.role === 'admin' ? -1 : 1;
-        }
-        return a.username.localeCompare(b.username);
-      });
+      .sort((a, b) => a.username.localeCompare(b.username));
     return res.json(result);
   } catch (error) {
     return res.status(500).json({ error: 'Failed to read users.', details: error.message });
@@ -1069,6 +1275,10 @@ app.post('/api/auth/reset-password', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Admin password cannot be reset from this action.' });
     }
 
+    if (!canAdminManageUser(req.session, user)) {
+      return res.status(403).json({ error: 'You can only manage users in your own Bill To group.' });
+    }
+
     const { salt, passwordHash } = createPasswordRecord(newPassword);
     user.salt = salt;
     user.passwordHash = passwordHash;
@@ -1095,6 +1305,10 @@ app.post('/api/auth/disable-user', requireAdmin, async (req, res) => {
 
     if (user.role === 'admin') {
       return res.status(400).json({ error: 'Admin user cannot be disabled.' });
+    }
+
+    if (!canAdminManageUser(req.session, user)) {
+      return res.status(403).json({ error: 'You can only manage users in your own Bill To group.' });
     }
 
     if (user.status === 'disabled') {
@@ -1125,6 +1339,10 @@ app.post('/api/auth/enable-user', requireAdmin, async (req, res) => {
 
     if (user.role === 'admin') {
       return res.status(400).json({ error: 'Admin user is always enabled.' });
+    }
+
+    if (!canAdminManageUser(req.session, user)) {
+      return res.status(403).json({ error: 'You can only manage users in your own Bill To group.' });
     }
 
     if (user.status === 'approved') {
@@ -1163,6 +1381,10 @@ app.post('/api/auth/delete-user', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Admin user cannot be deleted.' });
     }
 
+    if (!canAdminManageUser(req.session, users[idx])) {
+      return res.status(403).json({ error: 'You can only manage users in your own Bill To group.' });
+    }
+
     const deleted = users[idx];
     users.splice(idx, 1);
     await saveUsers(users);
@@ -1173,14 +1395,14 @@ app.post('/api/auth/delete-user', requireAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/items', async (req, res) => {
+app.get('/api/items', requireAuth, async (req, res) => {
   try {
     const { itemList } = await getAllData({
       includeBills: false,
       includeBillItems: false,
       includeItemList: true,
       includeBookEvents: false
-    });
+    }, req.session);
     const result = itemList
       .map((entry) => ({ item: String(entry.item || '').trim(), price: Number(entry.price || 0) }))
       .filter((entry) => entry.item)
@@ -1192,7 +1414,7 @@ app.get('/api/items', async (req, res) => {
   }
 });
 
-app.post('/api/items', async (req, res) => {
+app.post('/api/items', requireAuth, async (req, res) => {
   try {
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
@@ -1212,21 +1434,21 @@ app.post('/api/items', async (req, res) => {
       return res.status(400).json({ error: 'Invalid item price found.' });
     }
 
-    await saveItemList(normalized);
+    await saveItemList(normalized, req.session);
     res.json({ message: 'Item List saved successfully.', count: normalized.length });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save item list.', details: error.message });
   }
 });
 
-app.post('/api/bills', async (req, res) => {
+app.post('/api/bills', requireAuth, async (req, res) => {
   try {
     const { bills, billItems, itemList } = await getAllData({
       includeBills: true,
       includeBillItems: true,
       includeItemList: true,
       includeBookEvents: false
-    });
+    }, req.session);
     const normalizedPayload = buildNormalizedBillPayload(req.body, itemList);
     if (normalizedPayload.error) {
       return res.status(400).json({ error: normalizedPayload.error });
@@ -1260,14 +1482,14 @@ app.post('/api/bills', async (req, res) => {
       updatedAt: new Date().toISOString()
     });
 
-    await saveBillsAndItems(bills, billItems);
+    await saveBillsAndItems(bills, billItems, req.session);
     res.status(201).json({ message: 'Bill saved successfully.', billId });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save bill.', details: error.message });
   }
 });
 
-app.put('/api/bills/:billId', async (req, res) => {
+app.put('/api/bills/:billId', requireAuth, async (req, res) => {
   try {
     const billId = String(req.params.billId || '').trim();
     if (!billId) {
@@ -1279,7 +1501,7 @@ app.put('/api/bills/:billId', async (req, res) => {
       includeBillItems: true,
       includeItemList: true,
       includeBookEvents: false
-    });
+    }, req.session);
     const billIndex = bills.findIndex((bill) => String(bill.billId || '').trim() === billId);
     if (billIndex < 0) {
       return res.status(404).json({ error: 'Bill not found.' });
@@ -1320,14 +1542,14 @@ app.put('/api/bills/:billId', async (req, res) => {
       updatedAt: new Date().toISOString()
     });
 
-    await saveBillsAndItems(bills, nextBillItems);
+    await saveBillsAndItems(bills, nextBillItems, req.session);
     res.json({ message: 'Bill updated successfully.', billId });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update bill.', details: error.message });
   }
 });
 
-app.post('/api/book-events', async (req, res) => {
+app.post('/api/book-events', requireAuth, async (req, res) => {
   try {
     const { eventDay, eventName, customerName, phoneNumber, address, note, items, saveMode, bookingId: requestedBookingIdRaw } = req.body;
 
@@ -1345,7 +1567,7 @@ app.post('/api/book-events', async (req, res) => {
       includeBillItems: false,
       includeItemList: true,
       includeBookEvents: true
-    });
+    }, req.session);
     const priceMap = getItemPriceMap(itemList);
 
     const normalizedItems = items.map((entry) => ({
@@ -1400,21 +1622,21 @@ app.post('/api/book-events', async (req, res) => {
       createdAt
     });
 
-    await saveBookEvents(bookEvents);
+    await saveBookEvents(bookEvents, req.session);
     res.status(201).json({ message: 'Book event saved successfully.', bookingId });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save book event.', details: error.message });
   }
 });
 
-app.get('/api/book-events/next-booking-number', async (req, res) => {
+app.get('/api/book-events/next-booking-number', requireAuth, async (req, res) => {
   try {
     const { bookEvents } = await getAllData({
       includeBills: false,
       includeBillItems: false,
       includeItemList: false,
       includeBookEvents: true
-    });
+    }, req.session);
     const nextBookingId = `BE${String(getNextBookEventSequence(bookEvents)).padStart(4, '0')}`;
     res.json({ bookingId: nextBookingId });
   } catch (error) {
@@ -1422,14 +1644,14 @@ app.get('/api/book-events/next-booking-number', async (req, res) => {
   }
 });
 
-app.get('/api/bills/next-bill-number', async (req, res) => {
+app.get('/api/bills/next-bill-number', requireAuth, async (req, res) => {
   try {
     const { bills } = await getAllData({
       includeBills: true,
       includeBillItems: false,
       includeItemList: false,
       includeBookEvents: false
-    });
+    }, req.session);
     const billId = buildBillId(bills);
     res.json({ billId });
   } catch (error) {
@@ -1437,14 +1659,14 @@ app.get('/api/bills/next-bill-number', async (req, res) => {
   }
 });
 
-app.get('/api/book-events', async (req, res) => {
+app.get('/api/book-events', requireAuth, async (req, res) => {
   try {
     const { bookEvents } = await getAllData({
       includeBills: false,
       includeBillItems: false,
       includeItemList: false,
       includeBookEvents: true
-    });
+    }, req.session);
     const phoneFilter = normalizePhoneNumber(req.query.phoneNumber || '');
 
     const grouped = new Map();
@@ -1494,14 +1716,14 @@ app.get('/api/book-events', async (req, res) => {
   }
 });
 
-app.get('/api/bills', async (req, res) => {
+app.get('/api/bills', requireAuth, async (req, res) => {
   try {
     const { bills, billItems } = await getAllData({
       includeBills: true,
       includeBillItems: true,
       includeItemList: false,
       includeBookEvents: false
-    });
+    }, req.session);
     const phoneFilter = normalizePhoneNumber(req.query.phoneNumber || '');
 
     const result = bills

@@ -188,7 +188,12 @@
     </style>
     <script>
       (function () {
-        if (sessionStorage.getItem('sagarika_auth') === 'ok') return;
+        if (sessionStorage.getItem('sagarika_auth') === 'ok' && sessionStorage.getItem('sagarika_token')) return;
+        sessionStorage.removeItem('sagarika_auth');
+        sessionStorage.removeItem('sagarika_token');
+        sessionStorage.removeItem('sagarika_user');
+        sessionStorage.removeItem('sagarika_role');
+        sessionStorage.removeItem('sagarika_bill_to');
         const page = location.pathname.split('/').pop() || 'report.html';
         location.replace(`login.html?next=${encodeURIComponent(page)}`);
       })();
@@ -198,6 +203,7 @@
         sessionStorage.removeItem('sagarika_token');
         sessionStorage.removeItem('sagarika_user');
         sessionStorage.removeItem('sagarika_role');
+        sessionStorage.removeItem('sagarika_bill_to');
         location.replace('login.html');
       }
     </script>
@@ -327,6 +333,21 @@
       function withApiBase(path) {
         if (!path.startsWith('/api/') || !BACKEND_BASE_URL) return path;
         return `${BACKEND_BASE_URL}${path}`;
+      }
+
+      function getAuthToken() {
+        return String(sessionStorage.getItem('sagarika_token') || '').trim();
+      }
+
+      function authFetch(path, options = {}) {
+        const nextOptions = { ...options };
+        const headers = { ...(nextOptions.headers || {}) };
+        const token = getAuthToken();
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+        nextOptions.headers = headers;
+        return fetch(withApiBase(path), nextOptions);
       }
 
       function escapeHtml(value) {
@@ -556,7 +577,7 @@
         bookingReportWrap.style.display = 'none';
         billingReportWrap.style.display = 'none';
 
-        const response = await fetch(withApiBase('/api/book-events'));
+        const response = await authFetch('/api/book-events');
         const data = await parseJsonResponse(response);
         if (!response.ok) {
           throw new Error((data && (data.error || data.details)) || 'Failed to load booking report.');
@@ -596,7 +617,7 @@
         bookingReportWrap.style.display = 'none';
         billingReportWrap.style.display = 'none';
 
-        const response = await fetch(withApiBase('/api/bills'));
+        const response = await authFetch('/api/bills');
         const data = await parseJsonResponse(response);
         if (!response.ok) {
           throw new Error((data && (data.error || data.details)) || 'Failed to load billing report.');
