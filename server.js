@@ -29,6 +29,12 @@ const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
 const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY || '';
 const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID || '';
+const SESSION_SECRET =
+  process.env.SAGARIKA_SESSION_SECRET ||
+  process.env.SESSION_SECRET ||
+  GOOGLE_PRIVATE_KEY ||
+  GOOGLE_SERVICE_ACCOUNT_JSON ||
+  'sagarika-local-session-secret';
 const BUSINESS_SHEET_NAMES = ['Bills', 'BillItems', 'Item List', 'BookEvent'];
 const MASTER_SHEET_NAMES = [...BUSINESS_SHEET_NAMES, 'Users'];
 const PAKSHIKERE_SHEET_NAMES = [...BUSINESS_SHEET_NAMES, 'Users'];
@@ -501,13 +507,18 @@ function ensureDefaultAdminUser(users) {
 }
 
 function createSession(user) {
-  const token = crypto.randomBytes(24).toString('hex');
   const fixedAdminBillTo = getFixedAdminBillTo(user.username);
-  activeSessions.set(token, {
+  const payload = {
     username: String(user.username || ''),
     role: String(user.role || 'user'),
     billTo: fixedAdminBillTo || normalizeBillTo(user.billTo),
     createdAt: Date.now()
+  };
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', SESSION_SECRET).update(encodedPayload).digest('base64url');
+  const token = `${encodedPayload}.${signature}`;
+  activeSessions.set(token, {
+    ...payload
   });
   return token;
 }
@@ -520,16 +531,51 @@ function getSessionFromRequest(req) {
   }
 
   const token = match[1].trim();
-  const session = activeSessions.get(token);
-  if (!session) {
+  const cachedSession = activeSessions.get(token);
+  if (cachedSession) {
+    if (Date.now() - cachedSession.createdAt > SESSION_TTL_MS) {
+      activeSessions.delete(token);
+      return null;
+    }
+    return { token, ...cachedSession };
+  }
+
+  const parts = token.split('.');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return null;
+  }
+
+  const [encodedPayload, signature] = parts;
+  const expectedSignature = crypto.createHmac('sha256', SESSION_SECRET).update(encodedPayload).digest('base64url');
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+  if (signatureBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
+    return null;
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+
+  const session = {
+    username: String(payload?.username || ''),
+    role: String(payload?.role || 'user'),
+    billTo: normalizeBillTo(payload?.billTo),
+    createdAt: Number(payload?.createdAt || 0)
+  };
+
+  if (!session.username || !session.createdAt) {
     return null;
   }
 
   if (Date.now() - session.createdAt > SESSION_TTL_MS) {
-    activeSessions.delete(token);
     return null;
   }
 
+  activeSessions.set(token, session);
   return { token, ...session };
 }
 
