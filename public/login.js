@@ -184,7 +184,7 @@ function clearStatus() {
 
 function setStatus(el, text, isError) {
   el.textContent = text;
-  el.style.color = isError ? '#b42a2a' : '#0c7a6b';
+  el.style.color = isError ? '#b42a2a' : '#4caf50';
 }
 
 function syncPasswordToggleLabel() {

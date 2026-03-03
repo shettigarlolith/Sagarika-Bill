@@ -32,6 +32,7 @@
         location.replace('login.html');
       }
     </script>
+    <script src="session-timeout.js"></script>
   </head>
   <body>
     <div class="bg-shape shape-1"></div>
@@ -271,6 +272,18 @@
           <button id="duplicateCreateBtn" class="btn btn-primary" type="button">Create New Bill</button>
           <button id="duplicateLoadBtn" class="btn btn-secondary" type="button">Load Existing Bill</button>
           <button id="duplicateCancelBtn" class="btn" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="printExistingBillModal" class="choice-modal" aria-hidden="true">
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="printExistingBillTitle">
+        <h3 id="printExistingBillTitle">Existing Bill Found</h3>
+        <p>This booking already has a bill. Do you want to print the existing bill or generate a new bill?</p>
+        <div class="choice-actions">
+          <button id="printExistingBillBtn" class="btn btn-primary" type="button">Print Existing Bill</button>
+          <button id="generateNewBillPrintBtn" class="btn btn-secondary" type="button">Generate New Bill</button>
+          <button id="cancelExistingBillPrintBtn" class="btn" type="button">Cancel</button>
         </div>
       </div>
     </div>

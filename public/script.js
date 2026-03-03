@@ -425,7 +425,18 @@ function authFetch(url, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
   nextOptions.headers = headers;
-  return fetch(finalUrl, nextOptions);
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (window.showConnectionLostPopup) {
+      window.showConnectionLostPopup();
+    }
+    return Promise.reject(new Error('Connection lost. Please refresh.'));
+  }
+  return fetch(finalUrl, nextOptions).catch((error) => {
+    if (window.handleConnectionProblem && window.handleConnectionProblem(error)) {
+      throw new Error('Connection lost. Please refresh.');
+    }
+    throw error;
+  });
 }
 
 async function saveCurrentBill(saveLabel = 'Saving...') {
@@ -456,7 +467,7 @@ async function saveCurrentBill(saveLabel = 'Saving...') {
     }
 
     statusMsg.textContent = `Saved successfully. Bill ID: ${result.billId}`;
-    statusMsg.style.color = '#0c7a6b';
+    statusMsg.style.color = '#4caf50';
     currentBillId = String(result.billId || currentBillId);
     lockSaveAfterSuccess();
     setSavingState(false);
@@ -541,7 +552,7 @@ async function searchBillsByPhone(phoneNumber) {
     const latestBill = matchedBills[currentBillIndex];
     populateBillForm(latestBill);
     statusMsg.textContent = `Found ${matchedBills.length} bill(s). Showing 1/${matchedBills.length}: ${latestBill.billId}.`;
-    statusMsg.style.color = '#0c7a6b';
+    statusMsg.style.color = '#4caf50';
   } catch (error) {
     matchedBills = [];
     currentBillIndex = -1;
@@ -599,7 +610,7 @@ prevBillBtn.addEventListener('click', () => {
   const bill = matchedBills[currentBillIndex];
   populateBillForm(bill);
   statusMsg.textContent = `Showing ${currentBillIndex + 1}/${matchedBills.length}: ${bill.billId}.`;
-  statusMsg.style.color = '#0c7a6b';
+  statusMsg.style.color = '#4caf50';
 });
 
 nextBillBtn.addEventListener('click', () => {
@@ -612,13 +623,13 @@ nextBillBtn.addEventListener('click', () => {
   const bill = matchedBills[currentBillIndex];
   populateBillForm(bill);
   statusMsg.textContent = `Showing ${currentBillIndex + 1}/${matchedBills.length}: ${bill.billId}.`;
-  statusMsg.style.color = '#0c7a6b';
+  statusMsg.style.color = '#4caf50';
 });
 
 editBillBtn.addEventListener('click', () => {
   setFormReadOnly(false);
   statusMsg.textContent = 'Edit mode enabled. You can now modify the bill.';
-  statusMsg.style.color = '#0c7a6b';
+  statusMsg.style.color = '#4caf50';
 });
 
 clearSearchBtn.addEventListener('click', () => {

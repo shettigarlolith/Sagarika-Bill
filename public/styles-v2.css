@@ -522,7 +522,7 @@ input[readonly] {
 
 .line-fill > span {
   font-size: 4mm;
-  font-weight: 600;
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

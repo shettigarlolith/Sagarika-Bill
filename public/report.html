@@ -207,6 +207,7 @@
         location.replace('login.html');
       }
     </script>
+    <script src="session-timeout.js"></script>
   </head>
   <body>
     <div class="bg-shape shape-1"></div>
@@ -347,7 +348,18 @@
           headers.Authorization = `Bearer ${token}`;
         }
         nextOptions.headers = headers;
-        return fetch(withApiBase(path), nextOptions);
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          if (window.showConnectionLostPopup) {
+            window.showConnectionLostPopup();
+          }
+          return Promise.reject(new Error('Connection lost. Please refresh.'));
+        }
+        return fetch(withApiBase(path), nextOptions).catch((error) => {
+          if (window.handleConnectionProblem && window.handleConnectionProblem(error)) {
+            throw new Error('Connection lost. Please refresh.');
+          }
+          throw error;
+        });
       }
 
       function escapeHtml(value) {
@@ -608,7 +620,7 @@
         bookingReportRange = { from: fromDate, to: toDate };
         printHeading.textContent = `Booking Report - From ${formatDateDisplay(fromDate)} Till ${formatDateDisplay(toDate)}`;
         reportStatus.textContent = `${filtered.length} booking record(s) from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.`;
-        reportStatus.style.color = '#0c7a6b';
+        reportStatus.style.color = '#4caf50';
       }
 
       async function loadBillingReport(fromDate, toDate) {
@@ -654,7 +666,7 @@
         const duplicateText =
           duplicateCount > 0 ? ` Possible duplicate bills highlighted: ${duplicateCount}.` : ' No duplicate bills detected.';
         reportStatus.textContent = `${filtered.length} bill record(s) from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.${duplicateText}`;
-        reportStatus.style.color = '#0c7a6b';
+        reportStatus.style.color = '#4caf50';
       }
 
       function applyTheme(theme) {

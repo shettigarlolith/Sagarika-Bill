@@ -26,7 +26,18 @@ function authFetch(url, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
   nextOptions.headers = headers;
-  return fetch(url, nextOptions);
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (window.showConnectionLostPopup) {
+      window.showConnectionLostPopup();
+    }
+    return Promise.reject(new Error('Connection lost. Please refresh.'));
+  }
+  return fetch(url, nextOptions).catch((error) => {
+    if (window.handleConnectionProblem && window.handleConnectionProblem(error)) {
+      throw new Error('Connection lost. Please refresh.');
+    }
+    throw error;
+  });
 }
 
 function applyTheme(theme) {
@@ -132,7 +143,7 @@ async function saveItems() {
     }
 
     itemStatus.textContent = 'Item List saved to Excel successfully.';
-    itemStatus.style.color = '#0c7a6b';
+    itemStatus.style.color = '#4caf50';
     await loadItems();
   } catch (error) {
     itemStatus.textContent = error.message;

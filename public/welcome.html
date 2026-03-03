@@ -494,6 +494,7 @@
         return String(sessionStorage.getItem('sagarika_token') || '').trim();
       }
     </script>
+    <script src="session-timeout.js"></script>
   </head>
   <body>
     <div class="bg-shape shape-1"></div>
@@ -625,7 +626,18 @@
           headers.Authorization = `Bearer ${token}`;
         }
         nextOptions.headers = headers;
-        return fetch(withApiBase(path), nextOptions);
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          if (window.showConnectionLostPopup) {
+            window.showConnectionLostPopup();
+          }
+          return Promise.reject(new Error('Connection lost. Please refresh.'));
+        }
+        return fetch(withApiBase(path), nextOptions).catch((error) => {
+          if (window.handleConnectionProblem && window.handleConnectionProblem(error)) {
+            throw new Error('Connection lost. Please refresh.');
+          }
+          throw error;
+        });
       }
 
       async function parseJsonResponse(response) {
@@ -650,6 +662,9 @@
             }
             return data;
           } catch (error) {
+            if (String(error && error.message ? error.message : error).includes('Connection lost.')) {
+              throw error;
+            }
             lastError = error;
           }
         }
@@ -846,6 +861,7 @@
           });
 
           calendarStatus.textContent = `${rows.length} booking record(s) loaded.`;
+          calendarStatus.style.color = '#4caf50';
           renderCalendar();
           showSelectedDayDetails();
         } catch (error) {

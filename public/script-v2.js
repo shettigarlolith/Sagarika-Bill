@@ -35,6 +35,10 @@ const duplicateBillMessage = document.getElementById('duplicateBillMessage');
 const duplicateCreateBtn = document.getElementById('duplicateCreateBtn');
 const duplicateLoadBtn = document.getElementById('duplicateLoadBtn');
 const duplicateCancelBtn = document.getElementById('duplicateCancelBtn');
+const printExistingBillModal = document.getElementById('printExistingBillModal');
+const printExistingBillBtn = document.getElementById('printExistingBillBtn');
+const generateNewBillPrintBtn = document.getElementById('generateNewBillPrintBtn');
+const cancelExistingBillPrintBtn = document.getElementById('cancelExistingBillPrintBtn');
 const ptBillNo = document.getElementById('ptBillNo');
 const ptEWay = document.getElementById('ptEWay');
 const ptDate = document.getElementById('ptDate');
@@ -78,6 +82,7 @@ let currentBillId = '';
 let nextBillNumber = '0001';
 let loadedBillId = '';
 let loadedBillSignature = '';
+let requireExistingBillPrintChoice = false;
 let matchedBookingsForImport = [];
 let itemSuggestionMenu = null;
 let activeItemInput = null;
@@ -154,6 +159,7 @@ function markCurrentBillAsLoadedBase() {
 function resetLoadedBillBase() {
   loadedBillId = '';
   loadedBillSignature = '';
+  requireExistingBillPrintChoice = false;
 }
 
 function hasLoadedBillChanges() {
@@ -243,6 +249,40 @@ function askDuplicateBillChoice(existingBillId) {
   });
 }
 
+function askPrintExistingBillChoice() {
+  return new Promise((resolve) => {
+    if (
+      !printExistingBillModal ||
+      !printExistingBillBtn ||
+      !generateNewBillPrintBtn ||
+      !cancelExistingBillPrintBtn
+    ) {
+      resolve('print');
+      return;
+    }
+
+    const cleanup = (result) => {
+      printExistingBillModal.classList.remove('is-open');
+      printExistingBillModal.setAttribute('aria-hidden', 'true');
+      printExistingBillBtn.removeEventListener('click', onPrint);
+      generateNewBillPrintBtn.removeEventListener('click', onNew);
+      cancelExistingBillPrintBtn.removeEventListener('click', onCancel);
+      resolve(result);
+    };
+
+    const onPrint = () => cleanup('print');
+    const onNew = () => cleanup('new');
+    const onCancel = () => cleanup('cancel');
+
+    printExistingBillBtn.addEventListener('click', onPrint);
+    generateNewBillPrintBtn.addEventListener('click', onNew);
+    cancelExistingBillPrintBtn.addEventListener('click', onCancel);
+
+    printExistingBillModal.classList.add('is-open');
+    printExistingBillModal.setAttribute('aria-hidden', 'false');
+  });
+}
+
 function normalizeBillDateForInput(value) {
   const raw = String(value || '').trim();
   if (!raw) {
@@ -325,7 +365,18 @@ function authFetch(url, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
   nextOptions.headers = headers;
-  return fetch(finalUrl, nextOptions);
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (window.showConnectionLostPopup) {
+      window.showConnectionLostPopup();
+    }
+    return Promise.reject(new Error('Connection lost. Please refresh.'));
+  }
+  return fetch(finalUrl, nextOptions).catch((error) => {
+    if (window.handleConnectionProblem && window.handleConnectionProblem(error)) {
+      throw new Error('Connection lost. Please refresh.');
+    }
+    throw error;
+  });
 }
 
 function applyTheme(theme) {
@@ -860,6 +911,7 @@ function populateBillForm(bill) {
   isSaveLocked = false;
   setFormReadOnly(true);
   markCurrentBillAsLoadedBase();
+  requireExistingBillPrintChoice = true;
   saveDraftToStorage();
 }
 
@@ -1272,7 +1324,9 @@ async function findExistingBillForPayload(payload) {
   }
 }
 
-async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create') {
+async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create', options = {}) {
+  const skipExistingCheck = Boolean(options?.skipExistingCheck);
+
   if (isSaving) {
     statusMsg.textContent = 'Save already in progress.';
     statusMsg.style.color = '#b42a2a';
@@ -1284,7 +1338,7 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create') {
     return null;
   }
 
-  if (mode === 'create' && !loadedBillId) {
+  if (mode === 'create' && !loadedBillId && !skipExistingCheck) {
     const existingBill = await findExistingBillForPayload(payload);
     if (existingBill) {
       const existingBillId = String(existingBill.billId || '').trim() || '(unknown)';
@@ -1292,7 +1346,7 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create') {
       if (choice === 'load') {
         populateBillForm(existingBill);
         statusMsg.textContent = `Existing bill loaded: ${existingBillId}.`;
-        statusMsg.style.color = '#b42a2a';
+        statusMsg.style.color = '#4caf50';
         return null;
       }
       if (choice === 'cancel') {
@@ -1327,7 +1381,7 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create') {
     statusMsg.textContent = isUpdateMode
       ? `Updated successfully. Bill ID: ${result.billId}`
       : `Saved successfully. Bill ID: ${result.billId}`;
-    statusMsg.style.color = '#0c7a6b';
+    statusMsg.style.color = '#4caf50';
     currentBillId = String(result.billId || currentBillId);
     renderBillNumber();
     markCurrentBillAsLoadedBase();
@@ -1335,6 +1389,7 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create') {
       await refreshNextBillNumber();
     }
     lockSaveAfterSuccess();
+    requireExistingBillPrintChoice = false;
     saveDraftToStorage();
     setSavingState(false);
     return result;
@@ -1353,7 +1408,7 @@ async function saveWithLoadedBillChoice(saveLabelForNew = 'Saving...', saveLabel
 
   if (!hasLoadedBillChanges()) {
     statusMsg.textContent = 'No changes detected in this bill.';
-    statusMsg.style.color = '#0c7a6b';
+    statusMsg.style.color = '#4caf50';
     return { billId: loadedBillId, skipped: true };
   }
 
@@ -1505,7 +1560,7 @@ async function searchBills(rawQuery) {
     const latestBill = matchedBills[currentBillIndex];
     populateBillForm(latestBill);
     statusMsg.textContent = `Found ${matchedBills.length} bill(s). Showing 1/${matchedBills.length}`;
-    statusMsg.style.color = '#ff1493';
+    statusMsg.style.color = '#4caf50';
   } catch (error) {
     matchedBills = [];
     currentBillIndex = -1;
@@ -1639,6 +1694,25 @@ function loadBookingIntoBillForm(booking) {
   saveDraftToStorage();
 }
 
+async function loadBookingOrExistingBill(booking) {
+  const existingBill = await findExistingBillForPayload({
+    billDate: new Date().toISOString().slice(0, 10),
+    eventDay: String(booking?.eventDay || '').trim(),
+    customerName: String(booking?.name || '').trim(),
+    phoneNumber: onlyDigits(booking?.phoneNumber || '').slice(0, 10)
+  });
+
+  if (existingBill) {
+    populateBillForm(existingBill);
+    return;
+  }
+
+  const bookingId = String(booking?.bookingId || '').trim();
+  loadBookingIntoBillForm(booking);
+  statusMsg.textContent = bookingId ? `Loaded booking ${bookingId} into bill.` : 'Loaded booking into bill.';
+  statusMsg.style.color = '#4caf50';
+}
+
 function hideBookingSelector() {
   if (!bookingSelect) {
     return;
@@ -1693,9 +1767,11 @@ async function importBookingByQuery(rawQuery) {
     showBookingSelector(bookings);
     bookingSelect.value = '0';
     const selectedBooking = matchedBookingsForImport[0];
-    loadBookingIntoBillForm(selectedBooking);
-    statusMsg.textContent = `${bookings.length} booking found.`;
-    statusMsg.style.color = '#ff1493';
+    await loadBookingOrExistingBill(selectedBooking);
+    if (!loadedBillId) {
+      statusMsg.textContent = `${bookings.length} booking found. Loaded 1/${bookings.length}.`;
+      statusMsg.style.color = '#4caf50';
+    }
   } catch (error) {
     matchedBookingsForImport = [];
     hideBookingSelector();
@@ -1771,15 +1847,13 @@ if (loadBookingBtn) {
 }
 
 if (bookingSelect) {
-  bookingSelect.addEventListener('change', () => {
+  bookingSelect.addEventListener('change', async () => {
     const selectedIndex = Number(bookingSelect.value);
     const selectedBooking = matchedBookingsForImport[selectedIndex];
     if (!selectedBooking) {
       return;
     }
-    loadBookingIntoBillForm(selectedBooking);
-    statusMsg.textContent = `Loaded booking ${selectedBooking.bookingId || ''} into bill.`;
-    statusMsg.style.color = '#0c7a6b';
+    await loadBookingOrExistingBill(selectedBooking);
   });
 }
 
@@ -1794,14 +1868,14 @@ if (billSelect) {
     currentBillIndex = selectedIndex;
     populateBillForm(selectedBill);
     statusMsg.textContent = `Found ${matchedBills.length} bill(s). Showing ${currentBillIndex + 1}/${matchedBills.length}`;
-    statusMsg.style.color = '#ff1493';
+    statusMsg.style.color = '#4caf50';
   });
 }
 
 editBillBtn.addEventListener('click', () => {
   setFormReadOnly(false);
   statusMsg.textContent = 'Edit mode enabled. You can now modify the bill.';
-  statusMsg.style.color = '#0c7a6b';
+  statusMsg.style.color = '#4caf50';
 });
 
 clearSearchBtn.addEventListener('click', () => {
@@ -1854,6 +1928,28 @@ printBillBtn.addEventListener('click', async () => {
 
   if (isSaveLocked || isFormReadOnly) {
     if (loadedBillId && !hasLoadedBillChanges()) {
+      if (requireExistingBillPrintChoice) {
+        const choice = await askPrintExistingBillChoice();
+        if (choice === 'cancel') {
+          return;
+        }
+
+        if (choice === 'new') {
+          setFormReadOnly(false);
+          isSaveLocked = false;
+          currentBillId = '';
+          renderBillNumber();
+          resetLoadedBillBase();
+          await refreshNextBillNumber();
+          const result = await saveCurrentBill('Saving for Print...', 'create', { skipExistingCheck: true });
+          if (result) {
+            renderPrintTemplate();
+            printWithSuggestedFileName();
+          }
+          return;
+        }
+      }
+
       renderPrintTemplate();
       printWithSuggestedFileName();
       return;
@@ -1867,6 +1963,28 @@ printBillBtn.addEventListener('click', async () => {
   }
 
   if (loadedBillId && !hasLoadedBillChanges()) {
+    if (requireExistingBillPrintChoice) {
+      const choice = await askPrintExistingBillChoice();
+      if (choice === 'cancel') {
+        return;
+      }
+
+      if (choice === 'new') {
+        setFormReadOnly(false);
+        isSaveLocked = false;
+        currentBillId = '';
+        renderBillNumber();
+        resetLoadedBillBase();
+        await refreshNextBillNumber();
+        const result = await saveCurrentBill('Saving for Print...', 'create', { skipExistingCheck: true });
+        if (result) {
+          renderPrintTemplate();
+          printWithSuggestedFileName();
+        }
+        return;
+      }
+    }
+
     renderPrintTemplate();
     printWithSuggestedFileName();
     return;

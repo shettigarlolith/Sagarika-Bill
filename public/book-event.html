@@ -302,7 +302,7 @@
 
       .event-print-template .event-line-fill > span {
         font-size: 4mm;
-        font-weight: 600;
+        font-weight: 400;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -449,6 +449,7 @@
         location.replace('login.html');
       }
     </script>
+    <script src="session-timeout.js"></script>
   </head>
   <body>
     <div class="bg-shape shape-1"></div>
@@ -761,7 +762,19 @@
               options.body = JSON.stringify(body);
             }
 
-            const response = await fetch(url, options);
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+              if (window.showConnectionLostPopup) {
+                window.showConnectionLostPopup();
+              }
+              throw new Error('Connection lost. Please refresh.');
+            }
+
+            const response = await fetch(url, options).catch((error) => {
+              if (window.handleConnectionProblem && window.handleConnectionProblem(error)) {
+                throw new Error('Connection lost. Please refresh.');
+              }
+              throw error;
+            });
             const data = await parseJsonResponse(response);
 
             if (!response.ok) {
@@ -776,6 +789,9 @@
 
             return data;
           } catch (error) {
+            if (String(error && error.message ? error.message : error).includes('Connection lost.')) {
+              throw error;
+            }
             if (error && /unauthorized|permission required/i.test(String(error.message || ''))) {
               throw error;
             }
@@ -1156,7 +1172,7 @@
             showCalendarBookingDetails(booking);
             populateBookingForm(booking);
             statusMsg.textContent = `Loaded booking ${booking.bookingId || ''} from calendar.`;
-            statusMsg.style.color = '#ec1c24';
+            statusMsg.style.color = '#4caf50';
           });
           list.appendChild(eventBtn);
         });
@@ -1666,7 +1682,7 @@
           bookingListSelect.value = '0';
           populateBookingForm(matchedBookings[currentBookingIndex]);
           statusMsg.textContent = `Found ${matchedBookings.length} booking(s). Showing 1/${matchedBookings.length}`;
-          statusMsg.style.color = '#ec1c24';
+          statusMsg.style.color = '#4caf50';
         } catch (error) {
           matchedBookings = [];
           currentBookingIndex = -1;
@@ -1715,7 +1731,7 @@
           isEditingExisting = false;
           syncBookingHeader();
           statusMsg.textContent = `Saved successfully. Booking ID: ${currentBookingId}`;
-          statusMsg.style.color = '#0c7a6b';
+          statusMsg.style.color = '#4caf50';
           if (currentBookingId) {
             setFormReadOnly(true);
           }
@@ -1784,7 +1800,7 @@
           currentBookingIndex = selectedIndex;
           populateBookingForm(selectedBooking);
           statusMsg.textContent = `Found ${matchedBookings.length} booking(s). Showing ${currentBookingIndex + 1}/${matchedBookings.length}`;
-          statusMsg.style.color = '#ec1c24';
+          statusMsg.style.color = '#4caf50';
         });
       }
 
@@ -1831,7 +1847,7 @@
         isEditingExisting = true;
         setFormReadOnly(false);
         statusMsg.textContent = 'Edit mode enabled. Save will ask Existing Book or New Book.';
-        statusMsg.style.color = '#ec1c24';
+        statusMsg.style.color = '#4caf50';
       });
 
       bookEventForm.addEventListener('submit', async (event) => {
