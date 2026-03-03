@@ -25,6 +25,8 @@ const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '')
   .trim()
   .replace(/\/+$/, '');
 const ALLOWED_NEXT_PAGES = new Set(['welcome.html', 'index.html', 'items.html', 'report.html', 'book-event.html']);
+const LAST_ACTIVITY_KEY = 'sagarika_last_activity_at';
+const LOGOUT_SYNC_KEY = 'sagarika_logout_at';
 
 function getNextPage() {
   const params = new URLSearchParams(location.search);
@@ -46,6 +48,14 @@ function setAuthSession(token, user) {
   sessionStorage.setItem('sagarika_user', user.username || '');
   sessionStorage.setItem('sagarika_role', user.role || 'user');
   sessionStorage.setItem('sagarika_bill_to', normalizeBillToLabel(user.billTo) || getEffectiveUserBillTo(user) || '');
+
+  const now = String(Date.now());
+  try {
+    localStorage.setItem(LAST_ACTIVITY_KEY, now);
+    localStorage.removeItem(LOGOUT_SYNC_KEY);
+  } catch {
+    // Ignore storage failures; auth still works without timeout sync.
+  }
 }
 
 function clearAuthSession() {

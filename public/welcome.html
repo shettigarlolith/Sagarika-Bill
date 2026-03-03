@@ -459,6 +459,8 @@
         }
       }
     </style>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+    <script defer src="logo-player.js"></script>
     <script>
       (function () {
         if (sessionStorage.getItem('sagarika_auth') === 'ok' && sessionStorage.getItem('sagarika_token')) return;
@@ -513,7 +515,13 @@
       <section class="welcome-grid">
         <article class="card welcome-card brand-hero">
           <div class="hero-logo-wrap">
-            <img class="hero-logo" src="assets/sagarika-logo.svg" alt="Sagarika Logo" />
+            <span
+              class="hero-logo logo-animation"
+              data-logo-lottie
+              data-fallback-src="assets/sagarika-logo.svg"
+              role="img"
+              aria-label="Sagarika Logo"
+            ></span>
           </div>
           <h1 class="hero-title">SAGARIKA</h1>
           <p id="heroBranch" class="hero-branch" style="display: none"></p>

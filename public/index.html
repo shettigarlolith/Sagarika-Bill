@@ -34,6 +34,8 @@
     </script>
     <script src="config.js"></script>
     <script src="session-timeout.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+    <script defer src="logo-player.js"></script>
   </head>
   <body>
     <div class="bg-shape shape-1"></div>
@@ -45,7 +47,13 @@
           <div>
             <p class="kicker">Event Billing Desk</p>
             <h1 class="page-title">
-              <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="title-logo" />
+              <span
+                class="title-logo logo-animation"
+                data-logo-lottie
+                data-fallback-src="assets/sagarika-logo.svg"
+                role="img"
+                aria-label="Sagarika Logo"
+              ></span>
               <span>Sagarika</span>
             </h1>
           </div>

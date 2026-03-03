@@ -2,3 +2,6 @@ node_modules/
 credentials/google-service-account.json
 data/.~bills.xlsx
 .DS_Store
+android-webview/.gradle/
+android-webview/app/build/
+android-webview/build/

@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Bundle
 import android.print.PrintAttributes
 import android.print.PrintManager
+import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
@@ -12,10 +13,14 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import com.airbnb.lottie.LottieAnimationView
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private lateinit var splashOverlay: View
+    private lateinit var splashAnimation: LottieAnimationView
+    private var splashDismissed = false
 
     private inner class PrintBridge {
         @JavascriptInterface
@@ -68,6 +73,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webView)
+        splashOverlay = findViewById(R.id.splashOverlay)
+        splashAnimation = findViewById(R.id.splashAnimation)
 
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
@@ -90,6 +97,7 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 if (view != null) {
                     injectPrintHook(view)
+                    view.postDelayed({ dismissSplash() }, 350)
                 }
             }
         }
@@ -115,5 +123,21 @@ class MainActivity : AppCompatActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         webView.saveState(outState)
         super.onSaveInstanceState(outState)
+    }
+
+    private fun dismissSplash() {
+        if (splashDismissed) {
+            return
+        }
+
+        splashDismissed = true
+        splashOverlay.animate()
+            .alpha(0f)
+            .setDuration(220)
+            .withEndAction {
+                splashAnimation.cancelAnimation()
+                splashOverlay.visibility = View.GONE
+            }
+            .start()
     }
 }

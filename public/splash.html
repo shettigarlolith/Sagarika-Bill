@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sagarika</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Montserrat:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles-v2.css" />
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+    <script defer src="logo-player.js"></script>
+    <style>
+      .splash-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .splash-card {
+        width: min(100%, 520px);
+        padding: 34px 28px;
+        border-radius: 28px;
+        text-align: center;
+        border: 1px solid rgba(220, 229, 236, 0.85);
+        background:
+          radial-gradient(circle at 18% 18%, rgba(236, 28, 36, 0.11), transparent 34%),
+          radial-gradient(circle at 82% 16%, rgba(0, 161, 75, 0.12), transparent 30%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 251, 254, 0.98));
+        box-shadow: 0 24px 56px rgba(20, 36, 48, 0.16);
+      }
+
+      [data-theme='dark'] .splash-card {
+        border-color: rgba(52, 70, 88, 0.9);
+        background:
+          radial-gradient(circle at 18% 18%, rgba(236, 28, 36, 0.14), transparent 34%),
+          radial-gradient(circle at 82% 16%, rgba(0, 161, 75, 0.14), transparent 30%),
+          linear-gradient(180deg, rgba(26, 37, 50, 0.96), rgba(19, 29, 40, 0.98));
+      }
+
+      .splash-logo-wrap {
+        width: 184px;
+        height: 184px;
+        margin: 0 auto;
+        padding: 18px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, rgba(236, 28, 36, 0.12), rgba(0, 161, 75, 0.14));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 14px 28px rgba(20, 36, 48, 0.12);
+      }
+
+      .splash-logo {
+        width: 100%;
+        height: 100%;
+      }
+
+      .splash-title {
+        margin: 18px 0 0;
+        font-family: 'Montserrat', sans-serif;
+        font-size: clamp(30px, 8vw, 44px);
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        color: #ec1c24;
+      }
+
+      .splash-subtitle {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .splash-loader {
+        width: 84px;
+        margin: 22px auto 0;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      .splash-loader span {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ec1c24, #00a14b);
+        animation: splashPulse 1.1s infinite ease-in-out;
+      }
+
+      .splash-loader span:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+
+      .splash-loader span:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+
+      .splash-status {
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      @keyframes splashPulse {
+        0%,
+        80%,
+        100% {
+          transform: scale(0.72);
+          opacity: 0.5;
+        }
+
+        40% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+    </style>
+    <script>
+      (function () {
+        const savedTheme = localStorage.getItem('sagarika_theme');
+        if (savedTheme === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+
+        function nextPage() {
+          const isAuthed =
+            sessionStorage.getItem('sagarika_auth') === 'ok' && sessionStorage.getItem('sagarika_token');
+          return isAuthed ? 'welcome.html' : 'login.html';
+        }
+
+        window.addEventListener('load', function () {
+          window.setTimeout(function () {
+            location.replace(nextPage());
+          }, 5000);
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+
+    <main class="splash-shell">
+      <section class="splash-card">
+        <div class="splash-logo-wrap">
+          <span
+            class="splash-logo logo-animation"
+            data-logo-lottie
+            data-fallback-src="assets/sagarika-logo.svg"
+            role="img"
+            aria-label="Sagarika Logo"
+          ></span>
+        </div>
+        <h1 class="splash-title">SAGARIKA</h1>
+        <p class="splash-subtitle">Billing, booking, and reporting in one place.</p>
+        <div class="splash-loader" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <p class="splash-status">Loading workspace</p>
+      </section>
+    </main>
+  </body>
+</html>

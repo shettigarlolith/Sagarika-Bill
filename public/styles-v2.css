@@ -169,6 +169,18 @@ h2 {
   object-fit: contain;
 }
 
+.logo-animation {
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.logo-animation > svg,
+.logo-animation > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .meta-grid,
 .totals-grid {
   margin-top: 16px;

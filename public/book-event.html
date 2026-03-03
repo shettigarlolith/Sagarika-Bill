@@ -11,6 +11,8 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles-v2.css" />
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+    <script defer src="logo-player.js"></script>
     <style>
       .calendar-wrap {
         margin-top: 18px;
@@ -462,7 +464,13 @@
           <div>
             <p class="kicker">Event Booking</p>
             <h1 class="page-title booking-page-title">
-              <img src="assets/sagarika-logo.svg" alt="Sagarika Logo" class="title-logo" />
+              <span
+                class="title-logo logo-animation"
+                data-logo-lottie
+                data-fallback-src="assets/sagarika-logo.svg"
+                role="img"
+                aria-label="Sagarika Logo"
+              ></span>
               <span>Book Event</span>
             </h1>
           </div>
