@@ -15,7 +15,15 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const dataDir = path.join(__dirname, 'data');
+function resolveDataDir() {
+  const configuredDir = String(process.env.SAGARIKA_DATA_DIR || '').trim();
+  if (!configuredDir) {
+    return path.join(__dirname, 'data');
+  }
+  return path.resolve(configuredDir);
+}
+
+const dataDir = resolveDataDir();
 const excelPath = path.join(dataDir, 'bills.xlsx');
 
 const MASTER_GOOGLE_SHEET_ID =
@@ -88,7 +96,7 @@ app.use((req, res, next) => {
 });
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'welcome.html'));
+  res.sendFile(path.join(__dirname, 'public', 'splash.html'));
 });
 
 app.use(
@@ -305,6 +313,7 @@ function buildNormalizedBillPayload(body, itemList) {
     (item) =>
       !item.item ||
       Number.isNaN(item.quantity) ||
+      item.quantity <= 0 ||
       Number.isNaN(item.unitPrice) ||
       Number.isNaN(item.amount)
   );
@@ -317,6 +326,12 @@ function buildNormalizedBillPayload(body, itemList) {
   const selectedItems = normalizedItems.map((item) => `${item.item} x${item.quantity}`).join(', ');
   const gstPercent = Number(gst || 0);
   const discountPercent = Number(discount || 0);
+  if (!Number.isFinite(gstPercent) || gstPercent < 0 || gstPercent > 100) {
+    return { error: 'GST must be between 0 and 100.' };
+  }
+  if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+    return { error: 'Discount must be between 0 and 100.' };
+  }
   const gstAmount = (total * gstPercent) / 100;
   const discountAmount = (total * discountPercent) / 100;
   const amountPayable = total + gstAmount - discountAmount;
@@ -1793,11 +1808,15 @@ app.get('/api/bills', requireAuth, async (req, res) => {
   }
 });
 
-if (require.main === module) {
-  app.listen(PORT, async () => {
+function startServer(port = PORT) {
+  return app.listen(port, async () => {
     const mode = await getStorageMode();
-    console.log(`Server running at http://localhost:${PORT} (${mode})`);
+    console.log(`Server running at http://localhost:${port} (${mode})`);
   });
 }
 
-module.exports = app;
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, startServer };

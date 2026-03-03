@@ -98,6 +98,15 @@ function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function renderBillNumber() {
   if (!billNumberInput) {
     return;
@@ -149,6 +158,21 @@ function getCurrentBillSnapshot() {
     discount: Number(discountInput.value || 0),
     items: rows
   });
+}
+
+function normalizeItemSignatureItems(items) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => {
+      const name = String(item?.item || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const quantity = Number(item?.quantity || 0);
+      if (!name || !Number.isFinite(quantity) || quantity <= 0) {
+        return '';
+      }
+      return `${name}:${quantity.toFixed(3)}`;
+    })
+    .filter(Boolean)
+    .sort()
+    .join('|');
 }
 
 function markCurrentBillAsLoadedBase() {
@@ -625,12 +649,12 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
   const manualMode = isManualQuantity(quantityValue);
 
   row.innerHTML = `
-    <td><input type="number" class="slNo" min="1" value="${item.slNo}" required /></td>
+    <td><input type="number" class="slNo" min="1" value="${escapeHtml(item.slNo)}" required /></td>
     <td>
-      <input type="text" class="item" placeholder="Type item name" value="${selectedItemValue}" autocomplete="off" required />
+      <input type="text" class="item" placeholder="Type item name" value="${escapeHtml(selectedItemValue)}" autocomplete="off" required />
     </td>
-    <td><input type="text" class="quantity" value="${quantityValue}" placeholder="#" required /></td>
-    <td><input type="number" class="amount" min="0" step="0.01" value="${Number(item.amount || 0).toFixed(2)}" ${manualMode ? '' : 'readonly'} /></td>
+    <td><input type="text" class="quantity" value="${escapeHtml(quantityValue)}" placeholder="#" required /></td>
+    <td><input type="number" class="amount" min="0" step="0.01" value="${escapeHtml(Number(item.amount || 0).toFixed(2))}" ${manualMode ? '' : 'readonly'} /></td>
     <td><button type="button" class="btn btn-danger remove-btn">Remove</button></td>
   `;
 
@@ -865,7 +889,7 @@ function showBillSelector(bills) {
       const customerName = String(bill.customerName || '').trim();
       const suffix = [billDate, customerName].filter(Boolean).join(' | ');
       const label = suffix ? `${billId} | ${suffix}` : billId;
-      return `<option value="${index}">${label}</option>`;
+      return `<option value="${index}">${escapeHtml(label)}</option>`;
     })
     .join('');
 
@@ -930,7 +954,12 @@ function formatMoney(value) {
 }
 
 function formatDateForPrint(isoDate) {
-  const d = new Date(isoDate || new Date().toISOString().slice(0, 10));
+  const raw = String(isoDate || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [yyyy, mm, dd] = raw.split('-');
+    return `${dd}/${mm}/${String(yyyy).slice(-2)}`;
+  }
+  const d = new Date(raw || new Date().toISOString().slice(0, 10));
   if (Number.isNaN(d.getTime())) {
     return isoDate || '';
   }
@@ -1140,13 +1169,18 @@ function renderPrintTemplate() {
   for (let i = 0; i < rowsToRender; i += 1) {
     const row = rows[i];
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${row ? row.slNo : ''}</td>
-      <td>${row ? row.item : ''}</td>
-      <td>${row ? formatMoney(row.unitPrice) : ''}</td>
-      <td>${row ? row.quantityLabel : ''}</td>
-      <td>${row ? formatMoney(row.amount) : ''}</td>
-    `;
+    const values = [
+      row ? row.slNo : '',
+      row ? row.item : '',
+      row ? formatMoney(row.unitPrice) : '',
+      row ? row.quantityLabel : '',
+      row ? formatMoney(row.amount) : ''
+    ];
+    values.forEach((value) => {
+      const td = document.createElement('td');
+      td.textContent = String(value ?? '');
+      tr.appendChild(td);
+    });
     ptRows.appendChild(tr);
   }
 
@@ -1226,14 +1260,28 @@ function validateBillAndGetPayload() {
     const amount = Number(item.amount);
 
     if (isManualQuantity(item.quantity)) {
-      return !Number.isFinite(amount) || amount < 0;
+      const unitPrice = Number(productPrices[item.item] || 0);
+      return !Number.isFinite(amount) || amount <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0;
     }
 
-    return !Number.isFinite(numericQty) || numericQty < 0 || !Number.isFinite(amount);
+    return !Number.isFinite(numericQty) || numericQty <= 0 || !Number.isFinite(amount);
   });
 
   if (hasInvalid) {
-    statusMsg.textContent = 'Select valid items from Item List.';
+    statusMsg.textContent = 'Select valid items, use quantity above 0, and use manual amount only for priced items.';
+    statusMsg.style.color = '#b42a2a';
+    return null;
+  }
+
+  const gstPercent = Number(gstInput.value || 0);
+  const discountPercent = Number(discountInput.value || 0);
+  if (!Number.isFinite(gstPercent) || gstPercent < 0 || gstPercent > 100) {
+    statusMsg.textContent = 'GST must be between 0 and 100.';
+    statusMsg.style.color = '#b42a2a';
+    return null;
+  }
+  if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+    statusMsg.textContent = 'Discount must be between 0 and 100.';
     statusMsg.style.color = '#b42a2a';
     return null;
   }
@@ -1263,8 +1311,8 @@ function validateBillAndGetPayload() {
         quantity: toNumericQuantity(item.quantity)
       };
     }),
-    gst: Number(gstInput.value || 0),
-    discount: Number(discountInput.value || 0)
+    gst: gstPercent,
+    discount: discountPercent
   };
 }
 
@@ -1302,11 +1350,19 @@ async function findExistingBillForPayload(payload) {
     const payloadEventDay = normalizeDateKey(payload?.eventDay);
     const payloadBillDate = normalizeDateKey(payload?.billDate);
     const payloadCustomer = String(payload?.customerName || '').trim().toLowerCase();
+    const payloadItemSignature = normalizeItemSignatureItems(payload?.items);
 
     const sameEventDay = data.find((bill) => {
       const billEventDay = normalizeDateKey(bill?.eventDay);
       const billCustomer = String(bill?.customerName || '').trim().toLowerCase();
-      return payloadEventDay && billEventDay && payloadEventDay === billEventDay && billCustomer === payloadCustomer;
+      const billItemSignature = normalizeItemSignatureItems(bill?.items);
+      return (
+        payloadEventDay &&
+        billEventDay &&
+        payloadEventDay === billEventDay &&
+        billCustomer === payloadCustomer &&
+        billItemSignature === payloadItemSignature
+      );
     });
     if (sameEventDay) {
       return sameEventDay;
@@ -1316,7 +1372,14 @@ async function findExistingBillForPayload(payload) {
       data.find((bill) => {
         const billDate = normalizeDateKey(bill?.billDate);
         const billCustomer = String(bill?.customerName || '').trim().toLowerCase();
-        return payloadBillDate && billDate && payloadBillDate === billDate && billCustomer === payloadCustomer;
+        const billItemSignature = normalizeItemSignatureItems(bill?.items);
+        return (
+          payloadBillDate &&
+          billDate &&
+          payloadBillDate === billDate &&
+          billCustomer === payloadCustomer &&
+          billItemSignature === payloadItemSignature
+        );
       }) || null
     );
   } catch {
@@ -1699,7 +1762,8 @@ async function loadBookingOrExistingBill(booking) {
     billDate: new Date().toISOString().slice(0, 10),
     eventDay: String(booking?.eventDay || '').trim(),
     customerName: String(booking?.name || '').trim(),
-    phoneNumber: onlyDigits(booking?.phoneNumber || '').slice(0, 10)
+    phoneNumber: onlyDigits(booking?.phoneNumber || '').slice(0, 10),
+    items: Array.isArray(booking?.items) ? booking.items : []
   });
 
   if (existingBill) {
@@ -1734,7 +1798,7 @@ function showBookingSelector(bookings) {
       const name = String(booking.name || '').trim();
       const suffix = [eventDay, event, name].filter(Boolean).join(' | ');
       const label = suffix ? `${bookingId} | ${suffix}` : bookingId;
-      return `<option value="${index}">${label}</option>`;
+      return `<option value="${index}">${escapeHtml(label)}</option>`;
     })
     .join('');
 
