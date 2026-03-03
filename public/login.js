@@ -51,7 +51,13 @@ function setAuthSession(token, user) {
 
   const now = String(Date.now());
   try {
-    localStorage.setItem(LAST_ACTIVITY_KEY, now);
+    localStorage.setItem(
+      LAST_ACTIVITY_KEY,
+      JSON.stringify({
+        at: Number(now),
+        token: String(token || '').trim()
+      })
+    );
     localStorage.removeItem(LOGOUT_SYNC_KEY);
   } catch {
     // Ignore storage failures; auth still works without timeout sync.

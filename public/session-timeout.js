@@ -8,12 +8,14 @@
   const PULL_REFRESH_THRESHOLD = 96;
   const CONNECTION_MESSAGE = 'Connection lost. Please check internet and refresh.';
 
-  if (sessionStorage.getItem(AUTH_KEY) !== 'ok' || !sessionStorage.getItem(TOKEN_KEY)) {
+  const currentToken = String(sessionStorage.getItem(TOKEN_KEY) || '').trim();
+
+  if (sessionStorage.getItem(AUTH_KEY) !== 'ok' || !currentToken) {
     return;
   }
 
   let hasLoggedOut = false;
-  let lastActivityAt = Number(readStorage(LAST_ACTIVITY_KEY) || 0);
+  let lastActivityAt = readTimestampFromStorage(readStorage(LAST_ACTIVITY_KEY));
   let pullStartY = 0;
   let canPullRefresh = false;
   let pullRefreshArmed = false;
@@ -42,6 +44,48 @@
     } catch {
       return false;
     }
+  }
+
+  function parseSyncPayload(rawValue) {
+    const raw = String(rawValue || '').trim();
+    if (!raw) {
+      return { at: 0, token: '' };
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      const at = Number(parsed?.at || 0);
+      const token = String(parsed?.token || '').trim();
+      if (at > 0) {
+        return { at, token };
+      }
+    } catch {
+      // Fall back to the legacy numeric-only format.
+    }
+
+    const at = Number(raw || 0);
+    if (at > 0) {
+      return { at, token: '' };
+    }
+    return { at: 0, token: '' };
+  }
+
+  function readTimestampFromStorage(rawValue) {
+    const payload = parseSyncPayload(rawValue);
+    if (payload.token && payload.token !== currentToken) {
+      return 0;
+    }
+    return payload.at;
+  }
+
+  function writeTokenScopedStorage(key, at) {
+    return writeStorage(
+      key,
+      JSON.stringify({
+        at,
+        token: currentToken
+      })
+    );
   }
 
   function clearAuthSession() {
@@ -187,7 +231,7 @@
     removeStorage(LAST_ACTIVITY_KEY);
 
     if (syncAcrossTabs) {
-      writeStorage(LOGOUT_SYNC_KEY, String(Date.now()));
+      writeTokenScopedStorage(LOGOUT_SYNC_KEY, Date.now());
     }
 
     redirectToLogin();
@@ -203,12 +247,12 @@
     }
 
     lastActivityAt = Date.now();
-    writeStorage(LAST_ACTIVITY_KEY, String(lastActivityAt));
+    writeTokenScopedStorage(LAST_ACTIVITY_KEY, lastActivityAt);
   }
 
   function recordActivity() {
     lastActivityAt = Date.now();
-    writeStorage(LAST_ACTIVITY_KEY, String(lastActivityAt));
+    writeTokenScopedStorage(LAST_ACTIVITY_KEY, lastActivityAt);
   }
 
   function handleActivity() {
@@ -306,12 +350,18 @@
 
   window.addEventListener('storage', (event) => {
     if (event.key === LAST_ACTIVITY_KEY) {
-      lastActivityAt = Number(event.newValue || 0);
+      const nextActivityAt = readTimestampFromStorage(event.newValue);
+      if (nextActivityAt > 0) {
+        lastActivityAt = nextActivityAt;
+      }
       return;
     }
 
     if (event.key === LOGOUT_SYNC_KEY && event.newValue) {
-      logoutForInactivity(false);
+      const payload = parseSyncPayload(event.newValue);
+      if (!payload.token || payload.token === currentToken) {
+        logoutForInactivity(false);
+      }
     }
   });
 
