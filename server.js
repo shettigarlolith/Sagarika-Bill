@@ -1819,4 +1819,5 @@ if (require.main === module) {
   startServer();
 }
 
-module.exports = { app, startServer };
+app.startServer = startServer;
+module.exports = app;
