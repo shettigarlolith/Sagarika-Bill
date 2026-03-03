@@ -691,7 +691,7 @@ input[readonly] {
 .choice-modal {
   position: fixed;
   inset: 0;
-  background: rgba(4, 14, 28, 0.62);
+  background: rgba(4, 14, 28, 0.78);
   display: none;
   align-items: center;
   justify-content: center;
@@ -705,11 +705,13 @@ input[readonly] {
 
 .choice-dialog {
   width: min(460px, 100%);
-  background: var(--surface-2);
+  background: var(--card);
+  color: var(--text);
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: 0 16px 44px rgba(0, 0, 0, 0.34);
   padding: 18px;
+  opacity: 1;
 }
 
 .choice-dialog h3 {
@@ -718,7 +720,8 @@ input[readonly] {
 
 .choice-dialog p {
   margin: 0;
-  color: var(--muted);
+  color: var(--text);
+  line-height: 1.45;
 }
 
 .choice-actions {
