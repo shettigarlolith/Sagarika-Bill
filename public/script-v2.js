@@ -39,6 +39,10 @@ const printExistingBillModal = document.getElementById('printExistingBillModal')
 const printExistingBillBtn = document.getElementById('printExistingBillBtn');
 const generateNewBillPrintBtn = document.getElementById('generateNewBillPrintBtn');
 const cancelExistingBillPrintBtn = document.getElementById('cancelExistingBillPrintBtn');
+const newBillItemModal = document.getElementById('newBillItemModal');
+const newBillItemMessage = document.getElementById('newBillItemMessage');
+const addNewBillItemBtn = document.getElementById('addNewBillItemBtn');
+const removeNewBillItemBtn = document.getElementById('removeNewBillItemBtn');
 const ptBillNo = document.getElementById('ptBillNo');
 const ptEWay = document.getElementById('ptEWay');
 const ptDate = document.getElementById('ptDate');
@@ -304,6 +308,96 @@ function askPrintExistingBillChoice() {
 
     printExistingBillModal.classList.add('is-open');
     printExistingBillModal.setAttribute('aria-hidden', 'false');
+  });
+}
+
+function getMissingBillItemNames(items) {
+  const seen = new Set();
+
+  return (Array.isArray(items) ? items : [])
+    .map((item) => String(item?.item || '').trim())
+    .filter((itemName) => {
+      if (!itemName || Object.prototype.hasOwnProperty.call(productPrices, itemName) || seen.has(itemName)) {
+        return false;
+      }
+
+      seen.add(itemName);
+      return true;
+    });
+}
+
+function removeMissingBillItems(itemNames) {
+  const targets = new Set((Array.isArray(itemNames) ? itemNames : []).map((item) => String(item || '').trim()).filter(Boolean));
+  if (targets.size === 0) {
+    return;
+  }
+
+  let firstClearedInput = null;
+  itemsBody.querySelectorAll('tr').forEach((row) => {
+    const itemInput = row.querySelector('.item');
+    const amountInput = row.querySelector('.amount');
+    if (!itemInput) {
+      return;
+    }
+
+    const currentName = String(itemInput.value || '').trim();
+    if (!targets.has(currentName)) {
+      return;
+    }
+
+    itemInput.value = '';
+    if (amountInput) {
+      amountInput.value = '0.00';
+    }
+    if (!firstClearedInput) {
+      firstClearedInput = itemInput;
+    }
+  });
+
+  unlockSaveOnChange();
+  recalculate();
+  saveDraftToStorage();
+  if (firstClearedInput) {
+    firstClearedInput.focus();
+  }
+}
+
+function askNewBillItemChoice(itemNames) {
+  return new Promise((resolve) => {
+    if (!newBillItemModal || !newBillItemMessage || !addNewBillItemBtn || !removeNewBillItemBtn) {
+      resolve('add');
+      return;
+    }
+
+    const names = (Array.isArray(itemNames) ? itemNames : []).filter(Boolean);
+    const itemLabel = names.join(', ');
+    newBillItemMessage.textContent =
+      names.length > 1
+        ? `New items will be added to Item List with price 0: ${itemLabel}`
+        : `New item will be added to Item List with price 0: ${itemLabel}`;
+
+    const cleanup = (choice) => {
+      newBillItemModal.classList.remove('is-open');
+      newBillItemModal.setAttribute('aria-hidden', 'true');
+      addNewBillItemBtn.removeEventListener('click', onAdd);
+      removeNewBillItemBtn.removeEventListener('click', onRemove);
+      newBillItemModal.removeEventListener('click', onBackdrop);
+      resolve(choice);
+    };
+
+    const onAdd = () => cleanup('add');
+    const onRemove = () => cleanup('remove');
+    const onBackdrop = (event) => {
+      if (event.target === newBillItemModal) {
+        cleanup(null);
+      }
+    };
+
+    addNewBillItemBtn.addEventListener('click', onAdd);
+    removeNewBillItemBtn.addEventListener('click', onRemove);
+    newBillItemModal.addEventListener('click', onBackdrop);
+    newBillItemModal.classList.add('is-open');
+    newBillItemModal.setAttribute('aria-hidden', 'false');
   });
 }
 
@@ -722,6 +816,26 @@ function renderItemSuggestions() {
 
   if (activeItemInput) {
     updateItemSuggestionMenu(activeItemInput);
+  }
+}
+
+function mergeAddedItemsIntoStore(addedItems) {
+  let changed = false;
+
+  (Array.isArray(addedItems) ? addedItems : []).forEach((entry) => {
+    const itemName = String(entry?.item || '').trim();
+    if (!itemName || Object.prototype.hasOwnProperty.call(productPrices, itemName)) {
+      return;
+    }
+
+    productPrices[itemName] = Number(entry?.price || 0);
+    storeItems.push(itemName);
+    changed = true;
+  });
+
+  if (changed) {
+    storeItems.sort((left, right) => left.localeCompare(right));
+    renderItemSuggestions();
   }
 }
 
@@ -1252,7 +1366,7 @@ function validateBillAndGetPayload() {
   }
 
   const hasInvalid = items.some((item) => {
-    if (!item.item || !Object.prototype.hasOwnProperty.call(productPrices, item.item)) {
+    if (!item.item) {
       return true;
     }
 
@@ -1260,15 +1374,14 @@ function validateBillAndGetPayload() {
     const amount = Number(item.amount);
 
     if (isManualQuantity(item.quantity)) {
-      const unitPrice = Number(productPrices[item.item] || 0);
-      return !Number.isFinite(amount) || amount <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0;
+      return !Number.isFinite(amount) || amount <= 0;
     }
 
     return !Number.isFinite(numericQty) || numericQty <= 0 || !Number.isFinite(amount);
   });
 
   if (hasInvalid) {
-    statusMsg.textContent = 'Select valid items, use quantity above 0, and use manual amount only for priced items.';
+    statusMsg.textContent = 'Enter an item name, use quantity above 0, and use a manual amount above 0 when quantity is #.';
     statusMsg.style.color = '#b42a2a';
     return null;
   }
@@ -1299,16 +1412,20 @@ function validateBillAndGetPayload() {
       if (isManualQuantity(item.quantity)) {
         const unitPrice = Number(productPrices[item.item] || 0);
         const manualAmount = Number(item.amount || 0);
-        const derivedQuantity = unitPrice > 0 ? manualAmount / unitPrice : 0;
+        const derivedQuantity = unitPrice > 0 ? manualAmount / unitPrice : 1;
         return {
           ...item,
-          quantity: derivedQuantity
+          quantity: derivedQuantity,
+          amount: manualAmount,
+          isManualAmount: true
         };
       }
 
       return {
         ...item,
-        quantity: toNumericQuantity(item.quantity)
+        quantity: toNumericQuantity(item.quantity),
+        amount: Number(item.amount || 0),
+        isManualAmount: false
       };
     }),
     gst: gstPercent,
@@ -1401,6 +1518,24 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create', options
     return null;
   }
 
+  const missingItemNames = getMissingBillItemNames(payload.items);
+  if (missingItemNames.length > 0) {
+    const choice = await askNewBillItemChoice(missingItemNames);
+    if (choice === 'remove') {
+      removeMissingBillItems(missingItemNames);
+      statusMsg.textContent =
+        missingItemNames.length > 1 ? 'New items removed from the bill rows.' : 'New item removed from the bill row.';
+      statusMsg.style.color = '#b42a2a';
+      return null;
+    }
+
+    if (choice !== 'add') {
+      statusMsg.textContent = 'Save cancelled.';
+      statusMsg.style.color = '#b42a2a';
+      return null;
+    }
+  }
+
   if (mode === 'create' && !loadedBillId && !skipExistingCheck) {
     const existingBill = await findExistingBillForPayload(payload);
     if (existingBill) {
@@ -1441,6 +1576,7 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create', options
       throw new Error(result.error || 'Failed to save bill.');
     }
 
+    mergeAddedItemsIntoStore(result?.addedItems);
     statusMsg.textContent = isUpdateMode
       ? `Updated successfully. Bill ID: ${result.billId}`
       : `Saved successfully. Bill ID: ${result.billId}`;

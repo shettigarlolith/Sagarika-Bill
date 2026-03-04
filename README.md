@@ -27,6 +27,35 @@ npm start
 3. Open:
 `http://localhost:3000`
 
+## Windows Desktop App
+
+This project can now run as a Windows desktop app using Electron.
+
+1. Install dependencies:
+```bash
+npm install
+```
+
+2. Launch the desktop app in development:
+```bash
+npm run desktop
+```
+
+3. Build a Windows installer (`.exe`):
+```bash
+npm run dist:win
+```
+
+Or on Windows, run:
+```bat
+build-windows-installer.bat
+```
+
+That script installs dependencies and creates the installer in the `dist` folder.
+End users only need the generated `Setup.exe`; they do not need Node.js or npm installed.
+
+Desktop builds store `bills.xlsx` in Electron's user data folder, so the app can write data safely on Windows.
+
 ## API
 
 - `POST /api/bills` -> save bill in Excel

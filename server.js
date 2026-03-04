@@ -280,6 +280,30 @@ function getItemPriceMap(itemList) {
   return priceMap;
 }
 
+function appendMissingItemsToItemList(itemList, items) {
+  const nextItemList = Array.isArray(itemList) ? [...itemList] : [];
+  const existingNames = new Set(
+    nextItemList
+      .map((entry) => String(entry?.item || '').trim())
+      .filter(Boolean)
+  );
+  const addedItems = [];
+
+  (Array.isArray(items) ? items : []).forEach((entry) => {
+    const itemName = String(entry?.item || '').trim();
+    if (!itemName || existingNames.has(itemName)) {
+      return;
+    }
+
+    const newEntry = { item: itemName, price: 0 };
+    nextItemList.push(newEntry);
+    addedItems.push(newEntry);
+    existingNames.add(itemName);
+  });
+
+  return { itemList: nextItemList, addedItems };
+}
+
 function buildNormalizedBillPayload(body, itemList) {
   const { billDate, eventDay, customerName, phoneNumber, gstNo, eWay, address, note, items, gst, discount } = body || {};
 
@@ -297,15 +321,26 @@ function buildNormalizedBillPayload(body, itemList) {
   const normalizedItems = items.map((item, index) => {
     const itemName = String(item.item || '').trim();
     const quantity = Number(item.quantity || 0);
-    const unitPrice = Number(priceMap[itemName]);
-    const amount = quantity * unitPrice;
+    const listedUnitPrice = Number(priceMap[itemName] || 0);
+    const requestedAmount = Number(item.amount || 0);
+    const isManualAmount = Boolean(item.isManualAmount);
+    let unitPrice = listedUnitPrice;
+    let amount = quantity * unitPrice;
+
+    if (isManualAmount && Number.isFinite(requestedAmount) && requestedAmount > 0) {
+      amount = requestedAmount;
+      if (Number.isFinite(quantity) && quantity > 0 && (!Number.isFinite(unitPrice) || unitPrice <= 0)) {
+        unitPrice = requestedAmount / quantity;
+      }
+    }
 
     return {
       slNo: Number(item.slNo ?? index + 1),
       item: itemName,
       quantity,
       unitPrice,
-      amount
+      amount,
+      isManualAmount
     };
   });
 
@@ -315,11 +350,12 @@ function buildNormalizedBillPayload(body, itemList) {
       Number.isNaN(item.quantity) ||
       item.quantity <= 0 ||
       Number.isNaN(item.unitPrice) ||
-      Number.isNaN(item.amount)
+      Number.isNaN(item.amount) ||
+      (item.isManualAmount && item.amount <= 0)
   );
 
   if (hasInvalidItem) {
-    return { error: 'Item not found in "Item List" sheet or invalid quantity.' };
+    return { error: 'Enter a valid item name, quantity, and manual amount.' };
   }
 
   const total = normalizedItems.reduce((sum, item) => sum + item.amount, 0);
@@ -1510,11 +1546,16 @@ app.post('/api/bills', requireAuth, async (req, res) => {
       includeItemList: true,
       includeBookEvents: false
     }, req.session);
-    const normalizedPayload = buildNormalizedBillPayload(req.body, itemList);
+    const { itemList: nextItemList, addedItems } = appendMissingItemsToItemList(itemList, req.body?.items);
+    const normalizedPayload = buildNormalizedBillPayload(req.body, nextItemList);
     if (normalizedPayload.error) {
       return res.status(400).json({ error: normalizedPayload.error });
     }
     const payload = normalizedPayload.data;
+
+    if (addedItems.length > 0) {
+      await saveItemList(nextItemList, req.session);
+    }
 
     const billId = buildBillId(bills);
 
@@ -1544,7 +1585,7 @@ app.post('/api/bills', requireAuth, async (req, res) => {
     });
 
     await saveBillsAndItems(bills, billItems, req.session);
-    res.status(201).json({ message: 'Bill saved successfully.', billId });
+    res.status(201).json({ message: 'Bill saved successfully.', billId, addedItems });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save bill.', details: error.message });
   }
@@ -1568,11 +1609,16 @@ app.put('/api/bills/:billId', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Bill not found.' });
     }
 
-    const normalizedPayload = buildNormalizedBillPayload(req.body, itemList);
+    const { itemList: nextItemList, addedItems } = appendMissingItemsToItemList(itemList, req.body?.items);
+    const normalizedPayload = buildNormalizedBillPayload(req.body, nextItemList);
     if (normalizedPayload.error) {
       return res.status(400).json({ error: normalizedPayload.error });
     }
     const payload = normalizedPayload.data;
+
+    if (addedItems.length > 0) {
+      await saveItemList(nextItemList, req.session);
+    }
 
     const existing = bills[billIndex] || {};
     bills[billIndex] = {
@@ -1604,7 +1650,7 @@ app.put('/api/bills/:billId', requireAuth, async (req, res) => {
     });
 
     await saveBillsAndItems(bills, nextBillItems, req.session);
-    res.json({ message: 'Bill updated successfully.', billId });
+    res.json({ message: 'Bill updated successfully.', billId, addedItems });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update bill.', details: error.message });
   }
@@ -1629,7 +1675,8 @@ app.post('/api/book-events', requireAuth, async (req, res) => {
       includeItemList: true,
       includeBookEvents: true
     }, req.session);
-    const priceMap = getItemPriceMap(itemList);
+    const { itemList: nextItemList, addedItems } = appendMissingItemsToItemList(itemList, items);
+    const priceMap = getItemPriceMap(nextItemList);
 
     const normalizedItems = items.map((entry) => ({
       item: String(entry.item || '').trim(),
@@ -1645,7 +1692,11 @@ app.post('/api/book-events', requireAuth, async (req, res) => {
     );
 
     if (hasInvalidItem) {
-      return res.status(400).json({ error: 'Select valid items from "Item List" and enter quantity.' });
+      return res.status(400).json({ error: 'Enter a valid item name and quantity.' });
+    }
+
+    if (addedItems.length > 0) {
+      await saveItemList(nextItemList, req.session);
     }
 
     const requestedBookingId = String(requestedBookingIdRaw || '').trim();
@@ -1684,7 +1735,7 @@ app.post('/api/book-events', requireAuth, async (req, res) => {
     });
 
     await saveBookEvents(bookEvents, req.session);
-    res.status(201).json({ message: 'Book event saved successfully.', bookingId });
+    res.status(201).json({ message: 'Book event saved successfully.', bookingId, addedItems });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save book event.', details: error.message });
   }

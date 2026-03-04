@@ -5,3 +5,4 @@ data/.~bills.xlsx
 android-webview/.gradle/
 android-webview/app/build/
 android-webview/build/
+dist/

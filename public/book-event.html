@@ -594,6 +594,17 @@
       </div>
     </div>
 
+    <div id="newEventItemModal" class="choice-modal" aria-hidden="true">
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="newEventItemTitle">
+        <h3 id="newEventItemTitle">New Item Detected</h3>
+        <p id="newEventItemMessage">A new item is not in Item List yet.</p>
+        <div class="choice-actions">
+          <button type="button" id="addNewEventItemBtn" class="btn btn-primary">Add</button>
+          <button type="button" id="removeNewEventItemBtn" class="btn btn-secondary">Remove</button>
+        </div>
+      </div>
+    </div>
+
     <section id="printTemplate" class="print-template event-print-template">
         <div class="print-page">
         <div class="event-invoice-topline">
@@ -671,6 +682,10 @@
       const saveSameBtn = document.getElementById('saveSameBtn');
       const saveNewBtn = document.getElementById('saveNewBtn');
       const saveCancelBtn = document.getElementById('saveCancelBtn');
+      const newEventItemModal = document.getElementById('newEventItemModal');
+      const newEventItemMessage = document.getElementById('newEventItemMessage');
+      const addNewEventItemBtn = document.getElementById('addNewEventItemBtn');
+      const removeNewEventItemBtn = document.getElementById('removeNewEventItemBtn');
       const themeToggleInput = document.getElementById('themeToggle');
       const statusMsg = document.getElementById('statusMsg');
       const calendarPrevBtn = document.getElementById('calendarPrevBtn');
@@ -1046,6 +1061,109 @@
         if (activeItemInput) {
           updateItemSuggestionMenu(activeItemInput);
         }
+      }
+
+      function mergeAddedItemsIntoStore(addedItems) {
+        let changed = false;
+
+        (Array.isArray(addedItems) ? addedItems : []).forEach((entry) => {
+          const itemName = String(entry?.item || '').trim();
+          if (!itemName || Object.prototype.hasOwnProperty.call(productPrices, itemName)) {
+            return;
+          }
+
+          productPrices[itemName] = Number(entry?.price || 0);
+          storeItems.push(itemName);
+          changed = true;
+        });
+
+        if (changed) {
+          storeItems.sort((left, right) => left.localeCompare(right));
+          renderItemSuggestions();
+        }
+      }
+
+      function getMissingEventItemNames(items) {
+        const seen = new Set();
+
+        return (Array.isArray(items) ? items : [])
+          .map((entry) => String(entry?.item || '').trim())
+          .filter((itemName) => {
+            if (!itemName || Object.prototype.hasOwnProperty.call(productPrices, itemName) || seen.has(itemName)) {
+              return false;
+            }
+
+            seen.add(itemName);
+            return true;
+          });
+      }
+
+      function removeMissingEventItems(itemNames) {
+        const targets = new Set((Array.isArray(itemNames) ? itemNames : []).map((item) => String(item || '').trim()).filter(Boolean));
+        if (targets.size === 0) {
+          return;
+        }
+
+        let firstClearedInput = null;
+        eventItemsBody.querySelectorAll('tr').forEach((row) => {
+          const itemInput = row.querySelector('.event-item');
+          if (!itemInput) {
+            return;
+          }
+
+          const currentName = String(itemInput.value || '').trim();
+          if (!targets.has(currentName)) {
+            return;
+          }
+
+          itemInput.value = '';
+          if (!firstClearedInput) {
+            firstClearedInput = itemInput;
+          }
+        });
+
+        if (firstClearedInput) {
+          firstClearedInput.focus();
+        }
+      }
+
+      function askNewEventItemChoice(itemNames) {
+        return new Promise((resolve) => {
+          if (!newEventItemModal || !newEventItemMessage || !addNewEventItemBtn || !removeNewEventItemBtn) {
+            resolve('add');
+            return;
+          }
+
+          const names = (Array.isArray(itemNames) ? itemNames : []).filter(Boolean);
+          const itemLabel = names.join(', ');
+          newEventItemMessage.textContent =
+            names.length > 1
+              ? `New items will be added to Item List with price 0: ${itemLabel}`
+              : `New item will be added to Item List with price 0: ${itemLabel}`;
+
+          const cleanup = (choice) => {
+            newEventItemModal.classList.remove('is-open');
+            newEventItemModal.setAttribute('aria-hidden', 'true');
+            addNewEventItemBtn.removeEventListener('click', onAdd);
+            removeNewEventItemBtn.removeEventListener('click', onRemove);
+            newEventItemModal.removeEventListener('click', onBackdrop);
+            resolve(choice);
+          };
+
+          const onAdd = () => cleanup('add');
+          const onRemove = () => cleanup('remove');
+          const onBackdrop = (event) => {
+            if (event.target === newEventItemModal) {
+              cleanup(null);
+            }
+          };
+
+          addNewEventItemBtn.addEventListener('click', onAdd);
+          removeNewEventItemBtn.addEventListener('click', onRemove);
+          newEventItemModal.addEventListener('click', onBackdrop);
+          newEventItemModal.classList.add('is-open');
+          newEventItemModal.setAttribute('aria-hidden', 'false');
+        });
       }
 
       function bindRemove(button) {
@@ -1499,7 +1617,7 @@
 
         const hasInvalidItems = items.length === 0 || items.some((entry) => !entry.item || entry.quantity <= 0);
         if (hasInvalidItems) {
-          statusMsg.textContent = 'Select valid items from Item List and enter quantity.';
+          statusMsg.textContent = 'Enter an item name and quantity above 0.';
           statusMsg.style.color = '#b42a2a';
           return null;
         }
@@ -1713,6 +1831,24 @@
           return null;
         }
 
+        const missingItemNames = getMissingEventItemNames(payload.items);
+        if (missingItemNames.length > 0) {
+          const choice = await askNewEventItemChoice(missingItemNames);
+          if (choice === 'remove') {
+            removeMissingEventItems(missingItemNames);
+            statusMsg.textContent =
+              missingItemNames.length > 1 ? 'New items removed from the booking rows.' : 'New item removed from the booking row.';
+            statusMsg.style.color = '#b42a2a';
+            return null;
+          }
+
+          if (choice !== 'add') {
+            statusMsg.textContent = 'Save cancelled.';
+            statusMsg.style.color = '#b42a2a';
+            return null;
+          }
+        }
+
         if (isEditingExisting && currentBookingId) {
           const saveMode = await askSaveModeForExisting();
           if (!saveMode) {
@@ -1734,6 +1870,7 @@
             body: payload
           });
 
+          mergeAddedItemsIntoStore(result?.addedItems);
           const bookingId =
             result?.bookingId || result?.data?.bookingId || result?.result?.bookingId || currentBookingId;
           currentBookingId = String(bookingId || currentBookingId);

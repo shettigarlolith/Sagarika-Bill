@@ -2,13 +2,37 @@
   "name": "store-bill-generator",
   "version": "1.0.0",
   "description": "Store bill generator with Google Sheets/Excel persistence",
-  "main": "server.js",
+  "main": "electron-main.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "desktop": "electron .",
+    "dist:win": "electron-builder --win nsis"
   },
   "dependencies": {
     "express": "^4.19.2",
     "googleapis": "^140.0.1",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.sagarika.bill",
+    "productName": "Sagarika Bill",
+    "files": [
+      "electron-main.js",
+      "server.js",
+      "public/**/*",
+      "credentials/**/*",
+      "Logodata.json",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "public/assets"
+    },
+    "win": {
+      "target": "nsis"
+    }
   }
 }
