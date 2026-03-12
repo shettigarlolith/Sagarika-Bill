@@ -12,6 +12,54 @@
     />
     <link rel="stylesheet" href="styles-v2.css" />
     <style>
+      .report-heading {
+        display: grid;
+        align-content: start;
+        gap: 8px;
+      }
+
+      .report-main-center {
+        width: min(1080px, 100%);
+      }
+
+      .report-home-btn {
+        align-self: flex-start;
+        width: auto;
+        min-width: 0;
+        display: inline-flex;
+        flex: 0 0 auto;
+        background: #7ed957;
+        color: #0f3a1f;
+        border: 1px solid #67bf43;
+      }
+
+      .report-home-btn:hover {
+        background: #72cf4d;
+      }
+
+      .report-top-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .report-power-btn {
+        min-width: 38px;
+        min-height: 36px;
+        padding: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .report-power-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+      }
+
       .report-actions {
         margin-top: 14px;
         display: grid;
@@ -177,6 +225,57 @@
       }
 
       @media (max-width: 700px) {
+        .report-main-center {
+          min-height: calc(100vh - 24px);
+          margin: 12px auto;
+          padding: 0 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .report-main-center > .card {
+          width: 100%;
+          max-width: 560px;
+        }
+
+        .card .title-row {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .card .report-heading {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .card .report-top-actions {
+          margin-left: 0;
+          width: auto;
+          justify-content: flex-end;
+          gap: 8px;
+          flex-wrap: nowrap;
+        }
+
+        .card .report-top-actions .btn {
+          min-height: 36px;
+          padding: 8px 12px;
+        }
+
+        .card .report-home-btn {
+          margin-top: 2px;
+          min-height: 34px;
+          padding: 7px 11px;
+          width: fit-content;
+          max-width: max-content;
+        }
+
+        .card .report-top-actions .theme-toggle span {
+          display: none;
+        }
+
         .report-actions {
           grid-template-columns: 1fr;
         }
@@ -215,10 +314,10 @@
     <div class="bg-shape shape-1"></div>
     <div class="bg-shape shape-2"></div>
 
-    <main class="container">
+    <main class="container report-main-center">
       <section class="card">
         <div class="title-row">
-          <div>
+          <div class="report-heading">
             <p class="kicker">Analytics</p>
             <h1 class="page-title">
               <span
@@ -230,14 +329,19 @@
               ></span>
               <span>Report</span>
             </h1>
+            <a class="btn btn-secondary report-home-btn" href="welcome.html">Home</a>
           </div>
-          <div class="title-right-actions">
-            <a class="btn btn-secondary" href="welcome.html">Home</a>
+          <div class="title-right-actions report-top-actions">
             <label class="theme-toggle" for="themeToggle">
               <input id="themeToggle" type="checkbox" />
               <span>Night Mode</span>
             </label>
-            <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
+            <button class="btn btn-danger report-power-btn" type="button" onclick="logoutUser()" aria-label="Logout" title="Logout">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v9" stroke-linecap="round" />
+                <path d="M6.2 6.7a8 8 0 1 0 11.6 0" stroke-linecap="round" />
+              </svg>
+            </button>
           </div>
         </div>
 

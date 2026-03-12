@@ -14,6 +14,146 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
     <script defer src="logo-player.js"></script>
     <style>
+      .book-event-container {
+        width: min(1120px, 100%);
+        max-width: 1120px;
+      }
+
+      .book-event-card {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 24px;
+      }
+
+      .book-event-heading {
+        display: grid;
+        align-content: start;
+        gap: 8px;
+      }
+
+      .book-event-home-btn {
+        align-self: flex-start;
+        width: auto;
+        min-width: 0;
+        display: inline-flex;
+        flex: 0 0 auto;
+        background: #7ed957;
+        color: #0f3a1f;
+        border: 1px solid #67bf43;
+      }
+
+      .book-event-home-btn:hover {
+        background: #72cf4d;
+      }
+
+      .book-event-top-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .book-event-power-btn {
+        min-width: 38px;
+        min-height: 36px;
+        padding: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .book-event-power-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+      }
+
+      .booking-list-select {
+        display: none;
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 12px;
+        font-size: 14px;
+        font-weight: 700;
+        background: var(--input-bg);
+        color: var(--text);
+      }
+
+      .booking-mobile-select-wrap {
+        display: none;
+        width: 100%;
+        position: relative;
+      }
+
+      .booking-mobile-select-trigger {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--input-bg);
+        color: var(--text);
+        min-height: 42px;
+        padding: 9px 34px 9px 12px;
+        font-size: 14px;
+        font-weight: 700;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .booking-mobile-select-trigger::after {
+        content: '▾';
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        font-size: 14px;
+        pointer-events: none;
+      }
+
+      .booking-mobile-select-wrap.is-open .booking-mobile-select-trigger::after {
+        content: '▴';
+      }
+
+      .booking-mobile-select-menu {
+        display: none;
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        z-index: 60;
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--card);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+      }
+
+      .booking-mobile-select-option {
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+        color: var(--text);
+        text-align: left;
+        padding: 10px 12px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .booking-mobile-select-option:last-child {
+        border-bottom: 0;
+      }
+
+      .booking-mobile-select-option.is-selected {
+        background: var(--btn-secondary-bg);
+        color: var(--btn-secondary-text);
+        font-weight: 800;
+      }
+
       .calendar-wrap {
         margin-top: 18px;
       }
@@ -422,10 +562,150 @@
       }
 
       @media (max-width: 768px) {
-        .title-right-actions {
-          margin-left: 0;
+        html,
+        body {
+          overflow-x: hidden;
+        }
+
+        .book-event-container {
           width: 100%;
-          justify-content: flex-start;
+          max-width: 560px;
+          margin: 20px auto;
+          padding: 0 12px 18px;
+        }
+
+        .book-event-card {
+          width: 100%;
+          max-width: 100%;
+          padding: 16px 14px;
+          border-radius: 18px;
+          overflow-x: hidden;
+        }
+
+        .book-event-card .title-row,
+        .book-event-card #bookEventForm,
+        .book-event-card .calendar-wrap {
+          min-width: 0;
+        }
+
+        .book-event-card .title-row {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .book-event-card .book-event-heading {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .book-event-card .title-right-actions,
+        .book-event-card .book-event-top-actions {
+          margin-left: 0;
+          width: auto;
+          justify-content: flex-end;
+          gap: 8px;
+          flex-wrap: nowrap;
+        }
+
+        .book-event-card .title-right-actions .btn,
+        .book-event-card .book-event-top-actions .btn {
+          min-height: 36px;
+          padding: 8px 12px;
+        }
+
+        .book-event-card .book-event-home-btn {
+          margin-top: 2px;
+          min-height: 34px;
+          padding: 7px 11px;
+          width: fit-content;
+          max-width: max-content;
+        }
+
+        .book-event-card .book-event-top-actions .theme-toggle span {
+          display: none;
+        }
+
+        .book-event-card .search-row {
+          width: 100%;
+        }
+
+        .book-event-card .search-row > * {
+          max-width: 100%;
+        }
+
+        .book-event-card .search-row input {
+          min-width: 100%;
+        }
+
+        .book-event-card #bookingListSelect {
+          min-width: 100% !important;
+        }
+
+        .book-event-card .booking-list-select {
+          font-size: 15px;
+          line-height: 1.35;
+          min-height: 44px;
+        }
+
+        .book-event-card .booking-mobile-select-wrap {
+          display: block;
+        }
+
+        .book-event-card .booking-mobile-select-trigger {
+          min-height: 44px;
+          font-size: 15px;
+          line-height: 1.35;
+        }
+
+        .book-event-card .booking-mobile-select-option {
+          font-size: 15px;
+          line-height: 1.35;
+        }
+
+        .book-event-card #eventItemsTable .event-qty {
+          width: 42px;
+          min-width: 42px;
+          height: 42px;
+          padding: 0;
+          border-radius: 6px;
+          text-align: center;
+        }
+
+        .book-event-card #eventItemsTable {
+          min-width: 0;
+          table-layout: fixed;
+        }
+
+        .book-event-card #eventItemsTable th:nth-child(1),
+        .book-event-card #eventItemsTable td:nth-child(1) {
+          width: 60%;
+        }
+
+        .book-event-card #eventItemsTable th:nth-child(2),
+        .book-event-card #eventItemsTable td:nth-child(2) {
+          width: 22%;
+          text-align: center;
+        }
+
+        .book-event-card #eventItemsTable th:nth-child(3),
+        .book-event-card #eventItemsTable td:nth-child(3) {
+          width: 18%;
+          text-align: center;
+        }
+
+        .book-event-card #eventItemsTable .event-item {
+          width: 100%;
+          min-width: 0;
+          height: auto;
+          padding: 11px 12px;
+          border-radius: 10px;
+        }
+
+        .book-event-card .calendar-wrap {
+          margin-top: 16px;
+          padding-top: 8px;
         }
       }
 
@@ -442,7 +722,13 @@
         location.replace(`login.html?next=${encodeURIComponent(page)}`);
       })();
 
-      function logoutUser() {
+      async function logoutUser() {
+        if (typeof window.sagarikaSaveBeforeLeave === 'function') {
+          const okToLeave = await window.sagarikaSaveBeforeLeave('Saving before logout...');
+          if (!okToLeave) {
+            return;
+          }
+        }
         sessionStorage.removeItem('sagarika_auth');
         sessionStorage.removeItem('sagarika_token');
         sessionStorage.removeItem('sagarika_user');
@@ -458,10 +744,10 @@
     <div class="bg-shape shape-1"></div>
     <div class="bg-shape shape-2"></div>
 
-    <main class="container">
-      <section class="card bill-card">
+    <main class="container book-event-container">
+      <section class="card bill-card book-event-card">
         <div class="title-row">
-          <div>
+          <div class="book-event-heading">
             <p class="kicker">Event Booking</p>
             <h1 class="page-title booking-page-title">
               <span
@@ -473,17 +759,30 @@
               ></span>
               <span>Book Event</span>
             </h1>
+            <a class="btn btn-secondary book-event-home-btn" href="welcome.html">Home</a>
           </div>
-          <a class="btn btn-secondary" href="welcome.html">Home</a>
-          <label class="theme-toggle" for="themeToggle">
-            <input id="themeToggle" type="checkbox" />
-            <span>Night Mode</span>
-          </label>
-          <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
+          <div class="title-right-actions book-event-top-actions">
+            <label class="theme-toggle" for="themeToggle">
+              <input id="themeToggle" type="checkbox" />
+              <span>Night Mode</span>
+            </label>
+            <button
+              class="btn btn-danger book-event-power-btn"
+              type="button"
+              onclick="logoutUser()"
+              aria-label="Logout"
+              title="Logout"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v9" stroke-linecap="round" />
+                <path d="M6.2 6.7a8 8 0 1 0 11.6 0" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
           <div class="search-row">
             <input type="text" id="searchPhone" placeholder="Search by phone, booking no, or name" />
             <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
-            <select id="bookingListSelect" class="btn btn-secondary" style="display: none; min-width: 260px"></select>
+            <select id="bookingListSelect" class="booking-list-select"></select>
             <button type="button" id="editEventBtn" class="btn btn-secondary" disabled>Edit</button>
             <button id="clearSearchBtn" class="btn" type="button">Clear</button>
           </div>
@@ -556,7 +855,7 @@
 
         <section class="calendar-wrap">
           <div class="calendar-head">
-            <h2 class="calendar-title">CALENDER</h2>
+            <h2 class="calendar-title">CALENDAR</h2>
             <div class="calendar-nav">
               <button type="button" id="calendarPrevBtn" class="mini-btn" aria-label="Previous month">&lt;</button>
               <strong id="calendarMonthLabel" class="month-label"></strong>
@@ -709,6 +1008,7 @@
       const THEME_STORAGE_KEY = 'sagarika_theme_v1';
       let productPrices = {};
       let storeItems = [];
+      let normalizedItemLookup = new Map();
       let currentBookingId = '';
       let nextBookingId = '';
       let isSaving = false;
@@ -725,9 +1025,25 @@
       let activeItemSuggestions = [];
       let activeItemSuggestionIndex = -1;
       let hideItemSuggestionTimer = null;
+      let loadedBookingSignature = '';
+      let bookingNavigationOverlay = null;
+      let bookingMobileSelectState = null;
+      let unsavedLeaveModal = null;
 
       function onlyDigits(value) {
         return String(value || '').replace(/\D/g, '');
+      }
+
+      function normalizeItemKey(value) {
+        return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      }
+
+      function resolveKnownItemName(value) {
+        const raw = String(value || '').trim();
+        if (!raw) {
+          return '';
+        }
+        return normalizedItemLookup.get(normalizeItemKey(raw)) || raw;
       }
 
       function getActiveBillTo() {
@@ -1020,6 +1336,7 @@
         if (activeItemInput) {
           renderItemSuggestionMenu();
         }
+        syncBookingMobileSelectUI();
       });
 
       window.addEventListener(
@@ -1068,12 +1385,14 @@
 
         (Array.isArray(addedItems) ? addedItems : []).forEach((entry) => {
           const itemName = String(entry?.item || '').trim();
-          if (!itemName || Object.prototype.hasOwnProperty.call(productPrices, itemName)) {
+          const normalizedKey = normalizeItemKey(itemName);
+          if (!itemName || !normalizedKey || normalizedItemLookup.has(normalizedKey)) {
             return;
           }
 
           productPrices[itemName] = Number(entry?.price || 0);
           storeItems.push(itemName);
+          normalizedItemLookup.set(normalizedKey, itemName);
           changed = true;
         });
 
@@ -1089,11 +1408,12 @@
         return (Array.isArray(items) ? items : [])
           .map((entry) => String(entry?.item || '').trim())
           .filter((itemName) => {
-            if (!itemName || Object.prototype.hasOwnProperty.call(productPrices, itemName) || seen.has(itemName)) {
+            const normalizedKey = normalizeItemKey(itemName);
+            if (!itemName || !normalizedKey || normalizedItemLookup.has(normalizedKey) || seen.has(normalizedKey)) {
               return false;
             }
 
-            seen.add(itemName);
+            seen.add(normalizedKey);
             return true;
           });
       }
@@ -1179,9 +1499,284 @@
 
       function getItemsPayload() {
         return [...eventItemsBody.querySelectorAll('tr')].map((row) => ({
-          item: row.querySelector('.event-item').value.trim(),
+          item: resolveKnownItemName(row.querySelector('.event-item').value),
           quantity: Number(row.querySelector('.event-qty').value || 0)
         }));
+      }
+
+      function getCurrentBookingSnapshot() {
+        const items = getItemsPayload()
+          .map((entry) => ({
+            item: String(entry.item || '').trim(),
+            quantity: Number(entry.quantity || 0)
+          }))
+          .sort((left, right) => left.item.localeCompare(right.item));
+
+        return JSON.stringify({
+          eventDay: String(eventDayInput.value || '').trim(),
+          eventName: String(eventNameInput.value || '').trim(),
+          customerName: String(customerNameInput.value || '').trim(),
+          phoneNumber: onlyDigits(phoneNumberInput.value).slice(0, 10),
+          address: String(addressInput.value || '').trim(),
+          note: String(eventNoteInput.value || '').trim(),
+          items
+        });
+      }
+
+      function hasMeaningfulBookingInput() {
+        if (
+          String(eventNameInput.value || '').trim() ||
+          String(customerNameInput.value || '').trim() ||
+          String(phoneNumberInput.value || '').trim() ||
+          String(addressInput.value || '').trim() ||
+          String(eventNoteInput.value || '').trim()
+        ) {
+          return true;
+        }
+
+        return getItemsPayload().some((entry) => String(entry.item || '').trim());
+      }
+
+      function hasPendingBookingChanges() {
+        if (isSaving || isFormReadOnly) {
+          return false;
+        }
+        if (currentBookingId && isEditingExisting && loadedBookingSignature) {
+          return getCurrentBookingSnapshot() !== loadedBookingSignature;
+        }
+        return hasMeaningfulBookingInput();
+      }
+
+      function ensureBookingNavigationOverlay() {
+        if (bookingNavigationOverlay) {
+          return bookingNavigationOverlay;
+        }
+
+        bookingNavigationOverlay = document.createElement('div');
+        bookingNavigationOverlay.style.position = 'fixed';
+        bookingNavigationOverlay.style.inset = '0';
+        bookingNavigationOverlay.style.background = 'rgba(6, 22, 33, 0.55)';
+        bookingNavigationOverlay.style.display = 'none';
+        bookingNavigationOverlay.style.alignItems = 'center';
+        bookingNavigationOverlay.style.justifyContent = 'center';
+        bookingNavigationOverlay.style.zIndex = '9999';
+        bookingNavigationOverlay.style.backdropFilter = 'blur(1px)';
+
+        const card = document.createElement('div');
+        card.style.background = 'rgba(255,255,255,0.97)';
+        card.style.border = '1px solid rgba(53,80,98,0.2)';
+        card.style.borderRadius = '14px';
+        card.style.padding = '14px 18px';
+        card.style.display = 'flex';
+        card.style.alignItems = 'center';
+        card.style.gap = '10px';
+        card.style.fontWeight = '700';
+        card.style.color = '#153448';
+
+        const spinner = document.createElement('span');
+        spinner.style.width = '18px';
+        spinner.style.height = '18px';
+        spinner.style.borderRadius = '50%';
+        spinner.style.border = '2px solid #9cb2bf';
+        spinner.style.borderTopColor = '#153448';
+        spinner.style.animation = 'sagarikaBookNavSpin 0.8s linear infinite';
+        spinner.setAttribute('aria-hidden', 'true');
+
+        const text = document.createElement('span');
+        text.textContent = 'Saving...';
+
+        card.append(spinner, text);
+        bookingNavigationOverlay.appendChild(card);
+
+        const style = document.createElement('style');
+        style.textContent = '@keyframes sagarikaBookNavSpin { to { transform: rotate(360deg); } }';
+        document.head.appendChild(style);
+        document.body.appendChild(bookingNavigationOverlay);
+        return bookingNavigationOverlay;
+      }
+
+      function setBookingNavigationOverlay(visible) {
+        const overlay = ensureBookingNavigationOverlay();
+        overlay.style.display = visible ? 'flex' : 'none';
+      }
+
+      function ensureUnsavedLeaveModal() {
+        if (unsavedLeaveModal) {
+          return unsavedLeaveModal;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'choice-modal';
+        overlay.style.zIndex = '10010';
+        overlay.setAttribute('aria-hidden', 'true');
+
+        const dialog = document.createElement('div');
+        dialog.className = 'choice-dialog';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.innerHTML = `
+          <h3>Data Not Saved</h3>
+          <p>You have unsaved changes. Save and continue?</p>
+          <div class="choice-actions">
+            <button type="button" class="btn btn-primary" data-action="save">Save and Continue</button>
+            <button type="button" class="btn" data-action="cancel">Cancel</button>
+          </div>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        unsavedLeaveModal = overlay;
+        return overlay;
+      }
+
+      function askSaveBeforeLeaving() {
+        return new Promise((resolve) => {
+          const modal = ensureUnsavedLeaveModal();
+          const saveBtn = modal.querySelector('[data-action="save"]');
+          const cancelBtn = modal.querySelector('[data-action="cancel"]');
+
+          const cleanup = (result) => {
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            saveBtn.removeEventListener('click', onSave);
+            cancelBtn.removeEventListener('click', onCancel);
+            modal.removeEventListener('click', onBackdrop);
+            resolve(result);
+          };
+
+          const onSave = () => cleanup('save');
+          const onCancel = () => cleanup('cancel');
+          const onBackdrop = (event) => {
+            if (event.target === modal) {
+              cleanup('cancel');
+            }
+          };
+
+          saveBtn.addEventListener('click', onSave);
+          cancelBtn.addEventListener('click', onCancel);
+          modal.addEventListener('click', onBackdrop);
+          modal.classList.add('is-open');
+          modal.setAttribute('aria-hidden', 'false');
+        });
+      }
+
+      function isMobileViewport() {
+        return typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+      }
+
+      function ensureBookingMobileSelectUI() {
+        if (!bookingListSelect) {
+          return null;
+        }
+        if (bookingMobileSelectState) {
+          return bookingMobileSelectState;
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'booking-mobile-select-wrap';
+        wrapper.style.display = 'none';
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'booking-mobile-select-trigger';
+        trigger.textContent = 'Select';
+
+        const menu = document.createElement('div');
+        menu.className = 'booking-mobile-select-menu';
+
+        const closeMenu = () => {
+          menu.style.display = 'none';
+          wrapper.classList.remove('is-open');
+        };
+
+        trigger.addEventListener('click', () => {
+          if (wrapper.style.display === 'none') {
+            return;
+          }
+          const willOpen = menu.style.display !== 'block';
+          menu.style.display = willOpen ? 'block' : 'none';
+          wrapper.classList.toggle('is-open', willOpen);
+        });
+
+        document.addEventListener('click', (event) => {
+          if (!wrapper.contains(event.target)) {
+            closeMenu();
+          }
+        });
+
+        wrapper.append(trigger, menu);
+        bookingListSelect.insertAdjacentElement('afterend', wrapper);
+        bookingMobileSelectState = { wrapper, trigger, menu, closeMenu };
+        return bookingMobileSelectState;
+      }
+
+      function hideBookingMobileSelectUI() {
+        const state = bookingMobileSelectState;
+        if (!state) {
+          return;
+        }
+        state.closeMenu();
+        state.wrapper.style.display = 'none';
+      }
+
+      function syncBookingMobileSelectUI() {
+        if (!bookingListSelect) {
+          return;
+        }
+        const state = ensureBookingMobileSelectUI();
+        const hasOptions = bookingListSelect.options.length > 0;
+        const shouldBeVisible = bookingListSelect.dataset.selectorVisible === '1';
+        const useMobile = isMobileViewport() && shouldBeVisible && hasOptions;
+
+        if (!shouldBeVisible) {
+          hideBookingMobileSelectUI();
+          bookingListSelect.style.display = 'none';
+          return;
+        }
+
+        if (!useMobile) {
+          hideBookingMobileSelectUI();
+          bookingListSelect.style.display = 'block';
+          return;
+        }
+
+        bookingListSelect.style.display = 'none';
+        state.wrapper.style.display = 'block';
+        state.closeMenu();
+
+        const selectedOption = bookingListSelect.options[bookingListSelect.selectedIndex] || bookingListSelect.options[0];
+        state.trigger.textContent = selectedOption ? selectedOption.textContent : 'Select';
+        state.menu.innerHTML = [...bookingListSelect.options]
+          .map((option) => {
+            const isSelected = option.value === bookingListSelect.value;
+            const safeValue = String(option.value).replace(/[&<>"']/g, (ch) => {
+              if (ch === '&') return '&amp;';
+              if (ch === '<') return '&lt;';
+              if (ch === '>') return '&gt;';
+              if (ch === '"') return '&quot;';
+              return '&#39;';
+            });
+            const safeLabel = String(option.textContent || '').replace(/[&<>"']/g, (ch) => {
+              if (ch === '&') return '&amp;';
+              if (ch === '<') return '&lt;';
+              if (ch === '>') return '&gt;';
+              if (ch === '"') return '&quot;';
+              return '&#39;';
+            });
+            return `<button type="button" class="booking-mobile-select-option${
+              isSelected ? ' is-selected' : ''
+            }" data-value="${safeValue}">${safeLabel}</button>`;
+          })
+          .join('');
+
+        [...state.menu.querySelectorAll('.booking-mobile-select-option')].forEach((button) => {
+          button.addEventListener('click', () => {
+            const nextValue = button.getAttribute('data-value') || '';
+            bookingListSelect.value = nextValue;
+            bookingListSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            syncBookingMobileSelectUI();
+          });
+        });
       }
 
       function formatMoney(value) {
@@ -1635,8 +2230,10 @@
 
       function hideBookingListSelect() {
         if (!bookingListSelect) return;
+        bookingListSelect.dataset.selectorVisible = '0';
         bookingListSelect.style.display = 'none';
         bookingListSelect.innerHTML = '';
+        hideBookingMobileSelectUI();
       }
 
       function showBookingListSelect(bookings) {
@@ -1664,7 +2261,9 @@
             return `<option value="${index}">${label}</option>`;
           })
           .join('');
-        bookingListSelect.style.display = 'inline-flex';
+        bookingListSelect.dataset.selectorVisible = '1';
+        bookingListSelect.style.display = 'block';
+        syncBookingMobileSelectUI();
       }
 
       function matchesTextSearch(candidate, query) {
@@ -1775,6 +2374,7 @@
             eventItemsBody.appendChild(createRow(String(entry.item || ''), Number(entry.quantity || 1)));
           });
         }
+        loadedBookingSignature = getCurrentBookingSnapshot();
         setFormReadOnly(true);
       }
 
@@ -1807,6 +2407,7 @@
           currentBookingIndex = 0;
           showBookingListSelect(matchedBookings);
           bookingListSelect.value = '0';
+          syncBookingMobileSelectUI();
           populateBookingForm(matchedBookings[currentBookingIndex]);
           statusMsg.textContent = `Found ${matchedBookings.length} booking(s). Showing 1/${matchedBookings.length}`;
           statusMsg.style.color = '#4caf50';
@@ -1819,7 +2420,8 @@
         }
       }
 
-      async function saveCurrentEvent(saveLabel = 'Saving...') {
+      async function saveCurrentEvent(saveLabel = 'Saving...', options = {}) {
+        const autoSaveBeforeLeave = Boolean(options && options.autoSaveBeforeLeave);
         if (isSaving) {
           statusMsg.textContent = 'Save already in progress.';
           statusMsg.style.color = '#b42a2a';
@@ -1850,15 +2452,20 @@
         }
 
         if (isEditingExisting && currentBookingId) {
-          const saveMode = await askSaveModeForExisting();
-          if (!saveMode) {
-            statusMsg.textContent = 'Save cancelled.';
-            statusMsg.style.color = '#b42a2a';
-            return null;
-          }
-          payload.saveMode = saveMode;
-          if (saveMode === 'overwrite') {
+          if (autoSaveBeforeLeave) {
+            payload.saveMode = 'overwrite';
             payload.bookingId = currentBookingId;
+          } else {
+            const saveMode = await askSaveModeForExisting();
+            if (!saveMode) {
+              statusMsg.textContent = 'Save cancelled.';
+              statusMsg.style.color = '#b42a2a';
+              return null;
+            }
+            payload.saveMode = saveMode;
+            if (saveMode === 'overwrite') {
+              payload.bookingId = currentBookingId;
+            }
           }
         }
 
@@ -1880,6 +2487,7 @@
           statusMsg.style.color = '#4caf50';
           if (currentBookingId) {
             setFormReadOnly(true);
+            loadedBookingSignature = getCurrentBookingSnapshot();
           }
           await loadCalendarBookings();
           setSavingState(false);
@@ -1899,13 +2507,16 @@
           throw new Error('Failed to load item list.');
         }
 
-        productPrices = rows.reduce((acc, entry) => {
+        productPrices = {};
+        normalizedItemLookup = new Map();
+        rows.forEach((entry) => {
           const itemName = String(entry.item || '').trim();
-          if (itemName) {
-            acc[itemName] = Number(entry.price || 0);
+          if (!itemName) {
+            return;
           }
-          return acc;
-        }, {});
+          productPrices[itemName] = Number(entry.price || 0);
+          normalizedItemLookup.set(normalizeItemKey(itemName), itemName);
+        });
         storeItems = Object.keys(productPrices);
         renderItemSuggestions();
       }
@@ -1947,6 +2558,7 @@
           populateBookingForm(selectedBooking);
           statusMsg.textContent = `Found ${matchedBookings.length} booking(s). Showing ${currentBookingIndex + 1}/${matchedBookings.length}`;
           statusMsg.style.color = '#4caf50';
+          syncBookingMobileSelectUI();
         });
       }
 
@@ -1981,6 +2593,7 @@
         eventItemsBody.innerHTML = '';
         eventItemsBody.appendChild(createRow('', 1));
         isEditingExisting = false;
+        loadedBookingSignature = '';
         setFormReadOnly(false);
         statusMsg.textContent = '';
         selectedCalendarDateKey = new Date().toISOString().slice(0, 10);
@@ -2038,6 +2651,82 @@
         }
       });
 
+      function shouldHandleBookNavigation(link, event) {
+        if (!link || event.defaultPrevented || event.button !== 0) {
+          return false;
+        }
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+          return false;
+        }
+        if (link.target && link.target !== '_self') {
+          return false;
+        }
+        if (link.hasAttribute('download')) {
+          return false;
+        }
+
+        let url;
+        try {
+          url = new URL(link.href, location.href);
+        } catch {
+          return false;
+        }
+
+        if (url.origin !== location.origin) {
+          return false;
+        }
+        if (url.pathname === location.pathname && url.search === location.search && url.hash) {
+          return false;
+        }
+        return true;
+      }
+
+      async function navigateFromBookEventWithAutoSave(url) {
+        if (!url || isSaving) {
+          return;
+        }
+        const okToLeave = await window.sagarikaSaveBeforeLeave('Saving before leaving...');
+        if (!okToLeave) {
+          return;
+        }
+        location.href = url;
+      }
+
+      window.sagarikaSaveBeforeLeave = async function sagarikaSaveBeforeLeave(saveLabel = 'Saving before leaving...') {
+        if (isSaving) {
+          return false;
+        }
+        if (!hasPendingBookingChanges()) {
+          return true;
+        }
+
+        const choice = await askSaveBeforeLeaving();
+        if (choice !== 'save') {
+          return false;
+        }
+
+        setBookingNavigationOverlay(true);
+        const result = await saveCurrentEvent(saveLabel, { autoSaveBeforeLeave: true });
+        if (!result) {
+          setBookingNavigationOverlay(false);
+          return false;
+        }
+        return true;
+      };
+
+      document.addEventListener(
+        'click',
+        (event) => {
+          const link = event.target.closest('a[href]');
+          if (!shouldHandleBookNavigation(link, event)) {
+            return;
+          }
+          event.preventDefault();
+          navigateFromBookEventWithAutoSave(link.href);
+        },
+        true
+      );
+
       (async function init() {
         try {
           const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
@@ -2056,6 +2745,7 @@
           eventItemsBody.innerHTML = '';
           eventItemsBody.appendChild(createRow('', 1));
           hideBookingListSelect();
+          loadedBookingSignature = '';
           setFormReadOnly(false);
           if (storeItems.length === 0) {
             statusMsg.textContent = 'No items found in Item List sheet. Please add items first.';
@@ -2068,6 +2758,7 @@
           eventItemsBody.innerHTML = '';
           eventItemsBody.appendChild(createRow('', 1));
           hideBookingListSelect();
+          loadedBookingSignature = '';
           setFormReadOnly(false);
         }
       })();

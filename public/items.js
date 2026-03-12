@@ -5,6 +5,9 @@ const itemStatus = document.getElementById('itemStatus');
 const themeToggleInput = document.getElementById('themeToggle');
 const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
 const THEME_STORAGE_KEY = 'sagarika_theme_v1';
+let isSavingItems = false;
+let isItemListDirty = false;
+let itemsNavigationOverlay = null;
 
 function apiUrl(resource) {
   const path = `/api/${encodeURIComponent(resource)}`;
@@ -73,7 +76,16 @@ function createRow(entry = { item: '', price: '' }) {
     <td><button type="button" class="btn btn-danger remove-item">X</button></td>
   `;
 
-  tr.querySelector('.remove-item').addEventListener('click', () => tr.remove());
+  tr.querySelector('.remove-item').addEventListener('click', () => {
+    tr.remove();
+    isItemListDirty = true;
+  });
+  tr.querySelector('.item-name').addEventListener('input', () => {
+    isItemListDirty = true;
+  });
+  tr.querySelector('.item-price').addEventListener('input', () => {
+    isItemListDirty = true;
+  });
   return tr;
 }
 
@@ -97,6 +109,7 @@ async function loadItems() {
       data.forEach((entry) => itemsEditorBody.appendChild(createRow(entry)));
     }
 
+    isItemListDirty = false;
     itemStatus.textContent = '';
   } catch (error) {
     itemStatus.textContent = error.message;
@@ -112,22 +125,26 @@ function collectItems() {
 }
 
 async function saveItems() {
+  if (isSavingItems) {
+    return false;
+  }
   const items = collectItems().filter((entry) => entry.item);
 
   if (items.length === 0) {
     itemStatus.textContent = 'Add at least one item before saving.';
     itemStatus.style.color = '#b42a2a';
-    return;
+    return false;
   }
 
   const hasInvalid = items.some((entry) => Number.isNaN(entry.price) || entry.price < 0);
   if (hasInvalid) {
     itemStatus.textContent = 'Enter valid prices for all items.';
     itemStatus.style.color = '#b42a2a';
-    return;
+    return false;
   }
 
   try {
+    isSavingItems = true;
     saveItemListBtn.disabled = true;
     saveItemListBtn.textContent = 'Saving...';
 
@@ -142,17 +159,149 @@ async function saveItems() {
       throw new Error(data.error || 'Failed to save item list.');
     }
 
-    itemStatus.textContent = 'Item List saved to Excel successfully.';
+    itemStatus.textContent = 'Item List saved successfully.';
     itemStatus.style.color = '#4caf50';
+    isItemListDirty = false;
     await loadItems();
+    return true;
   } catch (error) {
     itemStatus.textContent = error.message;
     itemStatus.style.color = '#b42a2a';
+    return false;
   } finally {
+    isSavingItems = false;
     saveItemListBtn.disabled = false;
     saveItemListBtn.textContent = 'Save Item List';
   }
 }
+
+function hasMeaningfulItemInput() {
+  return [...itemsEditorBody.querySelectorAll('tr')].some((row) => {
+    const name = String(row.querySelector('.item-name')?.value || '').trim();
+    const priceRaw = String(row.querySelector('.item-price')?.value || '').trim();
+    return Boolean(name || priceRaw);
+  });
+}
+
+function hasPendingItemChanges() {
+  return isItemListDirty && !isSavingItems && hasMeaningfulItemInput();
+}
+
+function ensureItemsNavigationOverlay() {
+  if (itemsNavigationOverlay) {
+    return itemsNavigationOverlay;
+  }
+
+  itemsNavigationOverlay = document.createElement('div');
+  itemsNavigationOverlay.style.position = 'fixed';
+  itemsNavigationOverlay.style.inset = '0';
+  itemsNavigationOverlay.style.background = 'rgba(6, 22, 33, 0.55)';
+  itemsNavigationOverlay.style.display = 'none';
+  itemsNavigationOverlay.style.alignItems = 'center';
+  itemsNavigationOverlay.style.justifyContent = 'center';
+  itemsNavigationOverlay.style.zIndex = '9999';
+  itemsNavigationOverlay.style.backdropFilter = 'blur(1px)';
+
+  const card = document.createElement('div');
+  card.style.background = 'rgba(255,255,255,0.97)';
+  card.style.border = '1px solid rgba(53,80,98,0.2)';
+  card.style.borderRadius = '14px';
+  card.style.padding = '14px 18px';
+  card.style.display = 'flex';
+  card.style.alignItems = 'center';
+  card.style.gap = '10px';
+  card.style.fontWeight = '700';
+  card.style.color = '#153448';
+
+  const spinner = document.createElement('span');
+  spinner.style.width = '18px';
+  spinner.style.height = '18px';
+  spinner.style.borderRadius = '50%';
+  spinner.style.border = '2px solid #9cb2bf';
+  spinner.style.borderTopColor = '#153448';
+  spinner.style.animation = 'sagarikaItemsNavSpin 0.8s linear infinite';
+  spinner.setAttribute('aria-hidden', 'true');
+
+  const text = document.createElement('span');
+  text.textContent = 'Saving...';
+
+  card.append(spinner, text);
+  itemsNavigationOverlay.appendChild(card);
+
+  const style = document.createElement('style');
+  style.textContent = '@keyframes sagarikaItemsNavSpin { to { transform: rotate(360deg); } }';
+  document.head.appendChild(style);
+  document.body.appendChild(itemsNavigationOverlay);
+  return itemsNavigationOverlay;
+}
+
+function setItemsNavigationOverlay(visible) {
+  const overlay = ensureItemsNavigationOverlay();
+  overlay.style.display = visible ? 'flex' : 'none';
+}
+
+function shouldHandleItemsNavigation(link, event) {
+  if (!link || event.defaultPrevented || event.button !== 0) {
+    return false;
+  }
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    return false;
+  }
+  if (link.target && link.target !== '_self') {
+    return false;
+  }
+  if (link.hasAttribute('download')) {
+    return false;
+  }
+
+  let url;
+  try {
+    url = new URL(link.href, location.href);
+  } catch {
+    return false;
+  }
+
+  if (url.origin !== location.origin) {
+    return false;
+  }
+  if (url.pathname === location.pathname && url.search === location.search && url.hash) {
+    return false;
+  }
+  return true;
+}
+
+async function navigateFromItemsWithAutoSave(url) {
+  if (!url || isSavingItems) {
+    return;
+  }
+  if (!hasPendingItemChanges()) {
+    location.href = url;
+    return;
+  }
+  setItemsNavigationOverlay(true);
+  const ok = await saveItems();
+  if (!ok) {
+    setItemsNavigationOverlay(false);
+    return;
+  }
+  location.href = url;
+}
+
+window.sagarikaSaveBeforeLeave = async function sagarikaSaveBeforeLeave() {
+  if (isSavingItems) {
+    return false;
+  }
+  if (!hasPendingItemChanges()) {
+    return true;
+  }
+  setItemsNavigationOverlay(true);
+  const ok = await saveItems();
+  if (!ok) {
+    setItemsNavigationOverlay(false);
+    return false;
+  }
+  return true;
+};
 
 addItemRowBtn.addEventListener('click', () => {
   itemsEditorBody.appendChild(createRow());
@@ -172,6 +321,19 @@ window.addEventListener('storage', (event) => {
   }
   applyTheme(event.newValue === 'dark' ? 'dark' : 'light');
 });
+
+document.addEventListener(
+  'click',
+  (event) => {
+    const link = event.target.closest('a[href]');
+    if (!shouldHandleItemsNavigation(link, event)) {
+      return;
+    }
+    event.preventDefault();
+    navigateFromItemsWithAutoSave(link.href);
+  },
+  true
+);
 
 try {
   const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);

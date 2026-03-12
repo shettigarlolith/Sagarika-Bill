@@ -21,6 +21,7 @@ const authSubmitBtn = document.getElementById('authSubmitBtn');
 const logoutInlineBtn = document.getElementById('logoutInlineBtn');
 
 let authMode = 'login';
+let authPending = false;
 const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '')
   .trim()
   .replace(/\/+$/, '');
@@ -213,6 +214,9 @@ function syncPasswordToggleLabel() {
 }
 
 function setAuthMode(mode) {
+  if (authPending) {
+    return;
+  }
   authMode = mode === 'register' ? 'register' : 'login';
 
   const isRegister = authMode === 'register';
@@ -237,6 +241,20 @@ function setAuthMode(mode) {
     billToInput.value = '';
   }
   clearStatus();
+}
+
+function setAuthPending(isPending) {
+  authPending = Boolean(isPending);
+  authSubmitBtn.disabled = authPending;
+  modeRegisterBtn.disabled = authPending;
+  authForm.setAttribute('aria-busy', authPending ? 'true' : 'false');
+
+  if (authPending) {
+    authSubmitBtn.textContent = authMode === 'register' ? 'Creating User...' : 'Logging in...';
+    return;
+  }
+
+  authSubmitBtn.textContent = authMode === 'register' ? 'Create User' : 'Login';
 }
 
 function withApiBase(path) {
@@ -447,6 +465,9 @@ if (openAppBtn) {
 
 authForm.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (authPending) {
+    return;
+  }
   clearStatus();
 
   const username = usernameInput.value.trim();
@@ -478,6 +499,7 @@ authForm.addEventListener('submit', async (event) => {
         }
         return;
       }
+      setAuthPending(true);
       const result = await fetchJson('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -491,6 +513,7 @@ authForm.addEventListener('submit', async (event) => {
       return;
     }
 
+    setAuthPending(true);
     const result = await fetchJson('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -508,6 +531,8 @@ authForm.addEventListener('submit', async (event) => {
     redirectAfterLogin();
   } catch (error) {
     setStatus(authStatus, error.message, true);
+  } finally {
+    setAuthPending(false);
   }
 });
 

@@ -11,6 +11,256 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles-v2.css" />
+    <style>
+      .billing-desk-container {
+        width: min(1120px, 100%);
+        max-width: 1120px;
+      }
+
+      .billing-desk-card {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 24px;
+      }
+
+      .billing-desk-heading {
+        display: grid;
+        align-content: start;
+        gap: 8px;
+      }
+
+      .billing-desk-home-btn {
+        align-self: flex-start;
+        width: auto;
+        min-width: 0;
+        display: inline-flex;
+        flex: 0 0 auto;
+        background: #7ed957;
+        color: #0f3a1f;
+        border: 1px solid #67bf43;
+      }
+
+      .billing-desk-home-btn:hover {
+        background: #72cf4d;
+      }
+
+      .billing-desk-top-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .billing-desk-power-btn {
+        min-width: 38px;
+        min-height: 36px;
+        padding: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .billing-desk-power-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+      }
+
+      .billing-select {
+        display: none;
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 12px;
+        font-size: 14px;
+        font-weight: 700;
+        background: var(--input-bg);
+        color: var(--text);
+      }
+
+      .mobile-select-wrap {
+        display: none;
+        width: 100%;
+        position: relative;
+      }
+
+      .mobile-select-trigger {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--input-bg);
+        color: var(--text);
+        min-height: 42px;
+        padding: 9px 34px 9px 12px;
+        font-size: 14px;
+        font-weight: 700;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .mobile-select-trigger::after {
+        content: '▾';
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        font-size: 14px;
+        pointer-events: none;
+      }
+
+      .mobile-select-wrap.is-open .mobile-select-trigger::after {
+        content: '▴';
+      }
+
+      .mobile-select-menu {
+        display: none;
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        z-index: 60;
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--card);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+      }
+
+      .mobile-select-option {
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+        color: var(--text);
+        text-align: left;
+        padding: 10px 12px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .mobile-select-option:last-child {
+        border-bottom: 0;
+      }
+
+      .mobile-select-option.is-selected {
+        background: var(--btn-secondary-bg);
+        color: var(--btn-secondary-text);
+        font-weight: 800;
+      }
+
+      @media (max-width: 768px) {
+        html,
+        body {
+          overflow-x: hidden;
+        }
+
+        .billing-desk-container {
+          width: 100%;
+          max-width: 560px;
+          margin: 20px auto;
+          padding: 0 12px 18px;
+        }
+
+        .billing-desk-card {
+          width: 100%;
+          max-width: 100%;
+          padding: 16px 14px;
+          border-radius: 18px;
+          overflow-x: hidden;
+        }
+
+        .billing-desk-card .title-row,
+        .billing-desk-card #billForm,
+        .billing-desk-card .table-wrap {
+          min-width: 0;
+        }
+
+        .bill-card .title-row {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .bill-card .billing-desk-heading {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .bill-card .billing-desk-top-actions {
+          margin-left: 0;
+          width: auto;
+          justify-content: flex-end;
+          gap: 8px;
+          flex-wrap: nowrap;
+        }
+
+        .bill-card .billing-desk-top-actions .btn {
+          min-height: 36px;
+          padding: 8px 12px;
+        }
+
+        .bill-card .billing-desk-home-btn {
+          margin-top: 2px;
+          min-height: 34px;
+          padding: 7px 11px;
+          width: fit-content;
+          max-width: max-content;
+        }
+
+        .bill-card .billing-desk-top-actions .theme-toggle span {
+          display: none;
+        }
+
+        .billing-desk-card .search-row {
+          width: 100%;
+        }
+
+        .billing-desk-card .search-row > * {
+          max-width: 100%;
+        }
+
+        .billing-desk-card #bookingSelect,
+        .billing-desk-card #billSelect {
+          min-width: 100% !important;
+        }
+
+        .billing-desk-card .billing-select {
+          font-size: 15px;
+          line-height: 1.35;
+          min-height: 44px;
+        }
+
+        .billing-desk-card .mobile-select-wrap {
+          display: block;
+        }
+
+        .billing-desk-card .mobile-select-trigger {
+          min-height: 44px;
+          font-size: 15px;
+          line-height: 1.35;
+        }
+
+        .billing-desk-card .mobile-select-option {
+          font-size: 15px;
+          line-height: 1.35;
+        }
+
+        .billing-desk-card #itemsTable .slNo,
+        .billing-desk-card #itemsTable .quantity {
+          width: 42px;
+          min-width: 42px;
+          height: 42px;
+          padding: 0;
+          border-radius: 6px;
+          text-align: center;
+        }
+      }
+    </style>
     <script>
       (function () {
         if (sessionStorage.getItem('sagarika_auth') === 'ok' && sessionStorage.getItem('sagarika_token')) return;
@@ -23,7 +273,13 @@
         location.replace(`login.html?next=${encodeURIComponent(page)}`);
       })();
 
-      function logoutUser() {
+      async function logoutUser() {
+        if (typeof window.sagarikaSaveBeforeLeave === 'function') {
+          const okToLeave = await window.sagarikaSaveBeforeLeave('Saving before logout...');
+          if (!okToLeave) {
+            return;
+          }
+        }
         sessionStorage.removeItem('sagarika_auth');
         sessionStorage.removeItem('sagarika_token');
         sessionStorage.removeItem('sagarika_user');
@@ -41,10 +297,10 @@
     <div class="bg-shape shape-1"></div>
     <div class="bg-shape shape-2"></div>
 
-    <main class="container">
-      <section class="card bill-card">
+    <main class="container billing-desk-container">
+      <section class="card bill-card billing-desk-card">
         <div class="title-row">
-          <div>
+          <div class="billing-desk-heading">
             <p class="kicker">Event Billing Desk</p>
             <h1 class="page-title">
               <span
@@ -56,21 +312,32 @@
               ></span>
               <span>Sagarika</span>
             </h1>
+            <a class="btn btn-secondary billing-desk-home-btn" href="welcome.html">Home</a>
           </div>
-          <div class="title-right-actions">
-            <a class="btn btn-secondary" href="welcome.html">Home</a>
+          <div class="title-right-actions billing-desk-top-actions">
             <label class="theme-toggle" for="themeToggle">
               <input id="themeToggle" type="checkbox" />
               <span>Night Mode</span>
             </label>
-            <button class="btn btn-danger logout-btn" type="button" onclick="logoutUser()">Logout</button>
+            <button
+              class="btn btn-danger billing-desk-power-btn"
+              type="button"
+              onclick="logoutUser()"
+              aria-label="Logout"
+              title="Logout"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v9" stroke-linecap="round" />
+                <path d="M6.2 6.7a8 8 0 1 0 11.6 0" stroke-linecap="round" />
+              </svg>
+            </button>
           </div>
           <div class="search-row">
             <input type="text" id="searchPhone" placeholder="Search by phone, bill no, or name" />
             <button id="searchBtn" class="btn btn-secondary" type="button">Search</button>
             <button id="loadBookingBtn" class="btn btn-secondary" type="button">Load Booking</button>
-            <select id="bookingSelect" class="btn btn-secondary" style="display: none; min-width: 220px"></select>
-            <select id="billSelect" class="btn btn-secondary" style="display: none; min-width: 240px"></select>
+            <select id="bookingSelect" class="billing-select"></select>
+            <select id="billSelect" class="billing-select"></select>
             <button id="editBillBtn" class="btn btn-secondary" type="button" disabled>Edit</button>
             <button id="clearSearchBtn" class="btn" type="button">Clear</button>
           </div>

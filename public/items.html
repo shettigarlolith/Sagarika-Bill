@@ -23,7 +23,13 @@
         location.replace(`login.html?next=${encodeURIComponent(page)}`);
       })();
 
-      function logoutUser() {
+      async function logoutUser() {
+        if (typeof window.sagarikaSaveBeforeLeave === 'function') {
+          const okToLeave = await window.sagarikaSaveBeforeLeave('Saving before logout...');
+          if (!okToLeave) {
+            return;
+          }
+        }
         sessionStorage.removeItem('sagarika_auth');
         sessionStorage.removeItem('sagarika_token');
         sessionStorage.removeItem('sagarika_user');
@@ -37,12 +43,68 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
     <script defer src="logo-player.js"></script>
     <style>
+      .items-page-container {
+        width: min(1080px, 100%);
+        max-width: 1080px;
+      }
+
+      .items-page-card {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 24px;
+      }
+
+      .items-page-heading {
+        display: grid;
+        align-content: start;
+        gap: 8px;
+      }
+
+      .items-home-btn {
+        align-self: flex-start;
+        width: auto;
+        min-width: 0;
+        display: inline-flex;
+        flex: 0 0 auto;
+        background: #7ed957;
+        color: #0f3a1f;
+        border: 1px solid #67bf43;
+      }
+
+      .items-home-btn:hover {
+        background: #72cf4d;
+      }
+
+      .items-top-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .items-power-btn {
+        min-width: 38px;
+        min-height: 36px;
+        padding: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .items-power-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+      }
+
       .items-wrap {
         margin-top: 12px;
       }
 
       .items-table {
         width: 100%;
+        min-width: 0;
         border-collapse: collapse;
       }
 
@@ -71,16 +133,153 @@
       .top-link {
         text-decoration: none;
       }
+
+      @media (max-width: 768px) {
+        html,
+        body {
+          overflow-x: hidden;
+        }
+
+        .items-page-container {
+          width: 100%;
+          max-width: 560px;
+          margin: 20px auto;
+          padding: 0 12px 18px;
+        }
+
+        .items-page-card {
+          width: 100%;
+          max-width: 100%;
+          padding: 16px 14px;
+          border-radius: 18px;
+          overflow-x: hidden;
+        }
+
+        .items-page-card .title-row {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .items-page-card .items-page-heading {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .items-page-card .items-top-actions {
+          margin-left: 0;
+          width: auto;
+          justify-content: flex-end;
+          gap: 8px;
+          flex-wrap: nowrap;
+        }
+
+        .items-page-card .items-top-actions .btn {
+          min-height: 36px;
+          padding: 8px 12px;
+        }
+
+        .items-page-card .items-home-btn {
+          margin-top: 2px;
+          min-height: 34px;
+          padding: 7px 11px;
+          width: fit-content;
+          max-width: max-content;
+        }
+
+        .items-page-card .items-top-actions .theme-toggle span {
+          display: none;
+        }
+
+        .items-page-card .items-wrap {
+          overflow-x: hidden;
+        }
+
+        .items-page-card .items-table {
+          width: 100%;
+          min-width: 0 !important;
+          table-layout: fixed;
+          border-collapse: collapse;
+        }
+
+        .items-page-card .items-table col:nth-child(1) {
+          width: 70%;
+        }
+
+        .items-page-card .items-table col:nth-child(2) {
+          width: 20%;
+        }
+
+        .items-page-card .items-table col:nth-child(3) {
+          width: 10%;
+        }
+
+        .items-page-card .items-table th,
+        .items-page-card .items-table td {
+          padding: 7px 6px;
+          overflow: hidden;
+          min-width: 0;
+        }
+
+        .items-page-card .items-table th {
+          font-size: 12px;
+          padding: 7px 6px;
+          text-align: left;
+        }
+
+        .items-page-card .items-table th:nth-child(1),
+        .items-page-card .items-table td:nth-child(1) {
+          width: 70%;
+        }
+
+        .items-page-card .items-table th:nth-child(2),
+        .items-page-card .items-table td:nth-child(2) {
+          width: 20%;
+          text-align: center;
+        }
+
+        .items-page-card .items-table th:nth-child(3),
+        .items-page-card .items-table td:nth-child(3) {
+          width: 10%;
+          text-align: center;
+        }
+
+        .items-page-card .items-table input {
+          width: 100%;
+          min-width: 0;
+          padding: 9px 8px;
+          font-size: 14px;
+        }
+
+        .items-page-card .items-table .item-price {
+          text-align: right;
+        }
+
+        .items-page-card .items-table .item-name {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .items-page-card .items-table .remove-item {
+          width: 100%;
+          min-width: 0;
+          min-height: 34px;
+          padding: 4px;
+          border-radius: 8px;
+        }
+      }
     </style>
   </head>
   <body>
     <div class="bg-shape shape-1"></div>
     <div class="bg-shape shape-2"></div>
 
-    <main class="container">
-      <section class="card">
+    <main class="container items-page-container">
+      <section class="card items-page-card">
         <div class="title-row">
-          <div>
+          <div class="items-page-heading">
             <p class="kicker">Catalog Manager</p>
             <h1 class="item-page-title">
               <span
@@ -92,24 +291,34 @@
               ></span>
               <span>Item List</span>
             </h1>
+            <a class="btn btn-secondary top-link items-home-btn" href="welcome.html">Home</a>
           </div>
-          <div class="title-right-actions">
-            <a class="btn btn-secondary top-link" href="welcome.html">Home</a>
+          <div class="title-right-actions items-top-actions">
             <label class="theme-toggle" for="themeToggle">
               <input id="themeToggle" type="checkbox" />
               <span>Night Mode</span>
             </label>
-            <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
+            <button class="btn btn-danger items-power-btn" type="button" onclick="logoutUser()" aria-label="Logout" title="Logout">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v9" stroke-linecap="round" />
+                <path d="M6.2 6.7a8 8 0 1 0 11.6 0" stroke-linecap="round" />
+              </svg>
+            </button>
           </div>
         </div>
 
         <div class="items-wrap">
           <table class="items-table">
+            <colgroup>
+              <col />
+              <col />
+              <col />
+            </colgroup>
             <thead>
               <tr>
-                <th style="width: 65%">Item Name</th>
-                <th style="width: 25%">Price</th>
-                <th style="width: 10%">Action</th>
+                <th>Item Name</th>
+                <th>Price</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="itemsEditorBody"></tbody>

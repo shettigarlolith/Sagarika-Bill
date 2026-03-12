@@ -93,8 +93,11 @@ let activeItemInput = null;
 let activeItemSuggestions = [];
 let activeItemSuggestionIndex = -1;
 let hideItemSuggestionTimer = null;
+let pendingNavigationUrl = '';
+let navigationSavingOverlay = null;
 const DRAFT_STORAGE_KEY = 'sagarika_bill_draft_v1';
 const THEME_STORAGE_KEY = 'sagarika_theme_v1';
+const mobileSelectState = new WeakMap();
 
 billDateInput.value = new Date().toISOString().slice(0, 10);
 
@@ -109,6 +112,114 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+}
+
+function ensureMobileSelectUI(selectEl) {
+  if (!selectEl) {
+    return null;
+  }
+  const existing = mobileSelectState.get(selectEl);
+  if (existing) {
+    return existing;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'mobile-select-wrap';
+  wrapper.style.display = 'none';
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'mobile-select-trigger';
+  trigger.textContent = 'Select';
+
+  const menu = document.createElement('div');
+  menu.className = 'mobile-select-menu';
+
+  const closeMenu = () => {
+    menu.style.display = 'none';
+    wrapper.classList.remove('is-open');
+  };
+
+  trigger.addEventListener('click', () => {
+    if (wrapper.style.display === 'none') {
+      return;
+    }
+    const willOpen = menu.style.display !== 'block';
+    menu.style.display = willOpen ? 'block' : 'none';
+    wrapper.classList.toggle('is-open', willOpen);
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!wrapper.contains(event.target)) {
+      closeMenu();
+    }
+  });
+
+  wrapper.append(trigger, menu);
+  selectEl.insertAdjacentElement('afterend', wrapper);
+
+  const state = { wrapper, trigger, menu, closeMenu };
+  mobileSelectState.set(selectEl, state);
+  return state;
+}
+
+function hideMobileSelectUI(selectEl) {
+  const state = mobileSelectState.get(selectEl);
+  if (!state) {
+    return;
+  }
+  state.closeMenu();
+  state.wrapper.style.display = 'none';
+}
+
+function syncMobileSelectUI(selectEl) {
+  if (!selectEl) {
+    return;
+  }
+  const state = ensureMobileSelectUI(selectEl);
+  const hasOptions = selectEl.options.length > 0;
+  const shouldBeVisible = selectEl.dataset.selectorVisible === '1';
+  const useMobile = isMobileViewport() && shouldBeVisible && hasOptions;
+
+  if (!shouldBeVisible) {
+    hideMobileSelectUI(selectEl);
+    selectEl.style.display = 'none';
+    return;
+  }
+
+  if (!useMobile) {
+    hideMobileSelectUI(selectEl);
+    selectEl.style.display = 'block';
+    return;
+  }
+
+  selectEl.style.display = 'none';
+  state.wrapper.style.display = 'block';
+  state.closeMenu();
+
+  const selectedOption = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+  state.trigger.textContent = selectedOption ? selectedOption.textContent : 'Select';
+  state.menu.innerHTML = [...selectEl.options]
+    .map((option) => {
+      const isSelected = option.value === selectEl.value;
+      return `<button type="button" class="mobile-select-option${isSelected ? ' is-selected' : ''}" data-value="${escapeHtml(
+        option.value
+      )}">${escapeHtml(option.textContent || '')}</button>`;
+    })
+    .join('');
+
+  [...state.menu.querySelectorAll('.mobile-select-option')].forEach((button) => {
+    button.addEventListener('click', () => {
+      const nextValue = button.getAttribute('data-value') || '';
+      selectEl.value = nextValue;
+      selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+      syncMobileSelectUI(selectEl);
+    });
+  });
 }
 
 function renderBillNumber() {
@@ -196,6 +307,165 @@ function hasLoadedBillChanges() {
   }
   return getCurrentBillSnapshot() !== loadedBillSignature;
 }
+
+function hasMeaningfulBillInput() {
+  const hasTextInput =
+    String(customerNameInput.value || '').trim() ||
+    String(phoneNumberInput.value || '').trim() ||
+    String(gstNoInput.value || '').trim() ||
+    String(eWayInput.value || '').trim() ||
+    String(addressInput.value || '').trim() ||
+    String(billNoteInput.value || '').trim() ||
+    String(eventDayInput?.value || '').trim();
+  if (hasTextInput) {
+    return true;
+  }
+
+  return [...itemsBody.querySelectorAll('tr')].some((row) => {
+    const itemName = String(row.querySelector('.item')?.value || '').trim();
+    const qtyRaw = String(row.querySelector('.quantity')?.value || '').trim();
+    const amountRaw = String(row.querySelector('.amount')?.value || '').trim();
+    if (itemName) {
+      return true;
+    }
+    if (qtyRaw && qtyRaw !== '#') {
+      return true;
+    }
+    return Number(amountRaw || 0) > 0;
+  });
+}
+
+function hasPendingBillChanges() {
+  if (isSaving || isFormReadOnly || isSaveLocked) {
+    return false;
+  }
+  if (loadedBillId) {
+    return hasLoadedBillChanges();
+  }
+  return hasMeaningfulBillInput();
+}
+
+function ensureNavigationSavingOverlay() {
+  if (navigationSavingOverlay) {
+    return navigationSavingOverlay;
+  }
+
+  navigationSavingOverlay = document.createElement('div');
+  navigationSavingOverlay.style.position = 'fixed';
+  navigationSavingOverlay.style.inset = '0';
+  navigationSavingOverlay.style.background = 'rgba(6, 22, 33, 0.55)';
+  navigationSavingOverlay.style.display = 'none';
+  navigationSavingOverlay.style.alignItems = 'center';
+  navigationSavingOverlay.style.justifyContent = 'center';
+  navigationSavingOverlay.style.zIndex = '9999';
+  navigationSavingOverlay.style.backdropFilter = 'blur(1px)';
+
+  const card = document.createElement('div');
+  card.style.background = 'rgba(255,255,255,0.97)';
+  card.style.border = '1px solid rgba(53,80,98,0.2)';
+  card.style.borderRadius = '14px';
+  card.style.padding = '14px 18px';
+  card.style.display = 'flex';
+  card.style.alignItems = 'center';
+  card.style.gap = '10px';
+  card.style.fontWeight = '700';
+  card.style.color = '#153448';
+
+  const spinner = document.createElement('span');
+  spinner.style.width = '18px';
+  spinner.style.height = '18px';
+  spinner.style.borderRadius = '50%';
+  spinner.style.border = '2px solid #9cb2bf';
+  spinner.style.borderTopColor = '#153448';
+  spinner.style.animation = 'sagarikaNavSpin 0.8s linear infinite';
+  spinner.setAttribute('aria-hidden', 'true');
+
+  const text = document.createElement('span');
+  text.textContent = 'Saving...';
+  text.dataset.role = 'message';
+
+  card.append(spinner, text);
+  navigationSavingOverlay.appendChild(card);
+
+  const style = document.createElement('style');
+  style.textContent = '@keyframes sagarikaNavSpin { to { transform: rotate(360deg); } }';
+  document.head.appendChild(style);
+  document.body.appendChild(navigationSavingOverlay);
+  return navigationSavingOverlay;
+}
+
+function setNavigationSavingOverlay(visible, message = 'Saving...') {
+  const overlay = ensureNavigationSavingOverlay();
+  const textNode = overlay.querySelector('[data-role="message"]');
+  if (textNode) {
+    textNode.textContent = message;
+  }
+  overlay.style.display = visible ? 'flex' : 'none';
+}
+
+function shouldHandleAutoSaveNavigation(link, event) {
+  if (!link || event.defaultPrevented || event.button !== 0) {
+    return false;
+  }
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    return false;
+  }
+  if (link.target && link.target !== '_self') {
+    return false;
+  }
+  if (link.hasAttribute('download')) {
+    return false;
+  }
+
+  let url;
+  try {
+    url = new URL(link.href, location.href);
+  } catch {
+    return false;
+  }
+
+  if (url.origin !== location.origin) {
+    return false;
+  }
+  if (url.pathname === location.pathname && url.search === location.search && url.hash) {
+    return false;
+  }
+  return true;
+}
+
+async function navigateWithAutoSave(url) {
+  if (!url || isSaving) {
+    return;
+  }
+  if (!hasPendingBillChanges()) {
+    location.href = url;
+    return;
+  }
+
+  setNavigationSavingOverlay(true, 'Saving...');
+  const result = await saveWithLoadedBillChoice('Saving before leaving...', 'Updating before leaving...');
+  if (!result) {
+    setNavigationSavingOverlay(false);
+    return;
+  }
+  location.href = url;
+}
+
+window.sagarikaSaveBeforeLeave = async function sagarikaSaveBeforeLeave(saveLabel = 'Saving before leaving...') {
+  if (isSaving) {
+    return false;
+  }
+  if (!hasPendingBillChanges()) {
+    return true;
+  }
+  setNavigationSavingOverlay(true, 'Saving...');
+  const result = await saveWithLoadedBillChoice(saveLabel, 'Updating before leaving...');
+  if (!result) {
+    setNavigationSavingOverlay(false);
+    return false;
+  }
+  return true;
+};
 
 function askSaveChoiceForLoadedBill() {
   return new Promise((resolve) => {
@@ -724,6 +994,8 @@ window.addEventListener('resize', () => {
   if (activeItemInput) {
     renderItemSuggestionMenu();
   }
+  syncMobileSelectUI(bookingSelect);
+  syncMobileSelectUI(billSelect);
 });
 
 window.addEventListener(
@@ -978,8 +1250,10 @@ function hideBillSelector() {
   if (!billSelect) {
     return;
   }
+  billSelect.dataset.selectorVisible = '0';
   billSelect.style.display = 'none';
   billSelect.innerHTML = '';
+  hideMobileSelectUI(billSelect);
 }
 
 function formatBillDateForSelector(value) {
@@ -1007,7 +1281,9 @@ function showBillSelector(bills) {
     })
     .join('');
 
-  billSelect.style.display = 'inline-flex';
+  billSelect.dataset.selectorVisible = '1';
+  billSelect.style.display = 'block';
+  syncMobileSelectUI(billSelect);
 }
 
 function populateBillForm(bill) {
@@ -1755,6 +2031,7 @@ async function searchBills(rawQuery) {
     currentBillIndex = 0;
     showBillSelector(matchedBills);
     billSelect.value = '0';
+    syncMobileSelectUI(billSelect);
 
     const latestBill = matchedBills[currentBillIndex];
     populateBillForm(latestBill);
@@ -1917,8 +2194,10 @@ function hideBookingSelector() {
   if (!bookingSelect) {
     return;
   }
+  bookingSelect.dataset.selectorVisible = '0';
   bookingSelect.style.display = 'none';
   bookingSelect.innerHTML = '';
+  hideMobileSelectUI(bookingSelect);
 }
 
 function showBookingSelector(bookings) {
@@ -1938,7 +2217,9 @@ function showBookingSelector(bookings) {
     })
     .join('');
 
-  bookingSelect.style.display = 'inline-flex';
+  bookingSelect.dataset.selectorVisible = '1';
+  bookingSelect.style.display = 'block';
+  syncMobileSelectUI(bookingSelect);
 }
 
 async function importBookingByQuery(rawQuery) {
@@ -1966,6 +2247,7 @@ async function importBookingByQuery(rawQuery) {
     matchedBookingsForImport = bookings;
     showBookingSelector(bookings);
     bookingSelect.value = '0';
+    syncMobileSelectUI(bookingSelect);
     const selectedBooking = matchedBookingsForImport[0];
     await loadBookingOrExistingBill(selectedBooking);
     if (!loadedBillId) {
@@ -2054,6 +2336,7 @@ if (bookingSelect) {
       return;
     }
     await loadBookingOrExistingBill(selectedBooking);
+    syncMobileSelectUI(bookingSelect);
   });
 }
 
@@ -2069,6 +2352,7 @@ if (billSelect) {
     populateBillForm(selectedBill);
     statusMsg.textContent = `Found ${matchedBills.length} bill(s). Showing ${currentBillIndex + 1}/${matchedBills.length}`;
     statusMsg.style.color = '#4caf50';
+    syncMobileSelectUI(billSelect);
   });
 }
 
@@ -2196,6 +2480,20 @@ printBillBtn.addEventListener('click', async () => {
     printWithSuggestedFileName();
   }
 });
+
+document.addEventListener(
+  'click',
+  (event) => {
+    const link = event.target.closest('a[href]');
+    if (!shouldHandleAutoSaveNavigation(link, event)) {
+      return;
+    }
+    event.preventDefault();
+    pendingNavigationUrl = link.href;
+    navigateWithAutoSave(pendingNavigationUrl);
+  },
+  true
+);
 
 try {
   const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);

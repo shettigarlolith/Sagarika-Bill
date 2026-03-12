@@ -23,6 +23,23 @@
         gap: 10px;
       }
 
+      .welcome-power-btn {
+        min-width: 38px;
+        min-height: 36px;
+        padding: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .welcome-power-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+      }
+
       .welcome-grid {
         display: grid;
         grid-template-columns: 1.05fr 1fr;
@@ -508,8 +525,12 @@
           <input id="themeToggle" type="checkbox" />
           <span>Night Mode</span>
         </label>
-        <a class="btn btn-secondary" href="login.html">Dashboard</a>
-        <button class="btn btn-danger" type="button" onclick="logoutUser()">Logout</button>
+        <button class="btn btn-danger welcome-power-btn" type="button" onclick="logoutUser()" aria-label="Logout" title="Logout">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v9" stroke-linecap="round" />
+            <path d="M6.2 6.7a8 8 0 1 0 11.6 0" stroke-linecap="round" />
+          </svg>
+        </button>
       </section>
 
       <section class="welcome-grid">
@@ -543,7 +564,7 @@
 
         <article class="card welcome-card calendar-shell">
           <div class="calendar-head">
-            <h2 class="calendar-title">CALENDER</h2>
+            <h2 class="calendar-title">CALENDAR</h2>
             <div class="calendar-nav">
               <button type="button" id="prevMonthBtn" class="mini-btn">&lt;</button>
               <strong id="monthLabel" class="month-label"></strong>
