@@ -2,11 +2,15 @@ package com.sagarikabill.app
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.view.View
+import android.widget.Button
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -20,7 +24,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var splashOverlay: View
     private lateinit var splashAnimation: LottieAnimationView
+    private lateinit var offlineOverlay: View
+    private lateinit var retryButton: Button
     private var splashDismissed = false
+    private val appUrl = "https://sagarikabill.vercel.app/"
 
     private inner class PrintBridge {
         @JavascriptInterface
@@ -75,6 +82,8 @@ class MainActivity : AppCompatActivity() {
         webView = findViewById(R.id.webView)
         splashOverlay = findViewById(R.id.splashOverlay)
         splashAnimation = findViewById(R.id.splashAnimation)
+        offlineOverlay = findViewById(R.id.offlineOverlay)
+        retryButton = findViewById(R.id.retryButton)
 
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
@@ -93,17 +102,33 @@ class MainActivity : AppCompatActivity() {
                 return false
             }
 
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?
+            ) {
+                super.onReceivedError(view, request, error)
+                if (request?.isForMainFrame == true) {
+                    showOfflineOverlay()
+                }
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 if (view != null) {
+                    hideOfflineOverlay()
                     injectPrintHook(view)
                     view.postDelayed({ dismissSplash() }, 350)
                 }
             }
         }
 
+        retryButton.setOnClickListener {
+            attemptLoad()
+        }
+
         if (savedInstanceState == null) {
-            webView.loadUrl("https://sagarikabill.vercel.app/")
+            attemptLoad()
         } else {
             webView.restoreState(savedInstanceState)
         }
@@ -123,6 +148,35 @@ class MainActivity : AppCompatActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         webView.saveState(outState)
         super.onSaveInstanceState(outState)
+    }
+
+    private fun attemptLoad() {
+        if (isInternetAvailable()) {
+            hideOfflineOverlay()
+            webView.loadUrl(appUrl)
+        } else {
+            showOfflineOverlay()
+        }
+    }
+
+    private fun showOfflineOverlay() {
+        offlineOverlay.visibility = View.VISIBLE
+        webView.visibility = View.GONE
+        dismissSplash()
+    }
+
+    private fun hideOfflineOverlay() {
+        offlineOverlay.visibility = View.GONE
+        webView.visibility = View.VISIBLE
+    }
+
+    private fun isInternetAvailable(): Boolean {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return false
+        val activeNetwork = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
     private fun dismissSplash() {
