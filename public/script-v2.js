@@ -1177,6 +1177,13 @@ function getItems() {
   }));
 }
 
+function isCompletelyBlankBillItem(item) {
+  const itemName = String(item?.item || '').trim();
+  const quantityRaw = String(item?.quantity || '').trim();
+  const amount = Number(item?.amount || 0);
+  return !itemName && (!quantityRaw || quantityRaw === '#') && amount <= 0;
+}
+
 function addDefaultRow() {
   const rowCount = itemsBody.querySelectorAll('tr').length;
   itemsBody.appendChild(createRow({ slNo: rowCount + 1, item: '', quantity: '#', amount: 0 }));
@@ -1635,7 +1642,7 @@ function validateBillAndGetPayload() {
     return null;
   }
 
-  const items = getItems();
+  const items = getItems().filter((item) => !isCompletelyBlankBillItem(item));
   if (items.length === 0) {
     statusMsg.textContent = 'Please add at least one item.';
     statusMsg.style.color = '#b42a2a';

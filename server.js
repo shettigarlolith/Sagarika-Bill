@@ -307,7 +307,15 @@ function appendMissingItemsToItemList(itemList, items) {
 function buildNormalizedBillPayload(body, itemList) {
   const { billDate, eventDay, customerName, phoneNumber, gstNo, eWay, address, note, items, gst, discount } = body || {};
 
-  if (!Array.isArray(items) || items.length === 0) {
+  const rawItems = Array.isArray(items) ? items : [];
+  const meaningfulItems = rawItems.filter((item) => {
+    const itemName = String(item?.item || '').trim();
+    const quantityRaw = String(item?.quantity ?? '').trim();
+    const amount = Number(item?.amount || 0);
+    return Boolean(itemName || (quantityRaw && quantityRaw !== '#') || amount > 0);
+  });
+
+  if (meaningfulItems.length === 0) {
     return { error: 'At least one item is required.' };
   }
 
@@ -318,7 +326,7 @@ function buildNormalizedBillPayload(body, itemList) {
 
   const priceMap = getItemPriceMap(itemList);
 
-  const normalizedItems = items.map((item, index) => {
+  const normalizedItems = meaningfulItems.map((item, index) => {
     const itemName = String(item.item || '').trim();
     const quantityRaw = String(item.quantity ?? '').trim();
     const quantity = quantityRaw === '#' ? '#' : Number(item.quantity || 0);
