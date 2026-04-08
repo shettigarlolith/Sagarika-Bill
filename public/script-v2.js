@@ -279,8 +279,16 @@ function normalizeItemSignatureItems(items) {
   return (Array.isArray(items) ? items : [])
     .map((item) => {
       const name = String(item?.item || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const quantityRaw = String(item?.quantity ?? '').trim();
+      const amount = Number(item?.amount || 0);
+      if (!name) {
+        return '';
+      }
+      if (quantityRaw === '#') {
+        return Number.isFinite(amount) && amount > 0 ? `${name}:#:${amount.toFixed(2)}` : '';
+      }
       const quantity = Number(item?.quantity || 0);
-      if (!name || !Number.isFinite(quantity) || quantity <= 0) {
+      if (!Number.isFinite(quantity) || quantity <= 0) {
         return '';
       }
       return `${name}:${quantity.toFixed(3)}`;
@@ -1686,12 +1694,10 @@ function validateBillAndGetPayload() {
     note: billNoteInput.value.trim(),
     items: items.map((item) => {
       if (isManualQuantity(item.quantity)) {
-        const unitPrice = Number(productPrices[item.item] || 0);
         const manualAmount = Number(item.amount || 0);
-        const derivedQuantity = unitPrice > 0 ? manualAmount / unitPrice : 1;
         return {
           ...item,
-          quantity: derivedQuantity,
+          quantity: '#',
           amount: manualAmount,
           isManualAmount: true
         };

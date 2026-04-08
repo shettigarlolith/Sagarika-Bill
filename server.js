@@ -320,16 +320,17 @@ function buildNormalizedBillPayload(body, itemList) {
 
   const normalizedItems = items.map((item, index) => {
     const itemName = String(item.item || '').trim();
-    const quantity = Number(item.quantity || 0);
+    const quantityRaw = String(item.quantity ?? '').trim();
+    const quantity = quantityRaw === '#' ? '#' : Number(item.quantity || 0);
     const listedUnitPrice = Number(priceMap[itemName] || 0);
     const requestedAmount = Number(item.amount || 0);
-    const isManualAmount = Boolean(item.isManualAmount);
+    const isManualAmount = Boolean(item.isManualAmount) || quantityRaw === '#';
     let unitPrice = listedUnitPrice;
-    let amount = quantity * unitPrice;
+    let amount = isManualAmount ? requestedAmount : Number(quantity || 0) * unitPrice;
 
     if (isManualAmount && Number.isFinite(requestedAmount) && requestedAmount > 0) {
       amount = requestedAmount;
-      if (Number.isFinite(quantity) && quantity > 0 && (!Number.isFinite(unitPrice) || unitPrice <= 0)) {
+      if (typeof quantity === 'number' && Number.isFinite(quantity) && quantity > 0 && (!Number.isFinite(unitPrice) || unitPrice <= 0)) {
         unitPrice = requestedAmount / quantity;
       }
     }
@@ -347,8 +348,7 @@ function buildNormalizedBillPayload(body, itemList) {
   const hasInvalidItem = normalizedItems.some(
     (item) =>
       !item.item ||
-      Number.isNaN(item.quantity) ||
-      item.quantity <= 0 ||
+      (item.isManualAmount ? item.quantity !== '#' : Number.isNaN(item.quantity) || item.quantity <= 0) ||
       Number.isNaN(item.unitPrice) ||
       Number.isNaN(item.amount) ||
       (item.isManualAmount && item.amount <= 0)
@@ -820,15 +820,16 @@ function parseBillItemsJson(value) {
       .map((entry, index) => ({
         slNo: Number(entry?.slNo ?? index + 1),
         item: String(entry?.item || '').trim(),
-        quantity: Number(entry?.quantity || 0),
+        quantity: String(entry?.quantity ?? '').trim() === '#' ? '#' : Number(entry?.quantity || 0),
         unitPrice: Number(entry?.unitPrice || 0),
-        amount: Number(entry?.amount || 0)
+        amount: Number(entry?.amount || 0),
+        isManualAmount: Boolean(entry?.isManualAmount) || String(entry?.quantity ?? '').trim() === '#'
       }))
       .filter(
         (entry) =>
           entry.item &&
           Number.isFinite(entry.slNo) &&
-          Number.isFinite(entry.quantity) &&
+          (entry.quantity === '#' || Number.isFinite(entry.quantity)) &&
           Number.isFinite(entry.unitPrice) &&
           Number.isFinite(entry.amount)
       );
@@ -848,16 +849,23 @@ function extractBillItemsFromRow(row) {
     return [];
   }
 
-  const quantity = Number(row.quantity || 0);
+  const quantityRaw = String(row.quantity ?? '').trim();
+  const quantity = quantityRaw === '#' ? '#' : Number(row.quantity || 0);
   const unitPrice = Number(row.unitPrice || 0);
   const amount = Number(row.amount || quantity * unitPrice);
   const slNo = Number(row.slNo || 1);
+  const isManualAmount = Boolean(row.isManualAmount) || quantityRaw === '#';
 
-  if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice) || !Number.isFinite(amount) || !Number.isFinite(slNo)) {
+  if (
+    !(quantity === '#' || Number.isFinite(quantity)) ||
+    !Number.isFinite(unitPrice) ||
+    !Number.isFinite(amount) ||
+    !Number.isFinite(slNo)
+  ) {
     return [];
   }
 
-  return [{ slNo, item: itemName, quantity, unitPrice, amount }];
+  return [{ slNo, item: itemName, quantity, unitPrice, amount, isManualAmount }];
 }
 
 function getBillItemsForBillId(billItems, billId) {
@@ -891,9 +899,10 @@ function compactBillItemsRows(billItems) {
         .map((item, index) => ({
           slNo: Number(item.slNo || index + 1),
           item: String(item.item || '').trim(),
-          quantity: Number(item.quantity || 0),
+          quantity: item.quantity === '#' ? '#' : Number(item.quantity || 0),
           unitPrice: Number(item.unitPrice || 0),
-          amount: Number(item.amount || 0)
+          amount: Number(item.amount || 0),
+          isManualAmount: Boolean(item.isManualAmount) || item.quantity === '#'
         }));
 
       return {
