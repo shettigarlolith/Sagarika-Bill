@@ -341,7 +341,7 @@
             <button id="editBillBtn" class="btn btn-secondary" type="button" disabled>Edit</button>
             <button id="clearSearchBtn" class="btn" type="button">Clear</button>
           </div>
-          <p id="statusMsg" class="status"></p>
+          <p id="statusMsg" class="status" aria-hidden="true"></p>
         </div>
 
         <form id="billForm">
@@ -382,6 +382,13 @@
 
           <div class="table-wrap">
             <table id="itemsTable">
+              <colgroup>
+                <col class="bill-col-slno" />
+                <col class="bill-col-item" />
+                <col class="bill-col-qty" />
+                <col class="bill-col-amount" />
+                <col class="bill-col-action" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Sl No</th>
@@ -575,6 +582,23 @@
       </div>
     </div>
 
-    <script src="script-v2.js"></script>
+    <div id="statusPopupModal" class="choice-modal" aria-hidden="true">
+      <div
+        id="statusPopupDialog"
+        class="choice-dialog status-popup-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="statusPopupTitle"
+        aria-describedby="statusPopupMessage"
+      >
+        <h3 id="statusPopupTitle">Message</h3>
+        <p id="statusPopupMessage"></p>
+        <div class="choice-actions">
+          <button id="statusPopupOkBtn" class="btn btn-primary" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="script-v2.js?v=20260409-qtymanual"></script>
   </body>
 </html>

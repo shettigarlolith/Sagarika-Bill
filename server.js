@@ -280,28 +280,73 @@ function getItemPriceMap(itemList) {
   return priceMap;
 }
 
+function inferUnitPriceFromBillItem(entry) {
+  const quantityRaw = String(entry?.quantity ?? '').trim();
+  const amount = Number(entry?.amount || 0);
+  const isManualAmount = Boolean(entry?.isManualAmount) || quantityRaw.startsWith('#');
+  if (!isManualAmount || !Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+
+  const manualQuantityRaw = quantityRaw.startsWith('#') ? quantityRaw.slice(1).trim() : quantityRaw;
+  const quantity = Number(manualQuantityRaw);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return null;
+  }
+
+  const inferredPrice = amount / quantity;
+  if (!Number.isFinite(inferredPrice) || inferredPrice <= 0) {
+    return null;
+  }
+
+  return Number(inferredPrice.toFixed(2));
+}
+
 function appendMissingItemsToItemList(itemList, items) {
   const nextItemList = Array.isArray(itemList) ? [...itemList] : [];
-  const existingNames = new Set(
-    nextItemList
-      .map((entry) => String(entry?.item || '').trim())
-      .filter(Boolean)
-  );
+  const existingIndexes = new Map();
+  nextItemList.forEach((entry, index) => {
+    const itemName = String(entry?.item || '').trim();
+    if (itemName) {
+      existingIndexes.set(itemName, index);
+    }
+  });
   const addedItems = [];
+  const updatedItems = [];
 
   (Array.isArray(items) ? items : []).forEach((entry) => {
     const itemName = String(entry?.item || '').trim();
-    if (!itemName || existingNames.has(itemName)) {
+    if (!itemName) {
       return;
     }
 
-    const newEntry = { item: itemName, price: 0 };
-    nextItemList.push(newEntry);
-    addedItems.push(newEntry);
-    existingNames.add(itemName);
+    const inferredPrice = inferUnitPriceFromBillItem(entry);
+    const existingIndex = existingIndexes.get(itemName);
+
+    if (existingIndex === undefined) {
+      const newEntry = { item: itemName, price: inferredPrice ?? 0 };
+      nextItemList.push(newEntry);
+      addedItems.push(newEntry);
+      existingIndexes.set(itemName, nextItemList.length - 1);
+      return;
+    }
+
+    if (inferredPrice === null) {
+      return;
+    }
+
+    const current = nextItemList[existingIndex] || {};
+    const currentPrice = Number(current.price || 0);
+    if (currentPrice === inferredPrice) {
+      return;
+    }
+
+    const nextEntry = { ...current, item: itemName, price: inferredPrice };
+    nextItemList[existingIndex] = nextEntry;
+    updatedItems.push(nextEntry);
   });
 
-  return { itemList: nextItemList, addedItems };
+  return { itemList: nextItemList, addedItems, updatedItems };
 }
 
 function buildNormalizedBillPayload(body, itemList) {
@@ -329,10 +374,13 @@ function buildNormalizedBillPayload(body, itemList) {
   const normalizedItems = meaningfulItems.map((item, index) => {
     const itemName = String(item.item || '').trim();
     const quantityRaw = String(item.quantity ?? '').trim();
-    const quantity = quantityRaw === '#' ? '#' : Number(item.quantity || 0);
+    const isManualAmount = Boolean(item.isManualAmount) || quantityRaw.startsWith('#');
+    const manualQuantityRaw = isManualAmount
+      ? (quantityRaw.startsWith('#') ? quantityRaw.slice(1).trim() : quantityRaw)
+      : '';
+    const quantity = isManualAmount ? (manualQuantityRaw ? Number(manualQuantityRaw) : '#') : Number(item.quantity || 0);
     const listedUnitPrice = Number(priceMap[itemName] || 0);
     const requestedAmount = Number(item.amount || 0);
-    const isManualAmount = Boolean(item.isManualAmount) || quantityRaw === '#';
     let unitPrice = listedUnitPrice;
     let amount = isManualAmount ? requestedAmount : Number(quantity || 0) * unitPrice;
 
@@ -356,7 +404,9 @@ function buildNormalizedBillPayload(body, itemList) {
   const hasInvalidItem = normalizedItems.some(
     (item) =>
       !item.item ||
-      (item.isManualAmount ? item.quantity !== '#' : Number.isNaN(item.quantity) || item.quantity <= 0) ||
+      (item.isManualAmount
+        ? !(item.quantity === '#' || (Number.isFinite(item.quantity) && item.quantity > 0))
+        : Number.isNaN(item.quantity) || item.quantity <= 0) ||
       Number.isNaN(item.unitPrice) ||
       Number.isNaN(item.amount) ||
       (item.isManualAmount && item.amount <= 0)
@@ -831,7 +881,7 @@ function parseBillItemsJson(value) {
         quantity: String(entry?.quantity ?? '').trim() === '#' ? '#' : Number(entry?.quantity || 0),
         unitPrice: Number(entry?.unitPrice || 0),
         amount: Number(entry?.amount || 0),
-        isManualAmount: Boolean(entry?.isManualAmount) || String(entry?.quantity ?? '').trim() === '#'
+        isManualAmount: Boolean(entry?.isManualAmount)
       }))
       .filter(
         (entry) =>
@@ -858,11 +908,11 @@ function extractBillItemsFromRow(row) {
   }
 
   const quantityRaw = String(row.quantity ?? '').trim();
+  const isManualAmount = Boolean(row.isManualAmount);
   const quantity = quantityRaw === '#' ? '#' : Number(row.quantity || 0);
   const unitPrice = Number(row.unitPrice || 0);
   const amount = Number(row.amount || quantity * unitPrice);
   const slNo = Number(row.slNo || 1);
-  const isManualAmount = Boolean(row.isManualAmount) || quantityRaw === '#';
 
   if (
     !(quantity === '#' || Number.isFinite(quantity)) ||
@@ -910,7 +960,7 @@ function compactBillItemsRows(billItems) {
           quantity: item.quantity === '#' ? '#' : Number(item.quantity || 0),
           unitPrice: Number(item.unitPrice || 0),
           amount: Number(item.amount || 0),
-          isManualAmount: Boolean(item.isManualAmount) || item.quantity === '#'
+          isManualAmount: Boolean(item.isManualAmount)
         }));
 
       return {
@@ -1563,14 +1613,14 @@ app.post('/api/bills', requireAuth, async (req, res) => {
       includeItemList: true,
       includeBookEvents: false
     }, req.session);
-    const { itemList: nextItemList, addedItems } = appendMissingItemsToItemList(itemList, req.body?.items);
+    const { itemList: nextItemList, addedItems, updatedItems } = appendMissingItemsToItemList(itemList, req.body?.items);
     const normalizedPayload = buildNormalizedBillPayload(req.body, nextItemList);
     if (normalizedPayload.error) {
       return res.status(400).json({ error: normalizedPayload.error });
     }
     const payload = normalizedPayload.data;
 
-    if (addedItems.length > 0) {
+    if (addedItems.length > 0 || updatedItems.length > 0) {
       await saveItemList(nextItemList, req.session);
     }
 
@@ -1602,7 +1652,7 @@ app.post('/api/bills', requireAuth, async (req, res) => {
     });
 
     await saveBillsAndItems(bills, billItems, req.session);
-    res.status(201).json({ message: 'Bill saved successfully.', billId, addedItems });
+    res.status(201).json({ message: 'Bill saved successfully.', billId, addedItems, updatedItems });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save bill.', details: error.message });
   }
@@ -1626,14 +1676,14 @@ app.put('/api/bills/:billId', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Bill not found.' });
     }
 
-    const { itemList: nextItemList, addedItems } = appendMissingItemsToItemList(itemList, req.body?.items);
+    const { itemList: nextItemList, addedItems, updatedItems } = appendMissingItemsToItemList(itemList, req.body?.items);
     const normalizedPayload = buildNormalizedBillPayload(req.body, nextItemList);
     if (normalizedPayload.error) {
       return res.status(400).json({ error: normalizedPayload.error });
     }
     const payload = normalizedPayload.data;
 
-    if (addedItems.length > 0) {
+    if (addedItems.length > 0 || updatedItems.length > 0) {
       await saveItemList(nextItemList, req.session);
     }
 
@@ -1667,7 +1717,7 @@ app.put('/api/bills/:billId', requireAuth, async (req, res) => {
     });
 
     await saveBillsAndItems(bills, nextBillItems, req.session);
-    res.json({ message: 'Bill updated successfully.', billId, addedItems });
+    res.json({ message: 'Bill updated successfully.', billId, addedItems, updatedItems });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update bill.', details: error.message });
   }

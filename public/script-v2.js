@@ -43,6 +43,11 @@ const newBillItemModal = document.getElementById('newBillItemModal');
 const newBillItemMessage = document.getElementById('newBillItemMessage');
 const addNewBillItemBtn = document.getElementById('addNewBillItemBtn');
 const removeNewBillItemBtn = document.getElementById('removeNewBillItemBtn');
+const statusPopupModal = document.getElementById('statusPopupModal');
+const statusPopupDialog = document.getElementById('statusPopupDialog');
+const statusPopupTitle = document.getElementById('statusPopupTitle');
+const statusPopupMessage = document.getElementById('statusPopupMessage');
+const statusPopupOkBtn = document.getElementById('statusPopupOkBtn');
 const ptBillNo = document.getElementById('ptBillNo');
 const ptEWay = document.getElementById('ptEWay');
 const ptDate = document.getElementById('ptDate');
@@ -117,6 +122,78 @@ function escapeHtml(value) {
 function isMobileViewport() {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
 }
+
+function closeStatusPopup() {
+  if (!statusPopupModal) {
+    return;
+  }
+
+  statusPopupModal.classList.remove('is-open');
+  statusPopupModal.setAttribute('aria-hidden', 'true');
+}
+
+function showStatusPopup(message, tone = 'error') {
+  if (!statusPopupModal || !statusPopupDialog || !statusPopupTitle || !statusPopupMessage) {
+    return;
+  }
+
+  const normalizedTone = tone === 'success' || tone === 'warning' ? tone : 'error';
+  statusPopupDialog.classList.toggle('is-success', normalizedTone === 'success');
+  statusPopupDialog.classList.toggle('is-error', normalizedTone === 'error');
+  statusPopupDialog.classList.toggle('is-warning', normalizedTone === 'warning');
+  statusPopupTitle.textContent =
+    normalizedTone === 'success' ? 'Success' : normalizedTone === 'warning' ? 'Please Wait' : 'Attention';
+  statusPopupMessage.textContent = String(message || '');
+  statusPopupModal.classList.add('is-open');
+  statusPopupModal.setAttribute('aria-hidden', 'false');
+
+  if (statusPopupOkBtn) {
+    statusPopupOkBtn.focus();
+  }
+}
+
+function setStatusMessage(message, tone = 'error') {
+  const normalizedMessage = String(message || '');
+  statusMsg.textContent = normalizedMessage;
+  statusMsg.dataset.tone = tone;
+  if (!normalizedMessage) {
+    return;
+  }
+
+  showStatusPopup(normalizedMessage, tone);
+}
+
+function clearStatusMessage() {
+  statusMsg.textContent = '';
+  delete statusMsg.dataset.tone;
+  closeStatusPopup();
+}
+
+if (statusPopupOkBtn) {
+  statusPopupOkBtn.addEventListener('click', closeStatusPopup);
+}
+
+if (statusPopupModal) {
+  statusPopupModal.addEventListener('click', (event) => {
+    if (event.target === statusPopupModal) {
+      closeStatusPopup();
+    }
+  });
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && statusPopupModal?.classList.contains('is-open')) {
+    closeStatusPopup();
+  }
+});
+
+window.addEventListener('beforeunload', (event) => {
+  if (!isSaving) {
+    return;
+  }
+  event.preventDefault();
+  event.returnValue = 'Saving is in progress. Please wait until it finishes.';
+});
 
 function ensureMobileSelectUI(selectEl) {
   if (!selectEl) {
@@ -279,13 +356,14 @@ function normalizeItemSignatureItems(items) {
   return (Array.isArray(items) ? items : [])
     .map((item) => {
       const name = String(item?.item || '').trim().toLowerCase().replace(/\s+/g, ' ');
-      const quantityRaw = String(item?.quantity ?? '').trim();
+      const quantityRaw = formatQuantityForSavedRow(item?.quantity, item?.isManualAmount);
       const amount = Number(item?.amount || 0);
       if (!name) {
         return '';
       }
-      if (quantityRaw === '#') {
-        return Number.isFinite(amount) && amount > 0 ? `${name}:#:${amount.toFixed(2)}` : '';
+      if (isManualQuantity(quantityRaw)) {
+        const manualQuantity = getManualQuantityLabel(quantityRaw);
+        return Number.isFinite(amount) && amount > 0 ? `${name}:#${manualQuantity}:${amount.toFixed(2)}` : '';
       }
       const quantity = Number(item?.quantity || 0);
       if (!Number.isFinite(quantity) || quantity <= 0) {
@@ -399,6 +477,11 @@ function ensureNavigationSavingOverlay() {
   style.textContent = '@keyframes sagarikaNavSpin { to { transform: rotate(360deg); } }';
   document.head.appendChild(style);
   document.body.appendChild(navigationSavingOverlay);
+  navigationSavingOverlay.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    showSavingInProgressWarning();
+  });
   return navigationSavingOverlay;
 }
 
@@ -409,6 +492,10 @@ function setNavigationSavingOverlay(visible, message = 'Saving...') {
     textNode.textContent = message;
   }
   overlay.style.display = visible ? 'flex' : 'none';
+}
+
+function showSavingInProgressWarning() {
+  showStatusPopup('Saving is still in progress. Please wait until it finishes, then press OK.', 'warning');
 }
 
 function shouldHandleAutoSaveNavigation(link, event) {
@@ -442,7 +529,11 @@ function shouldHandleAutoSaveNavigation(link, event) {
 }
 
 async function navigateWithAutoSave(url) {
-  if (!url || isSaving) {
+  if (!url) {
+    return;
+  }
+  if (isSaving) {
+    showSavingInProgressWarning();
     return;
   }
   if (!hasPendingBillChanges()) {
@@ -461,6 +552,7 @@ async function navigateWithAutoSave(url) {
 
 window.sagarikaSaveBeforeLeave = async function sagarikaSaveBeforeLeave(saveLabel = 'Saving before leaving...') {
   if (isSaving) {
+    showSavingInProgressWarning();
     return false;
   }
   if (!hasPendingBillChanges()) {
@@ -803,15 +895,37 @@ async function parseJsonResponse(response) {
 
 function isManualQuantity(value) {
   const raw = String(value || '').trim();
-  return raw === '#' || raw === '';
+  return raw === '#' || raw.startsWith('#');
 }
 
 function toNumericQuantity(value) {
   const raw = String(value || '').trim();
-  if (!raw || raw === '#') {
+  const normalized = isManualQuantity(raw) ? raw.slice(1).trim() : raw;
+  if (!normalized) {
     return NaN;
   }
-  return Number(raw);
+  return Number(normalized);
+}
+
+function getManualQuantityLabel(value) {
+  const raw = String(value || '').trim();
+  if (!isManualQuantity(raw)) {
+    return raw;
+  }
+
+  const normalized = raw.slice(1).trim();
+  return normalized || '--';
+}
+
+function formatQuantityForSavedRow(quantity, isManualAmount = false) {
+  const raw = String(quantity ?? '').trim();
+  if (raw.startsWith('#')) {
+    return raw;
+  }
+  if (!isManualAmount) {
+    return raw || '#';
+  }
+  return raw ? `#${raw}` : '#';
 }
 
 function ensureItemSuggestionMenu() {
@@ -1099,17 +1213,20 @@ function renderItemSuggestions() {
   }
 }
 
-function mergeAddedItemsIntoStore(addedItems) {
+function mergeItemUpdatesIntoStore(entries) {
   let changed = false;
 
-  (Array.isArray(addedItems) ? addedItems : []).forEach((entry) => {
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
     const itemName = String(entry?.item || '').trim();
-    if (!itemName || Object.prototype.hasOwnProperty.call(productPrices, itemName)) {
+    if (!itemName) {
       return;
     }
 
-    productPrices[itemName] = Number(entry?.price || 0);
-    storeItems.push(itemName);
+    const nextPrice = Number(entry?.price || 0);
+    productPrices[itemName] = nextPrice;
+    if (!storeItems.includes(itemName)) {
+      storeItems.push(itemName);
+    }
     changed = true;
   });
 
@@ -1117,6 +1234,34 @@ function mergeAddedItemsIntoStore(addedItems) {
     storeItems.sort((left, right) => left.localeCompare(right));
     renderItemSuggestions();
   }
+}
+
+function buildItemPriceUpdateMessage(result) {
+  const addedItems = Array.isArray(result?.addedItems) ? result.addedItems : [];
+  const updatedItems = Array.isArray(result?.updatedItems) ? result.updatedItems : [];
+  const parts = [];
+
+  if (addedItems.length > 0) {
+    const addedLabel = addedItems
+      .map((entry) => `${String(entry?.item || '').trim()} (${Number(entry?.price || 0).toFixed(2)})`)
+      .filter(Boolean)
+      .join(', ');
+    if (addedLabel) {
+      parts.push(addedItems.length > 1 ? `New items added to Item List: ${addedLabel}.` : `New item added to Item List: ${addedLabel}.`);
+    }
+  }
+
+  if (updatedItems.length > 0) {
+    const updatedLabel = updatedItems
+      .map((entry) => `${String(entry?.item || '').trim()} (${Number(entry?.price || 0).toFixed(2)})`)
+      .filter(Boolean)
+      .join(', ');
+    if (updatedLabel) {
+      parts.push(updatedItems.length > 1 ? `Item prices updated: ${updatedLabel}.` : `Item price updated: ${updatedLabel}.`);
+    }
+  }
+
+  return parts.join(' ');
 }
 
 function renumberRows() {
@@ -1329,7 +1474,7 @@ function populateBillForm(bill) {
         createRow({
           slNo: Number(entry.slNo || index + 1),
           item: String(entry.item || ''),
-          quantity: String(entry.quantity ?? '#'),
+          quantity: formatQuantityForSavedRow(entry.quantity, entry.isManualAmount),
           amount: Number(entry.amount || 0)
         })
       );
@@ -1464,7 +1609,7 @@ function buildPrintRows() {
     return {
       slNo,
       item,
-      quantityLabel: isManualQuantity(quantityRaw) ? '--' : quantityRaw,
+      quantityLabel: isManualQuantity(quantityRaw) ? getManualQuantityLabel(quantityRaw) : quantityRaw,
       unitPrice,
       amount
     };
@@ -1631,28 +1776,24 @@ function setSavingState(saving, label = 'Saving...') {
 
 function validateBillAndGetPayload() {
   if (isFormReadOnly) {
-    statusMsg.textContent = 'Bill is read-only. Click Edit to modify and save.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Bill is read-only. Click Edit to modify and save.');
     return null;
   }
 
   if (isSaveLocked) {
-    statusMsg.textContent = 'Data already saved. Change any field to save again.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Data already saved. Change any field to save again.');
     return null;
   }
 
   const items = getItems().filter((item) => !isCompletelyBlankBillItem(item));
   if (items.length === 0) {
-    statusMsg.textContent = 'Please add at least one item.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Please add at least one item.');
     return null;
   }
 
   const phoneNumber = onlyDigits(phoneNumberInput.value).slice(0, 10);
   if (phoneNumber.length !== 10) {
-    statusMsg.textContent = 'Enter a valid 10-digit phone number.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Enter a valid 10-digit phone number.');
     return null;
   }
 
@@ -1665,6 +1806,10 @@ function validateBillAndGetPayload() {
     const amount = Number(item.amount);
 
     if (isManualQuantity(item.quantity)) {
+      const manualQuantityText = getManualQuantityLabel(item.quantity);
+      if (manualQuantityText !== '--' && (!Number.isFinite(numericQty) || numericQty <= 0)) {
+        return true;
+      }
       return !Number.isFinite(amount) || amount <= 0;
     }
 
@@ -1672,21 +1817,18 @@ function validateBillAndGetPayload() {
   });
 
   if (hasInvalid) {
-    statusMsg.textContent = 'Enter an item name, use quantity above 0, and use a manual amount above 0 when quantity is #.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Enter an item name. Use quantity above 0, or use manual quantity like #1.2 with a manual amount above 0. Plain # will print as --.');
     return null;
   }
 
   const gstPercent = Number(gstInput.value || 0);
   const discountPercent = Number(discountInput.value || 0);
   if (!Number.isFinite(gstPercent) || gstPercent < 0 || gstPercent > 100) {
-    statusMsg.textContent = 'GST must be between 0 and 100.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('GST must be between 0 and 100.');
     return null;
   }
   if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
-    statusMsg.textContent = 'Discount must be between 0 and 100.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Discount must be between 0 and 100.');
     return null;
   }
 
@@ -1702,9 +1844,10 @@ function validateBillAndGetPayload() {
     items: items.map((item) => {
       if (isManualQuantity(item.quantity)) {
         const manualAmount = Number(item.amount || 0);
+        const manualQuantityLabel = getManualQuantityLabel(item.quantity);
         return {
           ...item,
-          quantity: '#',
+          quantity: manualQuantityLabel === '--' ? '#' : manualQuantityLabel,
           amount: manualAmount,
           isManualAmount: true
         };
@@ -1797,8 +1940,7 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create', options
   const skipExistingCheck = Boolean(options?.skipExistingCheck);
 
   if (isSaving) {
-    statusMsg.textContent = 'Save already in progress.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Save already in progress.');
     return null;
   }
 
@@ -1812,15 +1954,14 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create', options
     const choice = await askNewBillItemChoice(missingItemNames);
     if (choice === 'remove') {
       removeMissingBillItems(missingItemNames);
-      statusMsg.textContent =
-        missingItemNames.length > 1 ? 'New items removed from the bill rows.' : 'New item removed from the bill row.';
-      statusMsg.style.color = '#b42a2a';
+      setStatusMessage(
+        missingItemNames.length > 1 ? 'New items removed from the bill rows.' : 'New item removed from the bill row.'
+      );
       return null;
     }
 
     if (choice !== 'add') {
-      statusMsg.textContent = 'Save cancelled.';
-      statusMsg.style.color = '#b42a2a';
+      setStatusMessage('Save cancelled.');
       return null;
     }
   }
@@ -1832,13 +1973,11 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create', options
       const choice = await askDuplicateBillChoice(existingBillId);
       if (choice === 'load') {
         populateBillForm(existingBill);
-        statusMsg.textContent = `Existing bill loaded: ${existingBillId}.`;
-        statusMsg.style.color = '#4caf50';
+        setStatusMessage(`Existing bill loaded: ${existingBillId}.`, 'success');
         return null;
       }
       if (choice === 'cancel') {
-        statusMsg.textContent = 'Save cancelled.';
-        statusMsg.style.color = '#b42a2a';
+        setStatusMessage('Save cancelled.');
         return null;
       }
     }
@@ -1865,11 +2004,13 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create', options
       throw new Error(result.error || 'Failed to save bill.');
     }
 
-    mergeAddedItemsIntoStore(result?.addedItems);
-    statusMsg.textContent = isUpdateMode
-      ? `Updated successfully. Bill ID: ${result.billId}`
-      : `Saved successfully. Bill ID: ${result.billId}`;
-    statusMsg.style.color = '#4caf50';
+    mergeItemUpdatesIntoStore(result?.addedItems);
+    mergeItemUpdatesIntoStore(result?.updatedItems);
+    const itemPriceUpdateMessage = buildItemPriceUpdateMessage(result);
+    const successMessage = `${isUpdateMode ? 'Updated successfully.' : 'Saved successfully.'} Bill ID: ${result.billId}${
+      itemPriceUpdateMessage ? ` ${itemPriceUpdateMessage}` : ''
+    }`;
+    setStatusMessage(successMessage, 'success');
     currentBillId = String(result.billId || currentBillId);
     renderBillNumber();
     markCurrentBillAsLoadedBase();
@@ -1882,8 +2023,7 @@ async function saveCurrentBill(saveLabel = 'Saving...', mode = 'create', options
     setSavingState(false);
     return result;
   } catch (error) {
-    statusMsg.textContent = error.message;
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage(error.message);
     setSavingState(false);
     return null;
   }
@@ -1895,8 +2035,7 @@ async function saveWithLoadedBillChoice(saveLabelForNew = 'Saving...', saveLabel
   }
 
   if (!hasLoadedBillChanges()) {
-    statusMsg.textContent = 'No changes detected in this bill.';
-    statusMsg.style.color = '#4caf50';
+    setStatusMessage('No changes detected in this bill.', 'success');
     return { billId: loadedBillId, skipped: true };
   }
 
@@ -1945,8 +2084,7 @@ async function loadItemsFromExcel() {
     renderItemSuggestions();
 
     if (storeItems.length === 0) {
-      statusMsg.textContent = 'No items found in Excel "Item List" sheet. Please add items and prices there.';
-      statusMsg.style.color = '#b42a2a';
+      setStatusMessage('No items found in Excel "Item List" sheet. Please add items and prices there.');
     }
 
     // Always start Billing Desk with a fresh form on page load.
@@ -1956,8 +2094,7 @@ async function loadItemsFromExcel() {
     recalculate();
     setFormReadOnly(false);
   } catch (error) {
-    statusMsg.textContent = error.message;
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage(error.message);
   }
 }
 
@@ -2008,8 +2145,7 @@ function bookingMatchesSearchQuery(booking, rawQuery) {
 async function searchBills(rawQuery) {
   const query = String(rawQuery || '').trim();
   if (!query) {
-    statusMsg.textContent = 'Enter phone number, bill number, or name to search.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Enter phone number, bill number, or name to search.');
     return;
   }
 
@@ -2035,8 +2171,7 @@ async function searchBills(rawQuery) {
       currentBillIndex = -1;
       hideBillSelector();
       editBillBtn.disabled = true;
-      statusMsg.textContent = `No bills found for "${query}".`;
-      statusMsg.style.color = '#b42a2a';
+      setStatusMessage(`No bills found for "${query}".`);
       return;
     }
 
@@ -2048,14 +2183,12 @@ async function searchBills(rawQuery) {
 
     const latestBill = matchedBills[currentBillIndex];
     populateBillForm(latestBill);
-    statusMsg.textContent = `Found ${matchedBills.length} bill(s). Showing 1/${matchedBills.length}`;
-    statusMsg.style.color = '#4caf50';
+    setStatusMessage(`Found ${matchedBills.length} bill(s). Showing 1/${matchedBills.length}`, 'success');
   } catch (error) {
     matchedBills = [];
     currentBillIndex = -1;
     hideBillSelector();
-    statusMsg.textContent = 'Failed to search bills.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Failed to search bills.');
   }
 }
 
@@ -2199,8 +2332,7 @@ async function loadBookingOrExistingBill(booking) {
 
   const bookingId = String(booking?.bookingId || '').trim();
   loadBookingIntoBillForm(booking);
-  statusMsg.textContent = bookingId ? `Loaded booking ${bookingId} into bill.` : 'Loaded booking into bill.';
-  statusMsg.style.color = '#4caf50';
+  setStatusMessage(bookingId ? `Loaded booking ${bookingId} into bill.` : 'Loaded booking into bill.', 'success');
 }
 
 function hideBookingSelector() {
@@ -2238,8 +2370,7 @@ function showBookingSelector(bookings) {
 async function importBookingByQuery(rawQuery) {
   const query = String(rawQuery || '').trim();
   if (!query) {
-    statusMsg.textContent = 'Enter phone number, booking number, or name to load booking.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Enter phone number, booking number, or name to load booking.');
     return;
   }
 
@@ -2252,8 +2383,7 @@ async function importBookingByQuery(rawQuery) {
     if (bookings.length === 0) {
       matchedBookingsForImport = [];
       hideBookingSelector();
-      statusMsg.textContent = `No bookings found for "${query}".`;
-      statusMsg.style.color = '#b42a2a';
+      setStatusMessage(`No bookings found for "${query}".`);
       return;
     }
 
@@ -2264,14 +2394,12 @@ async function importBookingByQuery(rawQuery) {
     const selectedBooking = matchedBookingsForImport[0];
     await loadBookingOrExistingBill(selectedBooking);
     if (!loadedBillId) {
-      statusMsg.textContent = `${bookings.length} booking found. Loaded 1/${bookings.length}.`;
-      statusMsg.style.color = '#4caf50';
+      setStatusMessage(`${bookings.length} booking found. Loaded 1/${bookings.length}.`, 'success');
     }
   } catch (error) {
     matchedBookingsForImport = [];
     hideBookingSelector();
-    statusMsg.textContent = error.message || 'Failed to load booking.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage(error.message || 'Failed to load booking.');
   }
 }
 
@@ -2363,16 +2491,14 @@ if (billSelect) {
 
     currentBillIndex = selectedIndex;
     populateBillForm(selectedBill);
-    statusMsg.textContent = `Found ${matchedBills.length} bill(s). Showing ${currentBillIndex + 1}/${matchedBills.length}`;
-    statusMsg.style.color = '#4caf50';
+    setStatusMessage(`Found ${matchedBills.length} bill(s). Showing ${currentBillIndex + 1}/${matchedBills.length}`, 'success');
     syncMobileSelectUI(billSelect);
   });
 }
 
 editBillBtn.addEventListener('click', () => {
   setFormReadOnly(false);
-  statusMsg.textContent = 'Edit mode enabled. You can now modify the bill.';
-  statusMsg.style.color = '#4caf50';
+  setStatusMessage('Edit mode enabled. You can now modify the bill.', 'success');
 });
 
 clearSearchBtn.addEventListener('click', () => {
@@ -2402,7 +2528,7 @@ clearSearchBtn.addEventListener('click', () => {
   currentBillIndex = -1;
   hideBillSelector();
   editBillBtn.disabled = true;
-  statusMsg.textContent = '';
+  clearStatusMessage();
   matchedBookingsForImport = [];
   hideBookingSelector();
   clearDraftFromStorage();
@@ -2410,16 +2536,15 @@ clearSearchBtn.addEventListener('click', () => {
 
 billForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  statusMsg.textContent = '';
+  clearStatusMessage();
   await saveWithLoadedBillChoice('Saving...', 'Updating...');
 });
 
 printBillBtn.addEventListener('click', async () => {
-  statusMsg.textContent = '';
+  clearStatusMessage();
 
   if (isSaving) {
-    statusMsg.textContent = 'Save already in progress.';
-    statusMsg.style.color = '#b42a2a';
+    setStatusMessage('Save already in progress.');
     return;
   }
 

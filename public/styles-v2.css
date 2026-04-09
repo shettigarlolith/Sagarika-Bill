@@ -258,6 +258,30 @@ table {
   min-width: 680px;
 }
 
+#itemsTable {
+  table-layout: fixed;
+}
+
+#itemsTable col.bill-col-slno {
+  width: 10%;
+}
+
+#itemsTable col.bill-col-item {
+  width: 50%;
+}
+
+#itemsTable col.bill-col-qty {
+  width: 15%;
+}
+
+#itemsTable col.bill-col-amount {
+  width: 15%;
+}
+
+#itemsTable col.bill-col-action {
+  width: 10%;
+}
+
 th,
 td {
   border-bottom: 1px solid var(--line);
@@ -366,9 +390,51 @@ input[readonly] {
 }
 
 .status {
-  margin-top: 14px;
-  min-height: 20px;
-  font-weight: 700;
+  display: none;
+}
+
+.status-popup-dialog {
+  width: min(420px, 100%);
+}
+
+.status-popup-dialog.is-success {
+  border-color: rgba(44, 122, 72, 0.35);
+  box-shadow: 0 18px 48px rgba(32, 92, 57, 0.18);
+}
+
+.status-popup-dialog.is-error {
+  border-color: rgba(180, 42, 42, 0.35);
+  box-shadow: 0 18px 48px rgba(132, 27, 27, 0.2);
+}
+
+.status-popup-dialog.is-warning {
+  border-color: rgba(187, 128, 23, 0.35);
+  box-shadow: 0 18px 48px rgba(143, 98, 19, 0.2);
+}
+
+.status-popup-dialog h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-popup-dialog h3::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: #4caf50;
+  box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.16);
+}
+
+.status-popup-dialog.is-error h3::before {
+  background: #b42a2a;
+  box-shadow: 0 0 0 4px rgba(180, 42, 42, 0.16);
+}
+
+.status-popup-dialog.is-warning h3::before {
+  background: #bb8017;
+  box-shadow: 0 0 0 4px rgba(187, 128, 23, 0.16);
 }
 
 .search-row {
