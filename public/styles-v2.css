@@ -547,10 +547,11 @@ input[readonly] {
 .invoice-brand {
   text-align: center;
   font-family: 'Montserrat', sans-serif;
-  font-size: 9.2mm;
+  font-size: 7.2mm;
   font-weight: 700;
-  letter-spacing: 0.5mm;
+  letter-spacing: 0.2mm;
   line-height: 1.05;
+  white-space: nowrap;
 }
 
 .invoice-address {
@@ -829,6 +830,60 @@ input[readonly] {
     min-width: 100%;
   }
 
+  .table-wrap {
+    overflow-x: hidden;
+  }
+
+  #itemsTable {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  #itemsTable col.bill-col-slno {
+    width: 11%;
+  }
+
+  #itemsTable col.bill-col-item {
+    width: 39%;
+  }
+
+  #itemsTable col.bill-col-qty {
+    width: 16%;
+  }
+
+  #itemsTable col.bill-col-amount {
+    width: 18%;
+  }
+
+  #itemsTable col.bill-col-action {
+    width: 16%;
+  }
+
+  #itemsTable th,
+  #itemsTable td {
+    padding: 6px 4px;
+    font-size: 11px;
+  }
+
+  #itemsTable th {
+    line-height: 1.15;
+  }
+
+  #itemsTable td input,
+  #itemsTable td select {
+    padding: 8px 6px;
+    font-size: 13px;
+    min-width: 0;
+  }
+
+  #itemsTable .remove-btn {
+    width: 50%;
+    min-width: 0;
+    padding: 8px 4px;
+    font-size: 11px;
+    margin: 0 auto;
+    display: block;
+  }
 }
 
 @media print {

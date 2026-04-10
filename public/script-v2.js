@@ -55,6 +55,7 @@ const ptCustomer = document.getElementById('ptCustomer');
 const ptPhone = document.getElementById('ptPhone');
 const ptHeaderGstin = document.getElementById('ptHeaderGstin');
 const ptHeaderPhones = document.getElementById('ptHeaderPhones');
+const ptHeaderBrand = document.getElementById('ptHeaderBrand');
 const ptHeaderAddress = document.getElementById('ptHeaderAddress');
 const ptCustomerGstNo = document.getElementById('ptCustomerGstNo');
 const ptAddress = document.getElementById('ptAddress');
@@ -1143,7 +1144,7 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
     </td>
     <td><input type="text" class="quantity" value="${escapeHtml(quantityValue)}" placeholder="#" required /></td>
     <td><input type="number" class="amount" min="0" step="0.01" value="${escapeHtml(Number(item.amount || 0).toFixed(2))}" ${manualMode ? '' : 'readonly'} /></td>
-    <td><button type="button" class="btn btn-danger remove-btn">Remove</button></td>
+    <td><button type="button" class="btn btn-danger remove-btn" aria-label="Remove item row" title="Remove item row">X</button></td>
   `;
 
   row.querySelector('.remove-btn').addEventListener('click', () => {
@@ -1691,6 +1692,10 @@ function renderPrintTemplate() {
       activeBillTo === 'PAKSHIKERE'
         ? 'Door No-3-78(3) Sagarika Commercial Complex, Main Road, Pakshikere, Mangalore, DK-574146'
         : 'Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist.';
+  }
+  if (ptHeaderBrand) {
+    ptHeaderBrand.textContent =
+      activeBillTo === 'PAKSHIKERE' ? 'SAGARIKA ENTERPRISES' : 'SAGARIKA SHAMIYANA & DECORATORS';
   }
   if (activeBillTo === 'PAKSHIKERE') {
     if (ptBankTitle) ptBankTitle.textContent = 'Bank Details:';
