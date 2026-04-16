@@ -386,10 +386,11 @@
       .event-print-template .event-invoice-brand {
         text-align: center;
         font-family: 'Montserrat', sans-serif;
-        font-size: 9.2mm;
+        font-size: 7.2mm;
         font-weight: 700;
-        letter-spacing: 0.5mm;
+        letter-spacing: 0.2mm;
         line-height: 1.05;
+        white-space: nowrap;
       }
 
       .event-print-template .event-invoice-address {
@@ -678,29 +679,49 @@
           table-layout: fixed;
         }
 
+        .book-event-card .table-wrap {
+          overflow-x: hidden;
+        }
+
         .book-event-card #eventItemsTable th:nth-child(1),
         .book-event-card #eventItemsTable td:nth-child(1) {
-          width: 60%;
+          width: 66%;
         }
 
         .book-event-card #eventItemsTable th:nth-child(2),
         .book-event-card #eventItemsTable td:nth-child(2) {
-          width: 22%;
+          width: 20%;
           text-align: center;
         }
 
         .book-event-card #eventItemsTable th:nth-child(3),
         .book-event-card #eventItemsTable td:nth-child(3) {
-          width: 18%;
+          width: 14%;
           text-align: center;
+        }
+
+        .book-event-card #eventItemsTable th,
+        .book-event-card #eventItemsTable td {
+          padding: 6px 4px;
+          font-size: 11px;
         }
 
         .book-event-card #eventItemsTable .event-item {
           width: 100%;
           min-width: 0;
           height: auto;
-          padding: 11px 12px;
+          padding: 10px 8px;
           border-radius: 10px;
+          font-size: 13px;
+        }
+
+        .book-event-card #eventItemsTable .remove-item-btn {
+          width: 50%;
+          min-width: 0;
+          padding: 8px 4px;
+          font-size: 11px;
+          margin: 0 auto;
+          display: block;
         }
 
         .book-event-card .calendar-wrap {
@@ -912,7 +933,7 @@
           </div>
         </div>
         <div class="event-invoice-title">BOOKING INVOICE</div>
-        <div class="event-invoice-brand">SAGARIKA ENTERPRISES</div>
+        <div id="ptHeaderBrand" class="event-invoice-brand">SAGARIKA ENTERPRISES</div>
         <div id="ptHeaderAddress" class="event-invoice-address">
           Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist.
         </div>
@@ -999,6 +1020,7 @@
       const ptCustomer = document.getElementById('ptCustomer');
       const ptPhone = document.getElementById('ptPhone');
       const ptHeaderPhones = document.getElementById('ptHeaderPhones');
+      const ptHeaderBrand = document.getElementById('ptHeaderBrand');
       const ptHeaderAddress = document.getElementById('ptHeaderAddress');
       const ptAddress = document.getElementById('ptAddress');
       const ptRows = document.getElementById('ptRows');
@@ -1354,7 +1376,7 @@
         row.innerHTML =
           `<td><input class="event-item" type="text" placeholder="Type item name" value="${item}" autocomplete="off" required /></td>` +
           `<td><input class="event-qty" type="number" min="1" step="1" value="${quantity}" required /></td>` +
-          '<td><button type="button" class="btn btn-danger remove-item-btn">Remove</button></td>';
+          '<td><button type="button" class="btn btn-danger remove-item-btn" aria-label="Remove item row" title="Remove item row">X</button></td>';
         const itemInput = row.querySelector('.event-item');
         itemInput.addEventListener('focus', () => updateItemSuggestionMenu(itemInput));
         itemInput.addEventListener('input', () => updateItemSuggestionMenu(itemInput));
@@ -2116,6 +2138,10 @@
             activeBillTo === 'PAKSHIKERE'
               ? 'Door No-3-78(3) Sagarika Commercial Complex, Main Road, Pakshikere, Mangalore, DK-574146'
               : 'Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist.';
+        }
+        if (ptHeaderBrand) {
+          ptHeaderBrand.textContent =
+            activeBillTo === 'PAKSHIKERE' ? 'SAGARIKA ENTERPRISES' : 'SAGARIKA SHAMIYANA & DECORATORS';
         }
         ptAddress.textContent = addressInput.value || '-';
         ptRows.innerHTML = '';
