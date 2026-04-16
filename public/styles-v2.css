@@ -861,5 +861,6 @@ input[readonly] {
 
   .print-note-line {
     margin-top: 2mm;
+    color: black;
   }
 }
