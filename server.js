@@ -43,7 +43,7 @@ const SESSION_SECRET =
   GOOGLE_PRIVATE_KEY ||
   GOOGLE_SERVICE_ACCOUNT_JSON ||
   'sagarika-local-session-secret';
-const BUSINESS_SHEET_NAMES = ['Bills', 'BillItems', 'Item List', 'BookEvent'];
+const BUSINESS_SHEET_NAMES = ['Bills', 'BillItems', 'NoGSTBills', 'NoGSTBillItems', 'Item List', 'BookEvent'];
 const MASTER_SHEET_NAMES = [...BUSINESS_SHEET_NAMES, 'Users'];
 const PAKSHIKERE_SHEET_NAMES = [...BUSINESS_SHEET_NAMES, 'Users'];
 const FIXED_ADMIN_USERS = [
@@ -194,6 +194,16 @@ function ensureWorkbook() {
     changed = true;
   }
 
+  if (!workbook.SheetNames.includes('NoGSTBills')) {
+    writeSheet(workbook, 'NoGSTBills', []);
+    changed = true;
+  }
+
+  if (!workbook.SheetNames.includes('NoGSTBillItems')) {
+    writeSheet(workbook, 'NoGSTBillItems', []);
+    changed = true;
+  }
+
   if (!workbook.SheetNames.includes('Item List')) {
     writeSheet(workbook, 'Item List', defaultItemList);
     changed = true;
@@ -246,12 +256,23 @@ function normalizePhoneNumber(value) {
   return directDigits;
 }
 
+function normalizeBillMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  return mode === 'no-gst' ? 'no-gst' : 'with-gst';
+}
+
+function getBillSheetNames(billMode) {
+  return normalizeBillMode(billMode) === 'no-gst'
+    ? { billsSheet: 'NoGSTBills', billItemsSheet: 'NoGSTBillItems' }
+    : { billsSheet: 'Bills', billItemsSheet: 'BillItems' };
+}
+
 function getNextBillSequence(bills) {
   let maxSeq = 0;
 
   bills.forEach((bill) => {
     const id = String(bill.billId || '').trim();
-    const match = id.match(/^(?:SAG)?(\d{4})(?:\d{4})?$/);
+    const match = id.match(/^(?:SAG)?(\d{4})(?:\d{4})?S?$/i);
     if (match) {
       const seq = Number(match[1]);
       if (!Number.isNaN(seq) && seq > maxSeq) {
@@ -263,9 +284,40 @@ function getNextBillSequence(bills) {
   return maxSeq + 1;
 }
 
-function buildBillId(bills) {
+function buildBillId(bills, billMode = 'with-gst') {
   const sequence = getNextBillSequence(bills);
-  return String(sequence).padStart(4, '0');
+  const base = String(sequence).padStart(4, '0');
+  return normalizeBillMode(billMode) === 'no-gst' ? `${base}S` : base;
+}
+
+function normalizeBillIdValue(value) {
+  const raw = String(value || '').trim().toUpperCase();
+  if (!raw) {
+    return '';
+  }
+
+  const match = raw.match(/^0*(\d+)(S)?$/);
+  if (match) {
+    const digits = String(Number(match[1] || 0));
+    const suffix = match[2] ? 'S' : '';
+    return `${digits}${suffix}`;
+  }
+
+  return raw;
+}
+
+function billIdsMatch(left, right) {
+  const leftRaw = String(left || '').trim();
+  const rightRaw = String(right || '').trim();
+  if (!leftRaw || !rightRaw) {
+    return false;
+  }
+
+  if (leftRaw === rightRaw) {
+    return true;
+  }
+
+  return normalizeBillIdValue(leftRaw) === normalizeBillIdValue(rightRaw);
 }
 
 function getItemPriceMap(itemList) {
@@ -350,15 +402,21 @@ function appendMissingItemsToItemList(itemList, items) {
 }
 
 function buildNormalizedBillPayload(body, itemList) {
-  const { billDate, eventDay, customerName, phoneNumber, gstNo, eWay, address, note, items, gst, discount } = body || {};
+  const { billId, billDate, eventDay, billMode, customerName, customerDetail, phoneNumber, gstNo, eWay, address, note, items, gst, discount } = body || {};
 
   const rawItems = Array.isArray(items) ? items : [];
-  const meaningfulItems = rawItems.filter((item) => {
+  const meaningfulRows = rawItems.filter((item) => {
+    if (String(item?.rowType || 'item').trim().toLowerCase() === 'subject') {
+      return Boolean(String(item?.subject || '').trim());
+    }
+
     const itemName = String(item?.item || '').trim();
     const quantityRaw = String(item?.quantity ?? '').trim();
     const amount = Number(item?.amount || 0);
     return Boolean(itemName || (quantityRaw && quantityRaw !== '#') || amount > 0);
   });
+
+  const meaningfulItems = meaningfulRows.filter((item) => String(item?.rowType || 'item').trim().toLowerCase() !== 'subject');
 
   if (meaningfulItems.length === 0) {
     return { error: 'At least one item is required.' };
@@ -371,7 +429,15 @@ function buildNormalizedBillPayload(body, itemList) {
 
   const priceMap = getItemPriceMap(itemList);
 
-  const normalizedItems = meaningfulItems.map((item, index) => {
+  const normalizedRows = meaningfulRows.map((item, index) => {
+    if (String(item?.rowType || 'item').trim().toLowerCase() === 'subject') {
+      return {
+        rowType: 'subject',
+        slNo: Number(item?.slNo ?? index + 1),
+        subject: String(item?.subject || '').trim()
+      };
+    }
+
     const itemName = String(item.item || '').trim();
     const quantityRaw = String(item.quantity ?? '').trim();
     const isManualAmount = Boolean(item.isManualAmount) || quantityRaw.startsWith('#');
@@ -392,6 +458,7 @@ function buildNormalizedBillPayload(body, itemList) {
     }
 
     return {
+      rowType: 'item',
       slNo: Number(item.slNo ?? index + 1),
       item: itemName,
       quantity,
@@ -400,6 +467,8 @@ function buildNormalizedBillPayload(body, itemList) {
       isManualAmount
     };
   });
+
+  const normalizedItems = normalizedRows.filter((item) => item.rowType !== 'subject');
 
   const hasInvalidItem = normalizedItems.some(
     (item) =>
@@ -432,9 +501,12 @@ function buildNormalizedBillPayload(body, itemList) {
 
   return {
     data: {
+      billId: String(billId || '').trim(),
       billDate: billDate || new Date().toISOString().slice(0, 10),
       eventDay: String(eventDay || '').trim(),
+      billMode: String(billMode || '').trim().toLowerCase(),
       customerName: customerName || 'Walk-in Customer',
+      customerDetail: String(customerDetail || '').trim(),
       phoneNumber: normalizedPhone,
       gstNo: String(gstNo || '').trim(),
       eWay: String(eWay || '').trim(),
@@ -445,7 +517,7 @@ function buildNormalizedBillPayload(body, itemList) {
       gst: gstPercent,
       discount: discountPercent,
       amountPayable,
-      normalizedItems
+      normalizedItems: normalizedRows
     }
   };
 }
@@ -876,8 +948,10 @@ function parseBillItemsJson(value) {
 
     return parsed
       .map((entry, index) => ({
+        rowType: String(entry?.rowType || 'item').trim().toLowerCase() === 'subject' ? 'subject' : 'item',
         slNo: Number(entry?.slNo ?? index + 1),
         item: String(entry?.item || '').trim(),
+        subject: String(entry?.subject || '').trim(),
         quantity: String(entry?.quantity ?? '').trim() === '#' ? '#' : Number(entry?.quantity || 0),
         unitPrice: Number(entry?.unitPrice || 0),
         amount: Number(entry?.amount || 0),
@@ -885,11 +959,13 @@ function parseBillItemsJson(value) {
       }))
       .filter(
         (entry) =>
-          entry.item &&
-          Number.isFinite(entry.slNo) &&
-          (entry.quantity === '#' || Number.isFinite(entry.quantity)) &&
-          Number.isFinite(entry.unitPrice) &&
-          Number.isFinite(entry.amount)
+          entry.rowType === 'subject'
+            ? entry.subject
+            : entry.item &&
+              Number.isFinite(entry.slNo) &&
+              (entry.quantity === '#' || Number.isFinite(entry.quantity)) &&
+              Number.isFinite(entry.unitPrice) &&
+              Number.isFinite(entry.amount)
       );
   } catch {
     return [];
@@ -923,11 +999,11 @@ function extractBillItemsFromRow(row) {
     return [];
   }
 
-  return [{ slNo, item: itemName, quantity, unitPrice, amount, isManualAmount }];
+  return [{ rowType: 'item', slNo, item: itemName, quantity, unitPrice, amount, isManualAmount }];
 }
 
 function getBillItemsForBillId(billItems, billId) {
-  const rows = billItems.filter((entry) => String(entry.billId || '').trim() === String(billId || '').trim());
+  const rows = billItems.filter((entry) => billIdsMatch(entry.billId, billId));
   const flatItems = rows.flatMap((row) => extractBillItemsFromRow(row));
   flatItems.sort((a, b) => Number(a.slNo || 0) - Number(b.slNo || 0));
   return flatItems;
@@ -952,16 +1028,24 @@ function compactBillItemsRows(billItems) {
   return [...grouped.entries()]
     .map(([billId, items]) => {
       const sortedItems = items
-        .filter((item) => item.item)
-        .sort((a, b) => Number(a.slNo || 0) - Number(b.slNo || 0))
-        .map((item, index) => ({
-          slNo: Number(item.slNo || index + 1),
-          item: String(item.item || '').trim(),
-          quantity: item.quantity === '#' ? '#' : Number(item.quantity || 0),
-          unitPrice: Number(item.unitPrice || 0),
-          amount: Number(item.amount || 0),
-          isManualAmount: Boolean(item.isManualAmount)
-        }));
+        .filter((item) => (item.rowType === 'subject' ? item.subject : item.item))
+        .map((item, index) =>
+          item.rowType === 'subject'
+            ? {
+                rowType: 'subject',
+                slNo: Number(item.slNo || index + 1),
+                subject: String(item.subject || '').trim()
+              }
+            : {
+                rowType: 'item',
+                slNo: Number(item.slNo || index + 1),
+                item: String(item.item || '').trim(),
+                quantity: item.quantity === '#' ? '#' : Number(item.quantity || 0),
+                unitPrice: Number(item.unitPrice || 0),
+                amount: Number(item.amount || 0),
+                isManualAmount: Boolean(item.isManualAmount)
+              }
+        );
 
       return {
         billId,
@@ -1111,16 +1195,18 @@ async function getAllData(options = {}, session = null) {
     includeBills = true,
     includeBillItems = true,
     includeItemList = true,
-    includeBookEvents = true
+    includeBookEvents = true,
+    billMode = 'with-gst'
   } = options;
   const mode = await getStorageMode();
+  const { billsSheet, billItemsSheet } = getBillSheetNames(billMode);
 
   if (mode === 'google') {
     const spreadsheetId = getBusinessSheetIdForSession(session);
     const googleOptions = { spreadsheetId };
-    const billsRaw = includeBills ? await readGoogleRows('Bills', googleOptions) : [];
+    const billsRaw = includeBills ? await readGoogleRows(billsSheet, googleOptions) : [];
     const itemListRaw = includeItemList ? await readGoogleRows('Item List', googleOptions) : [];
-    const billItemsRaw = includeBillItems ? await readGoogleRows('BillItems', googleOptions) : [];
+    const billItemsRaw = includeBillItems ? await readGoogleRows(billItemsSheet, googleOptions) : [];
     const bookEventsRaw = includeBookEvents ? await readGoogleRows('BookEvent', googleOptions) : [];
 
     const bills = includeBills ? normalizeNumericFields(billsRaw, ['total', 'gst', 'discount', 'amountPayable']) : [];
@@ -1135,10 +1221,10 @@ async function getAllData(options = {}, session = null) {
 
   const workbook = ensureWorkbook();
   const bills = includeBills
-    ? normalizeNumericFields(readSheet(workbook, 'Bills'), ['total', 'gst', 'discount', 'amountPayable'])
+    ? normalizeNumericFields(readSheet(workbook, billsSheet), ['total', 'gst', 'discount', 'amountPayable'])
     : [];
   const billItems = includeBillItems
-    ? normalizeNumericFields(readSheet(workbook, 'BillItems'), ['slNo', 'quantity', 'unitPrice', 'amount'])
+    ? normalizeNumericFields(readSheet(workbook, billItemsSheet), ['slNo', 'quantity', 'unitPrice', 'amount'])
     : [];
   const itemList = includeItemList ? normalizeNumericFields(readSheet(workbook, 'Item List'), ['price']) : [];
   const bookEvents = includeBookEvents ? normalizeNumericFields(readSheet(workbook, 'BookEvent'), ['quantity']) : [];
@@ -1157,20 +1243,21 @@ async function saveItemList(itemList, session = null) {
   XLSX.writeFile(workbook, excelPath);
 }
 
-async function saveBillsAndItems(bills, billItems, session = null) {
+async function saveBillsAndItems(bills, billItems, session = null, billMode = 'with-gst') {
   const compactedBillItems = compactBillItemsRows(billItems);
+  const { billsSheet, billItemsSheet } = getBillSheetNames(billMode);
 
   const mode = await getStorageMode();
   if (mode === 'google') {
     const spreadsheetId = getBusinessSheetIdForSession(session);
-    await writeGoogleRows('Bills', bills, { spreadsheetId });
-    await writeGoogleRows('BillItems', compactedBillItems, { spreadsheetId });
+    await writeGoogleRows(billsSheet, bills, { spreadsheetId });
+    await writeGoogleRows(billItemsSheet, compactedBillItems, { spreadsheetId });
     return;
   }
 
   const workbook = ensureWorkbook();
-  writeSheet(workbook, 'Bills', bills);
-  writeSheet(workbook, 'BillItems', compactedBillItems);
+  writeSheet(workbook, billsSheet, bills);
+  writeSheet(workbook, billItemsSheet, compactedBillItems);
   XLSX.writeFile(workbook, excelPath);
 }
 
@@ -1607,11 +1694,13 @@ app.post('/api/items', requireAuth, async (req, res) => {
 
 app.post('/api/bills', requireAuth, async (req, res) => {
   try {
+    const billMode = normalizeBillMode(req.body?.billMode);
     const { bills, billItems, itemList } = await getAllData({
       includeBills: true,
       includeBillItems: true,
       includeItemList: true,
-      includeBookEvents: false
+      includeBookEvents: false,
+      billMode
     }, req.session);
     const { itemList: nextItemList, addedItems, updatedItems } = appendMissingItemsToItemList(itemList, req.body?.items);
     const normalizedPayload = buildNormalizedBillPayload(req.body, nextItemList);
@@ -1624,13 +1713,20 @@ app.post('/api/bills', requireAuth, async (req, res) => {
       await saveItemList(nextItemList, req.session);
     }
 
-    const billId = buildBillId(bills);
+    const requestedBillId = String(payload.billId || '').trim();
+    const billId = requestedBillId || buildBillId(bills, billMode);
+    const billExists = bills.some((bill) => billIdsMatch(bill.billId, billId));
+    if (billExists) {
+      return res.status(409).json({ error: `Bill number already exists: ${billId}` });
+    }
 
     bills.push({
       billId,
       billDate: payload.billDate,
       eventDay: payload.eventDay,
+      billMode: payload.billMode,
       customerName: payload.customerName,
+      customerDetail: payload.customerDetail,
       phoneNumber: payload.phoneNumber,
       gstNo: payload.gstNo,
       eWay: payload.eWay,
@@ -1651,7 +1747,7 @@ app.post('/api/bills', requireAuth, async (req, res) => {
       updatedAt: new Date().toISOString()
     });
 
-    await saveBillsAndItems(bills, billItems, req.session);
+    await saveBillsAndItems(bills, billItems, req.session, billMode);
     res.status(201).json({ message: 'Bill saved successfully.', billId, addedItems, updatedItems });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save bill.', details: error.message });
@@ -1665,15 +1761,37 @@ app.put('/api/bills/:billId', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Bill ID is required.' });
     }
 
-    const { bills, billItems, itemList } = await getAllData({
+    const requestedBillMode = normalizeBillMode(req.body?.billMode);
+
+    let activeBillMode = requestedBillMode;
+    let { bills, billItems, itemList } = await getAllData({
       includeBills: true,
       includeBillItems: true,
       includeItemList: true,
-      includeBookEvents: false
+      includeBookEvents: false,
+      billMode: activeBillMode
     }, req.session);
-    const billIndex = bills.findIndex((bill) => String(bill.billId || '').trim() === billId);
+
+    let billIndex = bills.findIndex((bill) => billIdsMatch(bill.billId, billId));
     if (billIndex < 0) {
-      return res.status(404).json({ error: 'Bill not found.' });
+      const fallbackBillMode = activeBillMode === 'no-gst' ? 'with-gst' : 'no-gst';
+      const fallbackData = await getAllData({
+        includeBills: true,
+        includeBillItems: true,
+        includeItemList: true,
+        includeBookEvents: false,
+        billMode: fallbackBillMode
+      }, req.session);
+      const fallbackIndex = fallbackData.bills.findIndex((bill) => billIdsMatch(bill.billId, billId));
+      if (fallbackIndex >= 0) {
+        activeBillMode = fallbackBillMode;
+        bills = fallbackData.bills;
+        billItems = fallbackData.billItems;
+        itemList = fallbackData.itemList;
+        billIndex = fallbackIndex;
+      } else {
+        return res.status(404).json({ error: 'Bill not found.' });
+      }
     }
 
     const { itemList: nextItemList, addedItems, updatedItems } = appendMissingItemsToItemList(itemList, req.body?.items);
@@ -1693,7 +1811,9 @@ app.put('/api/bills/:billId', requireAuth, async (req, res) => {
       billId,
       billDate: payload.billDate,
       eventDay: payload.eventDay,
+      billMode: payload.billMode || String(existing.billMode || '').trim().toLowerCase() || activeBillMode,
       customerName: payload.customerName,
+      customerDetail: payload.customerDetail,
       phoneNumber: payload.phoneNumber,
       gstNo: payload.gstNo,
       eWay: payload.eWay,
@@ -1708,7 +1828,7 @@ app.put('/api/bills/:billId', requireAuth, async (req, res) => {
       updatedAt: new Date().toISOString()
     };
 
-    const nextBillItems = billItems.filter((row) => String(row.billId || '').trim() !== billId);
+    const nextBillItems = billItems.filter((row) => !billIdsMatch(row.billId, billId));
     nextBillItems.push({
       billId,
       itemCount: payload.normalizedItems.length,
@@ -1716,7 +1836,7 @@ app.put('/api/bills/:billId', requireAuth, async (req, res) => {
       updatedAt: new Date().toISOString()
     });
 
-    await saveBillsAndItems(bills, nextBillItems, req.session);
+    await saveBillsAndItems(bills, nextBillItems, req.session, activeBillMode);
     res.json({ message: 'Bill updated successfully.', billId, addedItems, updatedItems });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update bill.', details: error.message });
@@ -1825,13 +1945,15 @@ app.get('/api/book-events/next-booking-number', requireAuth, async (req, res) =>
 
 app.get('/api/bills/next-bill-number', requireAuth, async (req, res) => {
   try {
+    const billMode = normalizeBillMode(req.query.billMode || 'with-gst');
     const { bills } = await getAllData({
       includeBills: true,
       includeBillItems: false,
       includeItemList: false,
-      includeBookEvents: false
+      includeBookEvents: false,
+      billMode
     }, req.session);
-    const billId = buildBillId(bills);
+    const billId = buildBillId(bills, billMode);
     res.json({ billId });
   } catch (error) {
     res.status(500).json({ error: 'Failed to get next bill number.', details: error.message });
@@ -1897,11 +2019,13 @@ app.get('/api/book-events', requireAuth, async (req, res) => {
 
 app.get('/api/bills', requireAuth, async (req, res) => {
   try {
+    const requestedBillMode = normalizeBillMode(req.query.billMode || 'with-gst');
     const { bills, billItems } = await getAllData({
       includeBills: true,
       includeBillItems: true,
       includeItemList: false,
-      includeBookEvents: false
+      includeBookEvents: false,
+      billMode: requestedBillMode
     }, req.session);
     const phoneFilter = normalizePhoneNumber(req.query.phoneNumber || '');
 

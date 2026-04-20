@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Store Bill Generator</title>
+    <title>No GST Billing Desk</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -112,6 +112,12 @@
 
       .billing-mode-btn-with-gst:hover {
         background: #72cf4d;
+      }
+
+      #gstNoField,
+      #gstPercentField,
+      .invoice-party-block .line-row.split .line-cell:first-child {
+        display: none !important;
       }
 
       .billing-desk-card.is-mode-select .title-row {
@@ -352,7 +358,7 @@
       <section class="card bill-card billing-desk-card">
         <div class="title-row">
           <div class="billing-desk-heading">
-            <p id="billingDeskKicker" class="kicker" hidden>Event Billing Desk</p>
+            <p id="billingDeskKicker" class="kicker" hidden>No GST Billing Desk</p>
             <h1 id="billingDeskTitle" class="page-title" hidden>
               <span
                 class="title-logo logo-animation"
@@ -361,7 +367,7 @@
                 role="img"
                 aria-label="Sagarika Logo"
               ></span>
-              <span>Sagarika</span>
+              <span>Sagarika No GST</span>
             </h1>
             <a class="btn btn-secondary billing-desk-home-btn" href="welcome.html">Home</a>
           </div>
@@ -425,7 +431,7 @@
               Phone Number
               <input type="tel" id="phoneNumber" placeholder="10-digit phone" pattern="[0-9]{10}" required />
             </label>
-            <label>
+            <label id="gstNoField" hidden>
               GST No
               <input type="text" id="gstNo" placeholder="Customer GST number" />
             </label>
@@ -475,7 +481,7 @@
               Total
               <input type="number" id="total" readonly />
             </label>
-            <label>
+            <label id="gstPercentField" hidden>
               GST (%)
               <input type="number" id="gst" min="0" step="0.01" value="18" />
             </label>

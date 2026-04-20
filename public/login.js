@@ -25,7 +25,15 @@ let authPending = false;
 const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '')
   .trim()
   .replace(/\/+$/, '');
-const ALLOWED_NEXT_PAGES = new Set(['welcome.html', 'index.html', 'items.html', 'report.html', 'book-event.html']);
+const ALLOWED_NEXT_PAGES = new Set([
+  'welcome.html',
+  'index.html',
+  'with-gst.html',
+  'no-gst.html',
+  'items.html',
+  'report.html',
+  'book-event.html'
+]);
 const LAST_ACTIVITY_KEY = 'sagarika_last_activity_at';
 const LOGOUT_SYNC_KEY = 'sagarika_logout_at';
 

@@ -1,8 +1,16 @@
 const itemsBody = document.getElementById('itemsBody');
 const billItemOptions = document.getElementById('billItemOptions');
 const addItemBtn = document.getElementById('addItemBtn');
+const subjectBtn = document.getElementById('subjectBtn');
+const billingDeskCard = document.querySelector('.billing-desk-card');
+const billingDeskKicker = document.getElementById('billingDeskKicker');
+const billingDeskTitle = document.getElementById('billingDeskTitle');
+const billingDeskTopActions = document.getElementById('billingDeskTopActions');
+const billingDeskSearchRow = document.getElementById('billingDeskSearchRow');
+const billingModeRow = document.querySelector('.billing-mode-row');
 const billForm = document.getElementById('billForm');
 const customerNameInput = document.getElementById('customerName');
+const customerDetailInput = document.getElementById('customerDetail');
 const gstNoInput = document.getElementById('gstNo');
 const eWayInput = document.getElementById('eWay');
 const addressInput = document.getElementById('address');
@@ -16,6 +24,8 @@ const billDateInput = document.getElementById('billDate');
 const eventDayInput = document.getElementById('eventDay');
 const phoneNumberInput = document.getElementById('phoneNumber');
 const searchPhoneInput = document.getElementById('searchPhone');
+const noGstModeBtn = document.getElementById('noGstModeBtn');
+const withGstModeBtn = document.getElementById('withGstModeBtn');
 const searchBtn = document.getElementById('searchBtn');
 const loadBookingBtn = document.getElementById('loadBookingBtn');
 const bookingSelect = document.getElementById('bookingSelect');
@@ -80,6 +90,10 @@ const ptNoteLine = document.getElementById('ptNoteLine');
 const ptNote = document.getElementById('ptNote');
 const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
 const LOCAL_API_BASE = '/api';
+const BILLING_PAGE_NAME = String(window.location.pathname.split('/').pop() || 'index.html').trim().toLowerCase();
+const CURRENT_BILL_MODE =
+  BILLING_PAGE_NAME === 'no-gst.html' ? 'no-gst' : BILLING_PAGE_NAME === 'with-gst.html' ? 'with-gst' : '';
+const IS_BILL_MODE_SELECTOR_PAGE = !CURRENT_BILL_MODE;
 
 let productPrices = {};
 let storeItems = [];
@@ -106,6 +120,9 @@ const THEME_STORAGE_KEY = 'sagarika_theme_v1';
 const mobileSelectState = new WeakMap();
 
 billDateInput.value = new Date().toISOString().slice(0, 10);
+if (CURRENT_BILL_MODE === 'no-gst' && gstInput) {
+  gstInput.value = '0';
+}
 
 function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
@@ -168,6 +185,39 @@ function clearStatusMessage() {
   statusMsg.textContent = '';
   delete statusMsg.dataset.tone;
   closeStatusPopup();
+}
+
+function withCurrentBillModeQuery(query = '') {
+  const modeQuery = CURRENT_BILL_MODE ? `billMode=${encodeURIComponent(CURRENT_BILL_MODE)}` : '';
+  return [String(query || '').trim(), modeQuery].filter(Boolean).join('&');
+}
+
+function setBillingDeskModeSelectionVisible(visible) {
+  if (billingDeskCard) {
+    billingDeskCard.classList.toggle('is-mode-select', visible);
+  }
+  if (billingModeRow) {
+    billingModeRow.hidden = !visible;
+    billingModeRow.style.display = visible ? 'flex' : 'none';
+  }
+  if (billingDeskKicker) {
+    billingDeskKicker.hidden = visible;
+  }
+  if (billingDeskTitle) {
+    billingDeskTitle.hidden = visible;
+  }
+  if (billingDeskTopActions) {
+    billingDeskTopActions.hidden = visible;
+  }
+  if (billingDeskSearchRow) {
+    billingDeskSearchRow.hidden = visible;
+  }
+  if (statusMsg) {
+    statusMsg.hidden = visible;
+  }
+  if (billForm) {
+    billForm.hidden = visible;
+  }
 }
 
 if (statusPopupOkBtn) {
@@ -308,9 +358,13 @@ function renderBillNumber() {
   billNumberInput.value = value || nextBillNumber;
 }
 
+function isManualBillNumberAllowed() {
+  return CURRENT_BILL_MODE === 'with-gst';
+}
+
 async function refreshNextBillNumber() {
   try {
-    const response = await authFetch('/api/bills/next-bill-number');
+    const response = await authFetch(apiUrl('bills/next-bill-number', withCurrentBillModeQuery()));
     const data = await parseJsonResponse(response);
     if (!response.ok) {
       return;
@@ -329,19 +383,29 @@ async function refreshNextBillNumber() {
 }
 
 function getCurrentBillSnapshot() {
-  const rows = [...itemsBody.querySelectorAll('tr')].map((row, index) => ({
-    slNo: Number(row.querySelector('.slNo').value || index + 1),
-    item: String(row.querySelector('.item').value || '').trim(),
-    quantity: String(row.querySelector('.quantity').value || '').trim(),
-    amount: Number(row.querySelector('.amount').value || 0)
-  }));
+  const rows = [...itemsBody.querySelectorAll('tr')].map((row, index) => {
+    if (row.dataset.rowType === 'subject') {
+      return {
+        rowType: 'subject',
+        slNo: index + 1,
+        subject: String(row.querySelector('.subject-row-input')?.value || '').trim()
+      };
+    }
 
-  rows.sort((a, b) => Number(a.slNo || 0) - Number(b.slNo || 0));
+    return {
+      rowType: 'item',
+      slNo: Number(row.querySelector('.slNo').value || index + 1),
+      item: String(row.querySelector('.item').value || '').trim(),
+      quantity: String(row.querySelector('.quantity').value || '').trim(),
+      amount: Number(row.querySelector('.amount').value || 0)
+    };
+  });
 
   return JSON.stringify({
     billDate: String(billDateInput.value || '').trim(),
     eventDay: String(eventDayInput?.value || '').trim(),
     customerName: String(customerNameInput.value || '').trim(),
+    customerDetail: String(customerDetailInput?.value || '').trim(),
     phoneNumber: onlyDigits(phoneNumberInput.value).slice(0, 10),
     gstNo: String(gstNoInput.value || '').trim(),
     eWay: String(eWayInput.value || '').trim(),
@@ -398,6 +462,7 @@ function hasLoadedBillChanges() {
 function hasMeaningfulBillInput() {
   const hasTextInput =
     String(customerNameInput.value || '').trim() ||
+    String(customerDetailInput?.value || '').trim() ||
     String(phoneNumberInput.value || '').trim() ||
     String(gstNoInput.value || '').trim() ||
     String(eWayInput.value || '').trim() ||
@@ -409,6 +474,10 @@ function hasMeaningfulBillInput() {
   }
 
   return [...itemsBody.querySelectorAll('tr')].some((row) => {
+    if (row.dataset.rowType === 'subject') {
+      return Boolean(String(row.querySelector('.subject-row-input')?.value || '').trim());
+    }
+
     const itemName = String(row.querySelector('.item')?.value || '').trim();
     const qtyRaw = String(row.querySelector('.quantity')?.value || '').trim();
     const amountRaw = String(row.querySelector('.amount')?.value || '').trim();
@@ -1133,6 +1202,7 @@ window.addEventListener(
 
 function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
   const row = document.createElement('tr');
+  row.dataset.rowType = 'item';
   const selectedItemValue = String(item.item || '').trim();
   const quantityValue = item.quantity === undefined || item.quantity === null || item.quantity === '' ? '#' : item.quantity;
   const manualMode = isManualQuantity(quantityValue);
@@ -1204,6 +1274,81 @@ function createRow(item = { slNo: '', item: '', quantity: '#', amount: 0 }) {
   return row;
 }
 
+function moveRowByOffset(row, offset) {
+  if (!row || !row.parentElement || !offset) {
+    return;
+  }
+
+  const sibling = offset < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling) {
+    return;
+  }
+
+  if (offset < 0) {
+    row.parentElement.insertBefore(row, sibling);
+  } else {
+    row.parentElement.insertBefore(sibling, row);
+  }
+
+  unlockSaveOnChange();
+  recalculate();
+  renumberRows();
+  saveDraftToStorage();
+}
+
+let draggingSubjectRow = null;
+
+function handleSubjectDragStart(event, row) {
+  draggingSubjectRow = row;
+  row.classList.add('is-dragging');
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', 'subject-row');
+  }
+}
+
+function handleSubjectDragEnd(row) {
+  row.classList.remove('is-dragging');
+  draggingSubjectRow = null;
+  unlockSaveOnChange();
+  recalculate();
+  renumberRows();
+  saveDraftToStorage();
+}
+
+function createSubjectRow(value = '') {
+  const row = document.createElement('tr');
+  row.className = 'subject-row';
+  row.dataset.rowType = 'subject';
+  row.innerHTML = `
+    <td class="subject-row-handle-cell">
+      <button type="button" class="btn drag-handle-btn" draggable="true" aria-label="Drag subject row" title="Drag subject row">✋</button>
+    </td>
+    <td colspan="3">
+      <input type="text" class="subject-row-input" placeholder="Write subject or any content" value="${escapeHtml(value)}" />
+    </td>
+    <td>
+      <div class="subject-row-actions">
+        <button type="button" class="btn btn-danger remove-btn" aria-label="Remove subject row" title="Remove subject row">X</button>
+      </div>
+    </td>
+  `;
+
+  const dragHandle = row.querySelector('.drag-handle-btn');
+  dragHandle.addEventListener('dragstart', (event) => handleSubjectDragStart(event, row));
+  dragHandle.addEventListener('dragend', () => handleSubjectDragEnd(row));
+
+  row.querySelector('.remove-btn').addEventListener('click', () => {
+    row.remove();
+    unlockSaveOnChange();
+    recalculate();
+    renumberRows();
+    saveDraftToStorage();
+  });
+
+  return row;
+}
+
 function renderItemSuggestions() {
   if (billItemOptions) {
     billItemOptions.innerHTML = storeItems.map((name) => `<option value="${name}"></option>`).join('');
@@ -1266,17 +1411,17 @@ function buildItemPriceUpdateMessage(result) {
 }
 
 function renumberRows() {
-  const rows = itemsBody.querySelectorAll('tr');
+  const rows = [...itemsBody.querySelectorAll('tr')].filter((row) => row.dataset.rowType !== 'subject');
   rows.forEach((row, index) => {
     const slNo = row.querySelector('.slNo');
-    if (!slNo.value || Number(slNo.value) <= 0) {
+    if (slNo) {
       slNo.value = index + 1;
     }
   });
 }
 
 function recalculate() {
-  const rows = itemsBody.querySelectorAll('tr');
+  const rows = [...itemsBody.querySelectorAll('tr')].filter((row) => row.dataset.rowType !== 'subject');
   let total = 0;
 
   rows.forEach((row) => {
@@ -1315,15 +1460,28 @@ function recalculate() {
 }
 
 function getItems() {
-  return [...itemsBody.querySelectorAll('tr')].map((row) => ({
-    slNo: Number(row.querySelector('.slNo').value),
-    item: row.querySelector('.item').value.trim(),
-    quantity: String(row.querySelector('.quantity').value || '').trim(),
-    amount: Number(row.querySelector('.amount').value)
-  }));
+  return [...itemsBody.querySelectorAll('tr')].map((row) => {
+    if (row.dataset.rowType === 'subject') {
+      return {
+        rowType: 'subject',
+        subject: String(row.querySelector('.subject-row-input')?.value || '').trim()
+      };
+    }
+
+    return {
+      rowType: 'item',
+      slNo: Number(row.querySelector('.slNo').value),
+      item: row.querySelector('.item').value.trim(),
+      quantity: String(row.querySelector('.quantity').value || '').trim(),
+      amount: Number(row.querySelector('.amount').value)
+    };
+  });
 }
 
 function isCompletelyBlankBillItem(item) {
+  if (String(item?.rowType || 'item') === 'subject') {
+    return !String(item?.subject || '').trim();
+  }
   const itemName = String(item?.item || '').trim();
   const quantityRaw = String(item?.quantity || '').trim();
   const amount = Number(item?.amount || 0);
@@ -1331,8 +1489,9 @@ function isCompletelyBlankBillItem(item) {
 }
 
 function addDefaultRow() {
-  const rowCount = itemsBody.querySelectorAll('tr').length;
-  itemsBody.appendChild(createRow({ slNo: rowCount + 1, item: '', quantity: '#', amount: 0 }));
+  const itemRowCount = [...itemsBody.querySelectorAll('tr')].filter((row) => row.dataset.rowType !== 'subject').length;
+  itemsBody.appendChild(createRow({ slNo: itemRowCount + 1, item: '', quantity: '#', amount: 0 }));
+  renumberRows();
 }
 
 function saveDraftToStorage() {
@@ -1341,6 +1500,7 @@ function saveDraftToStorage() {
       billDate: billDateInput.value || '',
       eventDay: eventDayInput?.value || '',
       customerName: customerNameInput.value || '',
+      customerDetail: customerDetailInput?.value || '',
       phoneNumber: phoneNumberInput.value || '',
       gstNo: gstNoInput.value || '',
       eWay: eWayInput.value || '',
@@ -1371,11 +1531,17 @@ function setFormReadOnly(readOnly) {
     hideItemSuggestionMenu();
   }
 
+  if (billNumberInput) {
+    billNumberInput.readOnly = readOnly || !isManualBillNumberAllowed();
+  }
   billDateInput.disabled = readOnly;
   if (eventDayInput) {
     eventDayInput.disabled = readOnly;
   }
   customerNameInput.readOnly = readOnly;
+  if (customerDetailInput) {
+    customerDetailInput.readOnly = readOnly;
+  }
   phoneNumberInput.readOnly = readOnly;
   gstNoInput.readOnly = readOnly;
   eWayInput.readOnly = readOnly;
@@ -1383,6 +1549,9 @@ function setFormReadOnly(readOnly) {
   billNoteInput.readOnly = readOnly;
   gstInput.disabled = readOnly;
   discountInput.disabled = readOnly;
+  if (subjectBtn) {
+    subjectBtn.disabled = readOnly;
+  }
   addItemBtn.disabled = readOnly;
   saveBillBtn.disabled = readOnly || isSaving || isSaveLocked;
   printBillBtn.disabled = isSaving;
@@ -1397,6 +1566,15 @@ function setFormReadOnly(readOnly) {
 
   const rows = itemsBody.querySelectorAll('tr');
   rows.forEach((row) => {
+    if (row.dataset.rowType === 'subject') {
+      const subjectInput = row.querySelector('.subject-row-input');
+      if (subjectInput) {
+        subjectInput.readOnly = readOnly;
+      }
+      row.querySelector('.remove-btn').disabled = readOnly;
+      return;
+    }
+
     row.querySelector('.slNo').readOnly = readOnly;
     row.querySelector('.item').disabled = readOnly;
     row.querySelector('.quantity').readOnly = readOnly;
@@ -1455,6 +1633,9 @@ function populateBillForm(bill) {
     eventDayInput.value = bill.eventDay ? normalizeBillDateForInput(bill.eventDay) : '';
   }
   customerNameInput.value = bill.customerName || '';
+  if (customerDetailInput) {
+    customerDetailInput.value = String(bill.customerDetail || '');
+  }
   phoneNumberInput.value = onlyDigits(bill.phoneNumber || '').slice(0, 10);
   gstNoInput.value = String(bill.gstNo || '');
   eWayInput.value = String(bill.eWay || '');
@@ -1467,18 +1648,20 @@ function populateBillForm(bill) {
   const rows = Array.isArray(bill.items) ? [...bill.items] : [];
   rows.sort((a, b) => Number(a.slNo || 0) - Number(b.slNo || 0));
 
-  if (rows.length === 0) {
-    addDefaultRow();
-  } else {
+  if (rows.length > 0) {
     rows.forEach((entry, index) => {
-      itemsBody.appendChild(
-        createRow({
-          slNo: Number(entry.slNo || index + 1),
-          item: String(entry.item || ''),
-          quantity: formatQuantityForSavedRow(entry.quantity, entry.isManualAmount),
-          amount: Number(entry.amount || 0)
-        })
-      );
+      if (String(entry.rowType || 'item') === 'subject') {
+        itemsBody.appendChild(createSubjectRow(String(entry.subject || '')));
+      } else {
+        itemsBody.appendChild(
+          createRow({
+            slNo: Number(entry.slNo || index + 1),
+            item: String(entry.item || ''),
+            quantity: formatQuantityForSavedRow(entry.quantity, entry.isManualAmount),
+            amount: Number(entry.amount || 0)
+          })
+        );
+      }
     });
   }
 
@@ -1600,15 +1783,23 @@ function numberToWordsIndian(value) {
 }
 
 function buildPrintRows() {
+  let nextItemSlNo = 1;
   const rows = [...itemsBody.querySelectorAll('tr')].map((row) => {
-    const slNo = Number(row.querySelector('.slNo').value || 0);
+    if (row.dataset.rowType === 'subject') {
+      return {
+        rowType: 'subject',
+        subject: String(row.querySelector('.subject-row-input')?.value || '').trim()
+      };
+    }
+
     const item = row.querySelector('.item').value || '';
     const quantityRaw = String(row.querySelector('.quantity').value || '').trim();
     const quantity = toNumericQuantity(quantityRaw);
     const amount = Number(row.querySelector('.amount').value || 0);
     const unitPrice = Number.isFinite(quantity) && quantity > 0 ? amount / quantity : Number(productPrices[item] || 0);
     return {
-      slNo,
+      rowType: 'item',
+      slNo: nextItemSlNo++,
       item,
       quantityLabel: isManualQuantity(quantityRaw) ? getManualQuantityLabel(quantityRaw) : quantityRaw,
       unitPrice,
@@ -1616,7 +1807,7 @@ function buildPrintRows() {
     };
   });
 
-  return rows.filter((row) => row.item);
+  return rows.filter((row) => (row.rowType === 'subject' ? row.subject : row.item));
 }
 
 function sanitizeFilenamePart(value, fallback) {
@@ -1663,7 +1854,7 @@ function printWithSuggestedFileName() {
 function renderPrintTemplate() {
   const rows = buildPrintRows();
   const activeBillTo = getActiveBillTo();
-  const total = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const total = rows.reduce((sum, row) => sum + (row.rowType === 'subject' ? 0 : Number(row.amount || 0)), 0);
   const gstPercent = Number(gstInput.value || 0);
   const discountPercent = Number(discountInput.value || 0);
   const discountAmount = (total * discountPercent) / 100;
@@ -1697,7 +1888,16 @@ function renderPrintTemplate() {
     ptHeaderBrand.textContent =
       activeBillTo === 'PAKSHIKERE' ? 'SAGARIKA ENTERPRISES' : 'SAGARIKA SHAMIYANA & DECORATORS';
   }
-  if (activeBillTo === 'PAKSHIKERE') {
+  if (CURRENT_BILL_MODE === 'no-gst') {
+    if (ptBankTitle) ptBankTitle.textContent = '';
+    if (ptBankLine1) ptBankLine1.textContent = '';
+    if (ptBankLine2) ptBankLine2.textContent = '';
+    if (ptBankLine3) ptBankLine3.textContent = '';
+    if (ptBankLine4) ptBankLine4.textContent = '';
+    if (ptBankLine5) ptBankLine5.textContent = '';
+    if (ptSignLine1) ptSignLine1.textContent = '';
+    if (ptSignLine2) ptSignLine2.textContent = '';
+  } else if (activeBillTo === 'PAKSHIKERE') {
     if (ptBankTitle) ptBankTitle.textContent = 'Bank Details:';
     if (ptBankLine1) ptBankLine1.textContent = 'A/c Type: Current Account';
     if (ptBankLine2) ptBankLine2.textContent = 'Branch: Kinnigoli';
@@ -1716,7 +1916,7 @@ function renderPrintTemplate() {
     if (ptSignLine1) ptSignLine1.textContent = 'Girish R';
     if (ptSignLine2) ptSignLine2.textContent = 'AUTHORISED SIGNATORY';
   }
-  ptCustomerGstNo.textContent = gstNoInput.value.trim() || '-';
+  ptCustomerGstNo.textContent = CURRENT_BILL_MODE === 'no-gst' ? '' : gstNoInput.value.trim() || '-';
   ptAddress.textContent = addressInput.value || '-';
   ptRows.innerHTML = '';
 
@@ -1724,6 +1924,22 @@ function renderPrintTemplate() {
   for (let i = 0; i < rowsToRender; i += 1) {
     const row = rows[i];
     const tr = document.createElement('tr');
+    if (row?.rowType === 'subject') {
+      tr.className = 'print-subject-row';
+      const slNoCell = document.createElement('td');
+      slNoCell.className = 'print-subject-slno';
+      slNoCell.textContent = '';
+      tr.appendChild(slNoCell);
+
+      const subjectCell = document.createElement('td');
+      subjectCell.colSpan = 4;
+      subjectCell.className = 'print-subject-box';
+      subjectCell.textContent = row.subject || '';
+      tr.appendChild(subjectCell);
+
+      ptRows.appendChild(tr);
+      continue;
+    }
     const values = [
       row ? row.slNo : '',
       row ? row.item : '',
@@ -1748,7 +1964,8 @@ function renderPrintTemplate() {
   ptGrandTotal.textContent = formatMoney(grandTotal);
   ptAmountWords.textContent = numberToWordsIndian(grandTotal);
 
-  const noteText = billNoteInput.value.trim();
+  const rawNoteText = billNoteInput.value.trim();
+  const noteText = rawNoteText.replace(/^note\s*[:\-]\s*/i, '');
   ptNote.textContent = noteText;
   ptNoteLine.style.display = noteText ? 'block' : 'none';
 }
@@ -1790,7 +2007,8 @@ function validateBillAndGetPayload() {
     return null;
   }
 
-  const items = getItems().filter((item) => !isCompletelyBlankBillItem(item));
+  const rows = getItems().filter((item) => !isCompletelyBlankBillItem(item));
+  const items = rows.filter((item) => item.rowType !== 'subject');
   if (items.length === 0) {
     setStatusMessage('Please add at least one item.');
     return null;
@@ -1838,15 +2056,25 @@ function validateBillAndGetPayload() {
   }
 
   return {
+    billId: isManualBillNumberAllowed() ? String(billNumberInput?.value || '').trim() : '',
     billDate: billDateInput.value,
     eventDay: eventDayInput?.value || '',
+    billMode: CURRENT_BILL_MODE,
     customerName: customerNameInput.value.trim() || 'Walk-in Customer',
+    customerDetail: String(customerDetailInput?.value || '').trim(),
     phoneNumber,
     gstNo: gstNoInput.value.trim(),
     eWay: eWayInput.value.trim(),
     address: addressInput.value.trim(),
     note: billNoteInput.value.trim(),
-    items: items.map((item) => {
+    items: rows.map((item) => {
+      if (item.rowType === 'subject') {
+        return {
+          rowType: 'subject',
+          subject: String(item.subject || '').trim()
+        };
+      }
+
       if (isManualQuantity(item.quantity)) {
         const manualAmount = Number(item.amount || 0);
         const manualQuantityLabel = getManualQuantityLabel(item.quantity);
@@ -1895,7 +2123,7 @@ async function findExistingBillForPayload(payload) {
   }
 
   try {
-    const response = await authFetch(apiUrl('bills', `phoneNumber=${encodeURIComponent(phone)}`));
+    const response = await authFetch(apiUrl('bills', withCurrentBillModeQuery(`phoneNumber=${encodeURIComponent(phone)}`)));
     const data = await parseJsonResponse(response);
     if (!response.ok || !Array.isArray(data) || data.length === 0) {
       return null;
@@ -2092,10 +2320,9 @@ async function loadItemsFromExcel() {
       setStatusMessage('No items found in Excel "Item List" sheet. Please add items and prices there.');
     }
 
-    // Always start Billing Desk with a fresh form on page load.
+    // Always start Billing Desk with a fresh empty form on page load.
     clearDraftFromStorage();
     itemsBody.innerHTML = '';
-    addDefaultRow();
     recalculate();
     setFormReadOnly(false);
   } catch (error) {
@@ -2161,7 +2388,7 @@ async function searchBills(rawQuery) {
     const queryDigits = onlyDigits(query);
     const usePhoneFilter = queryDigits.length >= 7 && queryDigits.length === query.replace(/\D/g, '').length;
     const response = await authFetch(
-      usePhoneFilter ? apiUrl('bills', `phoneNumber=${encodeURIComponent(queryDigits)}`) : apiUrl('bills')
+      usePhoneFilter ? apiUrl('bills', withCurrentBillModeQuery(`phoneNumber=${encodeURIComponent(queryDigits)}`)) : apiUrl('bills', withCurrentBillModeQuery())
     );
     const data = await parseJsonResponse(response);
     if (!response.ok) {
@@ -2287,6 +2514,9 @@ function loadBookingIntoBillForm(booking) {
     eventDayInput.value = booking.eventDay ? normalizeBillDateForInput(booking.eventDay) : '';
   }
   customerNameInput.value = String(booking.name || '').trim();
+  if (customerDetailInput) {
+    customerDetailInput.value = '';
+  }
   phoneNumberInput.value = onlyDigits(booking.phoneNumber || '').slice(0, 10);
   gstNoInput.value = String(booking.gstNo || '').trim();
   eWayInput.value = String(booking.eWay || '').trim();
@@ -2296,9 +2526,7 @@ function loadBookingIntoBillForm(booking) {
   discountInput.value = 0;
 
   itemsBody.innerHTML = '';
-  if (items.length === 0) {
-    addDefaultRow();
-  } else {
+  if (items.length > 0) {
     items.forEach((entry, index) => {
       itemsBody.appendChild(
         createRow({
@@ -2408,6 +2636,70 @@ async function importBookingByQuery(rawQuery) {
   }
 }
 
+if (subjectBtn) {
+  subjectBtn.addEventListener('click', () => {
+    if (isFormReadOnly) {
+      return;
+    }
+    const row = createSubjectRow('');
+    itemsBody.appendChild(row);
+    row.querySelector('.subject-row-input')?.focus();
+    unlockSaveOnChange();
+    recalculate();
+    saveDraftToStorage();
+  });
+}
+
+if (noGstModeBtn) {
+  noGstModeBtn.addEventListener('click', () => {
+    if (IS_BILL_MODE_SELECTOR_PAGE) {
+      window.location.href = 'no-gst.html';
+      return;
+    }
+    setStatusMessage('No GST mode is already open.', 'success');
+  });
+}
+
+if (withGstModeBtn) {
+  withGstModeBtn.addEventListener('click', () => {
+    if (IS_BILL_MODE_SELECTOR_PAGE) {
+      window.location.href = 'with-gst.html';
+      return;
+    }
+    billForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    customerNameInput?.focus();
+  });
+}
+
+if (itemsBody) {
+  itemsBody.addEventListener('dragover', (event) => {
+    if (!draggingSubjectRow) {
+      return;
+    }
+
+    event.preventDefault();
+    const targetRow = event.target.closest('tr');
+    if (!targetRow || targetRow === draggingSubjectRow || targetRow.parentElement !== itemsBody) {
+      return;
+    }
+
+    const rect = targetRow.getBoundingClientRect();
+    const insertBefore = event.clientY < rect.top + rect.height / 2;
+    if (insertBefore) {
+      itemsBody.insertBefore(draggingSubjectRow, targetRow);
+    } else {
+      itemsBody.insertBefore(draggingSubjectRow, targetRow.nextElementSibling);
+    }
+  });
+
+  itemsBody.addEventListener('drop', (event) => {
+    if (!draggingSubjectRow) {
+      return;
+    }
+    event.preventDefault();
+  });
+}
+
 addItemBtn.addEventListener('click', () => {
   if (isFormReadOnly) {
     return;
@@ -2513,6 +2805,9 @@ clearSearchBtn.addEventListener('click', () => {
     eventDayInput.value = '';
   }
   customerNameInput.value = '';
+  if (customerDetailInput) {
+    customerDetailInput.value = '';
+  }
   phoneNumberInput.value = '';
   gstNoInput.value = '';
   eWayInput.value = '';
@@ -2521,7 +2816,6 @@ clearSearchBtn.addEventListener('click', () => {
   discountInput.value = 0;
   billNoteInput.value = '';
   itemsBody.innerHTML = '';
-  addDefaultRow();
   currentBillId = '';
   renderBillNumber();
   refreshNextBillNumber();
@@ -2645,7 +2939,10 @@ try {
   applyTheme('light');
 }
 
-loadItemsFromExcel();
-refreshNextBillNumber();
-renderBillNumber();
-hideBillSelector();
+setBillingDeskModeSelectionVisible(IS_BILL_MODE_SELECTOR_PAGE);
+if (!IS_BILL_MODE_SELECTOR_PAGE) {
+  loadItemsFromExcel();
+  refreshNextBillNumber();
+  renderBillNumber();
+  hideBillSelector();
+}

@@ -198,6 +198,10 @@ label {
   font-weight: 600;
 }
 
+.meta-span-full {
+  grid-column: 1 / -1;
+}
+
 input {
   border: 1px solid var(--line);
   background: var(--input-bg);
@@ -336,6 +340,65 @@ input[readonly] {
 .actions-row,
 .submit-wrap {
   margin-top: 14px;
+}
+
+.subject-action-row {
+  margin-top: 14px;
+}
+
+.subject-row td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  vertical-align: middle;
+}
+
+.subject-row-handle-cell {
+  width: 6%;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.subject-row-content {
+  width: 100%;
+  font-weight: 600;
+}
+
+.subject-row-input {
+  width: 100%;
+}
+
+.subject-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 42px;
+}
+
+.subject-row-actions .btn {
+  width: 36px;
+  min-width: 36px;
+  padding: 8px 6px;
+}
+
+.drag-handle-btn {
+  width: 100%;
+  cursor: grab;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.drag-handle-btn:active {
+  cursor: grabbing;
+}
+
+.subject-row.is-dragging {
+  opacity: 0.55;
+}
+
+.subject-row td[colspan] {
+  border-bottom: 1px solid var(--line);
 }
 
 .note-wrap {
@@ -679,6 +742,24 @@ input[readonly] {
   border-bottom: 1px solid #111;
 }
 
+.print-items-table tbody tr.print-subject-row td {
+  padding-top: 1.2mm;
+  padding-bottom: 1.2mm;
+}
+
+.print-items-table tbody tr.print-subject-row td.print-subject-slno {
+  border-top: none;
+  border-bottom: none;
+  border-right: 1px solid #111;
+}
+
+.print-items-table tbody tr.print-subject-row td.print-subject-box {
+  font-size: 4.5mm;
+  font-weight: 700;
+  text-align: left;
+  border: 1px solid #111;
+}
+
 .print-items-table td {
   height: 8.2mm;
 }
@@ -689,6 +770,7 @@ input[readonly] {
   font-size: 3.5mm;
   line-height: 1.35;
   min-height: 4.5mm;
+  color: #000;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -820,6 +902,10 @@ input[readonly] {
   .meta-grid,
   .totals-grid {
     grid-template-columns: 1fr;
+  }
+
+  .meta-span-full {
+    grid-column: auto;
   }
 
   .title-row {
