@@ -1806,12 +1806,15 @@ app.put('/api/bills/:billId', requireAuth, async (req, res) => {
     }
 
     const existing = bills[billIndex] || {};
+    const persistedBillMode = normalizeBillMode(existing.billMode || activeBillMode);
     bills[billIndex] = {
       ...existing,
       billId,
       billDate: payload.billDate,
       eventDay: payload.eventDay,
-      billMode: payload.billMode || String(existing.billMode || '').trim().toLowerCase() || activeBillMode,
+      // Preserve the sheet-backed bill mode on update so cross-mode lookup fallback
+      // does not relabel a No-GST bill as with-gst (or vice versa).
+      billMode: persistedBillMode,
       customerName: payload.customerName,
       customerDetail: payload.customerDetail,
       phoneNumber: payload.phoneNumber,
