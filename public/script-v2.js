@@ -62,6 +62,7 @@ const ptBillNo = document.getElementById('ptBillNo');
 const ptEWay = document.getElementById('ptEWay');
 const ptDate = document.getElementById('ptDate');
 const ptCustomer = document.getElementById('ptCustomer');
+const ptCustomerDetail = document.getElementById('ptCustomerDetail');
 const ptPhone = document.getElementById('ptPhone');
 const ptHeaderGstin = document.getElementById('ptHeaderGstin');
 const ptHeaderPhones = document.getElementById('ptHeaderPhones');
@@ -1870,6 +1871,9 @@ function renderPrintTemplate() {
   ptEWay.textContent = eWayInput.value.trim() || '........................................................';
   ptDate.textContent = formatDateForPrint(billDateInput.value);
   ptCustomer.textContent = customerNameInput.value || 'Walk-in Customer';
+  if (ptCustomerDetail) {
+    ptCustomerDetail.textContent = String(customerDetailInput?.value || '').trim() || '-';
+  }
   ptPhone.textContent = phoneNumberInput.value || '-';
   if (ptHeaderGstin) {
     ptHeaderGstin.textContent = activeBillTo === 'PAKSHIKERE' ? '29AFVFS9308D1ZC' : '29AJQPR8127A1ZV.';

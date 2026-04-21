@@ -577,6 +577,7 @@ input[readonly] {
 }
 
 .print-page {
+  position: relative;
   width: 192mm;
   min-height: 274mm;
   margin: 0 auto;
@@ -586,6 +587,29 @@ input[readonly] {
   font-family: 'Times New Roman', serif;
   background: #fff;
   font-size: 3mm;
+  overflow: hidden;
+}
+
+.print-page::before {
+  content: 'SAGARIKA';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 34mm;
+  font-weight: 700;
+  letter-spacing: 1.2mm;
+  color: #000;
+  opacity: 0.05;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 0;
+}
+
+.print-page > * {
+  position: relative;
+  z-index: 1;
 }
 
 .invoice-topline {
@@ -593,6 +617,10 @@ input[readonly] {
   justify-content: space-between;
   align-items: flex-start;
   font-size: 3mm;
+}
+
+.invoice-gstin-line {
+  color: #5c2f13;
 }
 
 .invoice-mobile {
@@ -615,12 +643,20 @@ input[readonly] {
   letter-spacing: 0.2mm;
   line-height: 1.05;
   white-space: nowrap;
+  display: block;
+  margin: 0 0 0.6mm;
+  padding-bottom: 0.7mm;
+  border-bottom: 1.6mm solid #d4d4d4;
+}
+
+.invoice-brand-accent {
+  color: #f28c28;
 }
 
 .invoice-address {
   text-align: center;
   font-size: 3.2mm;
-  margin-top: 0.6mm;
+  margin-top: 0.4mm;
 }
 
 .invoice-meta-line {
@@ -731,6 +767,7 @@ input[readonly] {
 
 .print-items-table thead th {
   font-weight: 700;
+  color: #5aa9e6;
 }
 
 .print-items-table tbody td {
@@ -758,6 +795,7 @@ input[readonly] {
   font-weight: 700;
   text-align: left;
   border: 1px solid #111;
+  color: #0b57d0;
 }
 
 .print-items-table td {
@@ -789,6 +827,7 @@ input[readonly] {
   min-height: 28mm;
   font-size: 3.4mm;
   line-height: 1.24;
+  color: #0b57d0;
 }
 
 .bank-title {
@@ -821,6 +860,11 @@ input[readonly] {
 
 .grand-line > span {
   font-weight: 700;
+  color: #0b57d0;
+}
+
+.invoice-total-net-label {
+  color: #111;
 }
 
 .invoice-words-row {
@@ -833,6 +877,15 @@ input[readonly] {
   gap: 1.5mm;
   padding: 1mm 1.2mm;
   font-size: 3.8mm;
+  color: #c62828;
+}
+
+.invoice-words-label {
+  font-weight: 700;
+}
+
+#ptAmountWords {
+  font-weight: 700;
 }
 
 .invoice-sign-row {
@@ -998,6 +1051,8 @@ input[readonly] {
     width: 100%;
     min-height: auto;
     margin: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .print-note-line {

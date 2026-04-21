@@ -151,6 +151,10 @@
         gap: 10px;
       }
 
+      .date-grid label.date-grid-full {
+        grid-column: 1 / -1;
+      }
+
       .date-modal-actions {
         margin-top: 14px;
         display: flex;
@@ -215,12 +219,6 @@
         .print-sheet .report-table td {
           border: 1px solid #111 !important;
           color: #111 !important;
-          background: #fff !important;
-        }
-
-        .print-sheet .report-table tr.duplicate-row,
-        .print-sheet .report-table tr.duplicate-row td {
-          background: #efefef !important;
         }
       }
 
@@ -404,6 +402,13 @@
       <div class="date-modal-card">
         <h3 id="dateRangeTitle">Select Date Range</h3>
         <div class="date-grid">
+          <label id="billingModeField" class="date-grid-full" style="display: none;">
+            Bill Type
+            <select id="billingModeSelect">
+              <option value="with-gst">With GST</option>
+              <option value="no-gst">No GST</option>
+            </select>
+          </label>
           <label>
             From Date
             <input type="date" id="fromDateInput" required />
@@ -437,6 +442,8 @@
       const printContent = document.getElementById('printContent');
       const dateRangeModal = document.getElementById('dateRangeModal');
       const dateRangeTitle = document.getElementById('dateRangeTitle');
+      const billingModeField = document.getElementById('billingModeField');
+      const billingModeSelect = document.getElementById('billingModeSelect');
       const fromDateInput = document.getElementById('fromDateInput');
       const toDateInput = document.getElementById('toDateInput');
       const cancelDateRangeBtn = document.getElementById('cancelDateRangeBtn');
@@ -444,6 +451,11 @@
       const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
       let bookingReportRange = { from: '', to: '' };
       let activeReportType = '';
+      let activeBillingMode = 'with-gst';
+
+      function formatBillingModeLabel(mode) {
+        return String(mode || '').trim().toLowerCase() === 'no-gst' ? 'No GST' : 'With GST';
+      }
 
       function withApiBase(path) {
         if (!path.startsWith('/api/') || !BACKEND_BASE_URL) return path;
@@ -581,6 +593,12 @@
       function openDateRangeModal(type) {
         activeReportType = type;
         dateRangeTitle.textContent = type === 'billing' ? 'Select Billing Date Range' : 'Select Booking Date Range';
+        if (billingModeField) {
+          billingModeField.style.display = type === 'billing' ? 'block' : 'none';
+        }
+        if (billingModeSelect) {
+          billingModeSelect.value = activeBillingMode;
+        }
         const today = new Date().toISOString().slice(0, 10);
         if (!fromDateInput.value) {
           const monthStart = new Date();
@@ -739,13 +757,15 @@
         reportStatus.style.color = '#4caf50';
       }
 
-      async function loadBillingReport(fromDate, toDate) {
+      async function loadBillingReport(fromDate, toDate, billingMode = 'with-gst') {
         reportStatus.textContent = 'Loading billing report...';
         reportStatus.style.color = 'var(--muted)';
         bookingReportWrap.style.display = 'none';
         billingReportWrap.style.display = 'none';
 
-        const response = await authFetch('/api/bills');
+        const normalizedBillingMode = String(billingMode || '').trim().toLowerCase() === 'no-gst' ? 'no-gst' : 'with-gst';
+        activeBillingMode = normalizedBillingMode;
+        const response = await authFetch(`/api/bills?billMode=${encodeURIComponent(normalizedBillingMode)}`);
         const data = await parseJsonResponse(response);
         if (!response.ok) {
           throw new Error((data && (data.error || data.details)) || 'Failed to load billing report.');
@@ -766,7 +786,7 @@
           });
 
         if (filtered.length === 0) {
-          reportStatus.textContent = `No bills found from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.`;
+          reportStatus.textContent = `No ${formatBillingModeLabel(normalizedBillingMode)} bills found from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.`;
           reportStatus.style.color = '#b42a2a';
           billingReportBody.innerHTML = '';
           reportToolbar.style.display = 'none';
@@ -778,10 +798,10 @@
         activeReportType = 'billing';
         reportToolbar.style.display = 'flex';
         bookingReportRange = { from: fromDate, to: toDate };
-        printHeading.textContent = `Billing Report - From ${formatDateDisplay(fromDate)} Till ${formatDateDisplay(toDate)}`;
+        printHeading.textContent = `Billing Report (${formatBillingModeLabel(normalizedBillingMode)}) - From ${formatDateDisplay(fromDate)} Till ${formatDateDisplay(toDate)}`;
         const duplicateText =
           duplicateCount > 0 ? ` Possible duplicate bills highlighted: ${duplicateCount}.` : ' No duplicate bills detected.';
-        reportStatus.textContent = `${filtered.length} bill record(s) from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.${duplicateText}`;
+        reportStatus.textContent = `${filtered.length} ${formatBillingModeLabel(normalizedBillingMode)} bill record(s) from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.${duplicateText}`;
         reportStatus.style.color = '#4caf50';
       }
 
@@ -845,7 +865,7 @@
         closeDateRangeModal();
         try {
           if (activeReportType === 'billing') {
-            await loadBillingReport(fromDate, toDate);
+            await loadBillingReport(fromDate, toDate, billingModeSelect ? billingModeSelect.value : 'with-gst');
           } else {
             await loadBookingReport(fromDate, toDate);
           }
@@ -869,12 +889,6 @@
         } else {
           printContent.innerHTML = bookingReportWrap.innerHTML;
         }
-        printContent.querySelectorAll('tr.duplicate-row').forEach((row) => {
-          row.style.background = '#efefef';
-        });
-        printContent.querySelectorAll('tr.duplicate-row td').forEach((cell) => {
-          cell.style.background = '#efefef';
-        });
         window.print();
       });
     </script>

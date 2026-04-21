@@ -511,13 +511,13 @@
     <section id="printTemplate" class="print-template">
       <div class="print-page">
         <div class="invoice-topline">
-          <div><strong>GSTIN:-</strong> <span id="ptHeaderGstin">29AJQPR8127A1ZV.</span></div>
-          <div class="invoice-mobile">
+          <div class="invoice-gstin-line"><strong>GSTIN:-</strong> <span id="ptHeaderGstin">29AJQPR8127A1ZV.</span></div>
+          <div class="invoice-mobile invoice-gstin-line">
             <div><strong>Mobile No. :</strong> <span id="ptHeaderPhones">9916279036 , 9483399099</span></div>
           </div>
         </div>
         <div class="invoice-title-strip">TAX INVOICE</div>
-        <div id="ptHeaderBrand" class="invoice-brand">SAGARIKA ENTERPRISES</div>
+        <div id="ptHeaderBrand" class="invoice-brand invoice-brand-accent">SAGARIKA ENTERPRISES</div>
         <div id="ptHeaderAddress" class="invoice-address">
           Subhash Nagara, Soraba Road, Chandramavina Koppalu, Raiway Cross, Sagara -577401, Shimoga Dist.
         </div>
@@ -532,6 +532,10 @@
           <div class="line-row">
             <strong>To</strong>
             <span class="line-fill"><span id="ptCustomer"></span></span>
+          </div>
+          <div class="line-row">
+            <strong>Detail</strong>
+            <span class="line-fill"><span id="ptCustomerDetail"></span></span>
           </div>
           <div class="line-row">
             <strong>Address</strong>
@@ -573,7 +577,7 @@
           </div>
           <div class="bottom-right">
             <div class="total-line">
-              <span>Total Amount Before Tax</span>
+              <span class="invoice-total-net-label">TOTAL NET AMOUNT</span>
               <span id="ptNetTotal"></span>
             </div>
             <div class="total-line">
@@ -595,7 +599,7 @@
           </div>
         </div>
 
-        <div class="invoice-words-row">Amount in words: <span id="ptAmountWords"></span>.</div>
+        <div class="invoice-words-row"><span class="invoice-words-label">IN WORDS:</span> <span id="ptAmountWords"></span>.</div>
         <div class="invoice-sign-row">
           <div id="ptSignLine1">Girish R</div>
           <div id="ptSignLine2">AUTHORISED SIGNATORY</div>
