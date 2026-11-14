@@ -2022,3 +2022,551 @@
     padding: 12px;
   }
 }
+
+@media screen {
+  /* Logout (power) buttons: square, icon always visible */
+  body .btn[class*='power-btn'] {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    gap: 0;
+    border: 1px solid color-mix(in srgb, var(--ui-danger) 35%, transparent);
+    border-radius: 12px;
+    background: var(--ui-surface);
+    color: var(--ui-danger);
+    box-shadow: none;
+  }
+
+  body .btn[class*='power-btn'] svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    fill: none;
+  }
+
+  body .btn[class*='power-btn']:hover {
+    background: var(--ui-danger);
+    border-color: var(--ui-danger);
+    color: #fff;
+  }
+
+  /* Login card: logo, label and title centred */
+  body .login-wrap .kicker,
+  body .login-wrap .login-title,
+  body .login-wrap .admin-branch-label {
+    text-align: center;
+  }
+
+  body .login-wrap .kicker::before {
+    margin: 0 auto 16px;
+  }
+}
+
+/* ==========================================================================
+   App shell: one navigation for every page (app-shell.js)
+   ========================================================================== */
+@media screen {
+  body .app-nav {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    border-bottom: 1px solid var(--ui-line);
+    background: color-mix(in srgb, var(--ui-surface) 90%, transparent);
+    backdrop-filter: saturate(1.4) blur(14px);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  }
+
+  body .app-nav-inner {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    width: min(1320px, calc(100% - 32px));
+    height: 64px;
+    margin: 0 auto;
+  }
+
+  body .app-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+    color: var(--ui-ink);
+    text-decoration: none;
+  }
+
+  body .app-brand img {
+    width: 34px;
+    height: 34px;
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--ui-gold-soft);
+  }
+
+  body .app-brand-text {
+    display: flex;
+    flex-direction: column;
+    font-family: var(--ui-display);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    line-height: 1.1;
+  }
+
+  body .app-brand-text small {
+    margin-top: 2px;
+    color: var(--ui-gold);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+  }
+
+  body .app-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 auto;
+  }
+
+  body .app-nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 10px;
+    color: var(--ui-muted);
+    font-family: var(--ui-display);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  body .app-nav-link:hover {
+    background: var(--ui-surface-2);
+    color: var(--ui-ink);
+  }
+
+  body .app-nav-link.is-current {
+    background: var(--ui-primary-soft);
+    color: var(--ui-primary-ink);
+  }
+
+  body .app-nav-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+  }
+
+  body .app-user {
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--ui-primary);
+    color: #fff;
+    font-family: var(--ui-display);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  [data-theme='dark'] body .app-user {
+    color: #06121b;
+  }
+
+  body .app-icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid var(--ui-line);
+    border-radius: 10px;
+    background: var(--ui-surface);
+    color: var(--ui-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  body .app-icon-btn:hover {
+    background: var(--ui-surface-2);
+    color: var(--ui-ink);
+  }
+
+  body .app-logout-btn {
+    color: var(--ui-danger);
+    border-color: color-mix(in srgb, var(--ui-danger) 30%, transparent);
+  }
+
+  body .app-logout-btn:hover {
+    background: var(--ui-danger);
+    border-color: var(--ui-danger);
+    color: #fff;
+  }
+
+  body .app-tabbar {
+    display: none;
+  }
+
+  /* The shell replaces each page's own Home, Night Mode and Logout controls */
+  body.has-app-shell .billing-desk-home-btn,
+  body.has-app-shell .book-event-home-btn,
+  body.has-app-shell .report-home-btn,
+  body.has-app-shell .items-home-btn,
+  body.has-app-shell .top-link,
+  body.has-app-shell .title-right-actions .theme-toggle,
+  body.has-app-shell .btn[class*='power-btn'],
+  body.has-app-shell .welcome-header {
+    display: none;
+  }
+
+  body.has-app-shell .title-right-actions:not(:has(> :not(.theme-toggle):not([class*='power-btn']))) {
+    display: none;
+  }
+
+  body.has-app-shell .container {
+    margin-top: 24px;
+  }
+
+  /* Tablets: icons only in the top bar */
+  @media (max-width: 1100px) {
+    body .app-nav-link span {
+      display: none;
+    }
+
+    body .app-nav-link {
+      width: 44px;
+      justify-content: center;
+      padding: 0;
+    }
+  }
+
+  /* Phones: tab bar at the bottom, slim top bar */
+  @media (max-width: 768px) {
+    body .app-nav-inner {
+      width: calc(100% - 24px);
+      height: 56px;
+    }
+
+    body .app-nav-links,
+    body .app-user {
+      display: none;
+    }
+
+    body .app-nav-actions {
+      margin-left: auto;
+    }
+
+    body .app-tabbar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 60;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--ui-line);
+      background: color-mix(in srgb, var(--ui-surface) 94%, transparent);
+      backdrop-filter: saturate(1.4) blur(14px);
+      -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    }
+
+    body .app-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      min-height: 50px;
+      padding: 6px 2px 4px;
+      border-radius: 12px;
+      color: var(--ui-faint);
+      font-family: var(--ui-display);
+      font-size: 10.5px;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    body .app-tab.is-current {
+      color: var(--ui-primary);
+    }
+
+    body .app-tab.is-current svg {
+      padding: 2px 10px;
+      width: 44px;
+      border-radius: 999px;
+      background: var(--ui-primary-soft);
+      box-sizing: content-box;
+      margin: -2px 0;
+    }
+
+    body.has-app-shell .container,
+    body.has-app-shell .billing-desk-container,
+    body.has-app-shell .book-event-container,
+    body.has-app-shell .report-main-center,
+    body.has-app-shell .items-page-container,
+    body.has-app-shell .welcome-container {
+      margin-top: 0;
+      padding-bottom: calc(170px + env(safe-area-inset-bottom));
+    }
+
+    /* Save / Print bar sits just above the tab bar */
+    body.has-app-shell form .submit-wrap {
+      bottom: calc(63px + env(safe-area-inset-bottom));
+      padding-bottom: 10px;
+      border-top: 1px solid var(--ui-line);
+      box-shadow: 0 -8px 24px -18px rgba(15, 29, 42, 0.35);
+    }
+  }
+}
+
+/* ==========================================================================
+   Bill Desk: two columns with a summary that stays in view
+   ========================================================================== */
+@media screen {
+  body .billing-mode-row {
+    flex-wrap: wrap;
+  }
+
+  body .billing-mode-row .billing-mode-btn {
+    flex: 1 1 260px;
+  }
+
+  body .bill-items-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 4px 0 18px;
+  }
+
+  body .bill-items-toolbar > div {
+    display: contents;
+  }
+
+  body .bill-summary {
+    padding: 18px;
+    border: 1px solid var(--ui-line);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface-2);
+  }
+
+  body .bill-summary-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  body .bill-summary-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  body .bill-summary-count {
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--ui-primary-soft);
+    color: var(--ui-primary-ink);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  body .bill-summary .totals-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  body .bill-summary .totals-grid label:first-child {
+    grid-column: 1 / -1;
+  }
+
+  body .bill-summary .submit-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin-top: 16px;
+    padding-top: 16px;
+  }
+
+  body .bill-summary .submit-wrap .btn {
+    min-width: 0;
+    width: 100%;
+  }
+
+  @media (min-width: 1100px) {
+    body .billing-desk-container {
+      width: min(1320px, calc(100% - 32px));
+      max-width: 1320px;
+    }
+
+    body form#billForm.has-bill-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      column-gap: 28px;
+      align-items: start;
+    }
+
+    body form#billForm.has-bill-summary > * {
+      grid-column: 1;
+    }
+
+    body form#billForm.has-bill-summary > .bill-summary {
+      grid-column: 2;
+      grid-row: 1 / span 20;
+      position: sticky;
+      top: 84px;
+      background: var(--ui-surface);
+      box-shadow: var(--ui-shadow);
+    }
+
+    body form#billForm.has-bill-summary .meta-grid {
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    }
+  }
+
+  @media (max-width: 768px) {
+    body .bill-summary {
+      padding: 14px;
+    }
+
+    body .bill-summary .submit-wrap {
+      display: grid;
+    }
+  }
+}
+
+/* ==========================================================================
+   Dashboard numbers (dashboard.js)
+   ========================================================================== */
+@media screen {
+  body .dash-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin: 0 0 20px;
+  }
+
+  body .dash-stat {
+    position: relative;
+    min-width: 0;
+    padding: 16px 18px;
+    border: 1px solid var(--ui-line);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface);
+    box-shadow: var(--ui-shadow-sm);
+    overflow: hidden;
+  }
+
+  body .dash-stat::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 16px;
+    bottom: 16px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--ui-primary);
+  }
+
+  body .dash-stat-month::before { background: var(--ui-accent); }
+  body .dash-stat-bills::before { background: var(--ui-success); }
+  body .dash-stat-upcoming::before { background: var(--ui-gold); }
+
+  body .dash-stat p {
+    margin: 0;
+  }
+
+  body .dash-stat-label {
+    color: var(--ui-muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  body .dash-stat-value {
+    margin-top: 6px !important;
+    color: var(--ui-ink);
+    font-family: var(--ui-display);
+    font-size: clamp(20px, 2.2vw, 26px);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body .dash-stat-note {
+    margin-top: 4px !important;
+    color: var(--ui-muted);
+    font-size: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body .dash-stat-note strong {
+    color: var(--ui-text);
+    font-weight: 600;
+  }
+
+  body .dash-stat.is-loading .dash-stat-value {
+    width: 60%;
+    height: 26px;
+    border-radius: 6px;
+    color: transparent;
+    background: linear-gradient(90deg, var(--ui-sunken), var(--ui-surface-2), var(--ui-sunken));
+    background-size: 200% 100%;
+    animation: dash-shimmer 1.2s linear infinite;
+  }
+
+  @keyframes dash-shimmer {
+    to { background-position: -200% 0; }
+  }
+
+  @media (max-width: 1024px) {
+    body .dash-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 768px) {
+    body .dash-stats {
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    body .dash-stat {
+      padding: 12px 14px;
+    }
+  }
+}
+
+@media screen {
+  body .bill-items-toolbar .btn {
+    min-height: 40px;
+    height: 40px;
+    padding: 0 16px;
+  }
+}
+
+@media screen and (max-width: 1099px) {
+  body .bill-summary {
+    margin-top: 16px;
+  }
+}
