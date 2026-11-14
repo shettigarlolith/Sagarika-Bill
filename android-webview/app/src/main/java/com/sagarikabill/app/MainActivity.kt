@@ -2,6 +2,8 @@ package com.sagarikabill.app
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
@@ -99,7 +101,19 @@ class MainActivity : AppCompatActivity() {
         webView.webChromeClient = WebChromeClient()
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                return false
+                val url = request?.url ?: return false
+                val appHost = Uri.parse(appUrl).host
+                // Stay in the app for its own pages; open anything else (WhatsApp, maps,
+                // phone links, other sites) outside, so other sites never see AndroidPrint.
+                if (url.host == appHost && (url.scheme == "https" || url.scheme == "http")) {
+                    return false
+                }
+                return try {
+                    startActivity(Intent(Intent.ACTION_VIEW, url))
+                    true
+                } catch (error: Exception) {
+                    true
+                }
             }
 
             override fun onReceivedError(

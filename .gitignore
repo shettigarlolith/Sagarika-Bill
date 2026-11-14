@@ -1,8 +1,18 @@
 node_modules/
 credentials/google-service-account.json
 data/.~bills.xlsx
+# Business data and machine-specific files never go to GitHub
+data/*.xlsx
+data/*.xls
+data/*.csv
+android-webview/local.properties
+android-webview/app/local.properties
 .DS_Store
 android-webview/.gradle/
 android-webview/app/build/
 android-webview/build/
 dist/
+
+# Local testing (npm run local)
+local-dev/data/
+local-dev/test-logins.txt

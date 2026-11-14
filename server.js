@@ -37,12 +37,23 @@ const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
 const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY || '';
 const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID || '';
-const SESSION_SECRET =
-  process.env.SAGARIKA_SESSION_SECRET ||
-  process.env.SESSION_SECRET ||
-  GOOGLE_PRIVATE_KEY ||
-  GOOGLE_SERVICE_ACCOUNT_JSON ||
-  'sagarika-local-session-secret';
+// Login tokens are signed with this secret. Set SAGARIKA_SESSION_SECRET on Vercel.
+// Without it, a secret is derived from the Google key (never the key itself, never a
+// value written in this public code), or, with no key at all, a random one per process.
+function resolveSessionSecret() {
+  const explicit = String(process.env.SAGARIKA_SESSION_SECRET || process.env.SESSION_SECRET || '').trim();
+  if (explicit) {
+    return explicit;
+  }
+  const keyMaterial = GOOGLE_PRIVATE_KEY || GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (keyMaterial) {
+    console.warn('SAGARIKA_SESSION_SECRET is not set; deriving the session secret from the Google key.');
+    return crypto.createHash('sha256').update(`sagarika-session-v2:${keyMaterial}`).digest('hex');
+  }
+  console.warn('SAGARIKA_SESSION_SECRET is not set; using a random secret (logins reset when the server restarts).');
+  return crypto.randomBytes(32).toString('hex');
+}
+const SESSION_SECRET = resolveSessionSecret();
 const BUSINESS_SHEET_NAMES = ['Bills', 'BillItems', 'NoGSTBills', 'NoGSTBillItems', 'Item List', 'BookEvent'];
 const MASTER_SHEET_NAMES = [...BUSINESS_SHEET_NAMES, 'Users'];
 const PAKSHIKERE_SHEET_NAMES = [...BUSINESS_SHEET_NAMES, 'Users'];
@@ -77,23 +88,112 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-app.use(express.json());
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+// Vercel sits behind a proxy: use the visitor's address for the login limit.
+app.set('trust proxy', 1);
+app.use(express.json({ limit: '1mb' }));
+
+// Only the app's own sites may call the API from a browser.
+// Add more with ALLOWED_ORIGINS="https://a.example,https://b.example".
+const ALLOWED_ORIGINS = new Set(
+  [
+    'https://sagarikabill.vercel.app',
+    'https://sagarika-bill.vercel.app',
+    'https://shettigarlolith.github.io',
+    ...String(process.env.ALLOWED_ORIGINS || '').split(',')
+  ]
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+);
+
+function isAllowedOrigin(origin, req) {
+  if (ALLOWED_ORIGINS.has(origin)) {
+    return true;
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  try {
+    // The app's own pages, whatever domain they are served from.
+    if (new URL(origin).host === String(req.headers.host || '')) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  try {
+    const { protocol, hostname } = new URL(origin);
+    return (
+      (protocol === 'http:' || protocol === 'https:') &&
+      (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local'))
+    );
+  } catch {
+    return false;
+  }
+}
+
+app.use((req, res, next) => {
+  const origin = String(req.headers.origin || '').replace(/\/+$/, '');
+  if (origin) {
+    res.setHeader('Vary', 'Origin');
+    if (isAllowedOrigin(origin, req)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    } else if (req.path.startsWith('/api/')) {
+      return res.status(403).json({ error: 'This website is not allowed to use the Sagarika API.' });
+    }
+  }
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
   return next();
 });
+
+// Server errors: full detail goes to the server log, never to the browser.
+function sendServerError(res, message, error) {
+  console.error(`${message}`, error);
+  return res.status(500).json({ error: message });
+}
+
+// Saves read a whole sheet, change it and write it back, so two saves at the same
+// moment could overwrite each other or reuse a bill number. Run them one at a time.
+let writeQueue = Promise.resolve();
+function serializeWrites(req, res, next) {
+  const turn = writeQueue.then(
+    () =>
+      new Promise((resolve) => {
+        res.once('finish', resolve);
+        res.once('close', resolve);
+        next();
+      })
+  );
+  writeQueue = turn.catch(() => {});
+}
+
+// Slow down password guessing: 8 wrong attempts per username + address in 15 minutes.
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 8;
+const loginFailures = new Map();
+function loginRateLimit(req, res, next) {
+  const now = Date.now();
+  const key = `${req.ip}|${String(req.body?.username || '').trim().toLowerCase()}`;
+  for (const [k, entry] of loginFailures) {
+    if (now - entry.first > LOGIN_WINDOW_MS) loginFailures.delete(k);
+  }
+  const entry = loginFailures.get(key);
+  if (entry && entry.count >= LOGIN_MAX_FAILURES) {
+    const minutes = Math.ceil((entry.first + LOGIN_WINDOW_MS - now) / 60000);
+    return res.status(429).json({ error: `Too many wrong attempts. Try again in ${minutes} minute(s).` });
+  }
+  res.once('finish', () => {
+    if (res.statusCode === 401) {
+      const current = loginFailures.get(key) || { count: 0, first: now };
+      current.count += 1;
+      loginFailures.set(key, current);
+    } else if (res.statusCode === 200) {
+      loginFailures.delete(key);
+    }
+  });
+  return next();
+}
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'splash.html'));
@@ -687,12 +787,22 @@ function ensureDefaultAdminUser(users) {
   return { users: presetUsers.users, changed: changed || presetUsers.changed };
 }
 
+// Ties a login to the password it was made with: resetting the password ends it.
+function passwordFingerprint(user) {
+  return crypto
+    .createHmac('sha256', SESSION_SECRET)
+    .update(`${user?.salt || ''}:${user?.passwordHash || ''}`)
+    .digest('base64url')
+    .slice(0, 16);
+}
+
 function createSession(user) {
   const fixedAdminBillTo = getFixedAdminBillTo(user.username);
   const payload = {
     username: String(user.username || ''),
     role: String(user.role || 'user'),
     billTo: fixedAdminBillTo || normalizeBillTo(user.billTo),
+    pv: passwordFingerprint(user),
     createdAt: Date.now()
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -745,6 +855,7 @@ function getSessionFromRequest(req) {
     username: String(payload?.username || ''),
     role: String(payload?.role || 'user'),
     billTo: normalizeBillTo(payload?.billTo),
+    pv: String(payload?.pv || ''),
     createdAt: Number(payload?.createdAt || 0)
   };
 
@@ -760,28 +871,52 @@ function getSessionFromRequest(req) {
   return { token, ...session };
 }
 
-function requireAdmin(req, res, next) {
+// A valid token is not enough: the account must still exist, be approved and have
+// the same password, so disabling a user or resetting a password logs them out.
+async function loadActiveSession(req) {
   const session = getSessionFromRequest(req);
   if (!session) {
-    return res.status(401).json({ error: 'Unauthorized.' });
+    return null;
   }
-
-  if (session.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin permission required.' });
+  const users = await getUsers();
+  const user = users.find((row) => normalizeUsername(row.username) === normalizeUsername(session.username));
+  if (!user || user.status !== 'approved' || !session.pv || session.pv !== passwordFingerprint(user)) {
+    activeSessions.delete(session.token);
+    return null;
   }
-
-  req.session = session;
-  return next();
+  return { ...session, role: String(user.role || 'user') };
 }
 
-function requireAuth(req, res, next) {
-  const session = getSessionFromRequest(req);
-  if (!session) {
-    return res.status(401).json({ error: 'Unauthorized.' });
-  }
+async function requireAdmin(req, res, next) {
+  try {
+    const session = await loadActiveSession(req);
+    if (!session) {
+      return res.status(401).json({ error: 'Unauthorized.' });
+    }
 
-  req.session = session;
-  return next();
+    if (session.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin permission required.' });
+    }
+
+    req.session = session;
+    return next();
+  } catch (error) {
+    return sendServerError(res, 'Failed to check login.', error);
+  }
+}
+
+async function requireAuth(req, res, next) {
+  try {
+    const session = await loadActiveSession(req);
+    if (!session) {
+      return res.status(401).json({ error: 'Unauthorized.' });
+    }
+
+    req.session = session;
+    return next();
+  } catch (error) {
+    return sendServerError(res, 'Failed to check login.', error);
+  }
 }
 
 function revokeUserSessions(username) {
@@ -818,13 +953,17 @@ function canAdminManageUser(session, user) {
 }
 
 function validatePasswordStrength(password) {
-  if (password.length < 6 || password.length > 128) {
-    return 'Password must be 6-128 characters long.';
+  if (password.length < 8 || password.length > 128) {
+    return 'Password must be 8-128 characters long.';
   }
   return '';
 }
 
 function isGoogleConfigured() {
+  // `npm run local` sets this so local testing can never touch the live sheets.
+  if (String(process.env.SAGARIKA_STORAGE || '').toLowerCase() === 'excel') {
+    return false;
+  }
   const hasJson = Boolean(GOOGLE_SERVICE_ACCOUNT_JSON);
   const hasPair = Boolean(GOOGLE_SERVICE_ACCOUNT_EMAIL && GOOGLE_PRIVATE_KEY);
   const hasFile = fs.existsSync(GOOGLE_SERVICE_ACCOUNT_FILE);
@@ -1148,21 +1287,43 @@ async function readGoogleRows(sheetName, options = {}) {
   return rows.map((row) => ({ ...row }));
 }
 
+function sheetRange(sheetName, cells) {
+  return `'${String(sheetName).replace(/'/g, "''")}'!${cells}`;
+}
+
+function columnLetter(index) {
+  let letters = '';
+  let n = index;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters;
+}
+
 async function writeGoogleRows(sheetName, rows, options = {}) {
   const spreadsheetId = String(options.spreadsheetId || MASTER_GOOGLE_SHEET_ID).trim();
   const sheets = await getSheetsClient();
   const values = rowsToValueMatrix(rows);
+  const width = Math.max(1, ...values.map((row) => row.length));
 
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId,
-    range: `${sheetName}!A:ZZ`
-  });
-
+  // Write the new rows first, then clear only what is left over below and to the
+  // right. If a write fails, the sheet keeps its old rows instead of being empty.
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetName}!A1`,
+    range: sheetRange(sheetName, 'A1'),
     valueInputOption: 'RAW',
     requestBody: { values }
+  });
+
+  const leftovers = [sheetRange(sheetName, `A${values.length + 1}:ZZ`)];
+  if (width < 702) {
+    leftovers.push(sheetRange(sheetName, `${columnLetter(width + 1)}1:ZZ${values.length}`));
+  }
+  await sheets.spreadsheets.values.batchClear({
+    spreadsheetId,
+    requestBody: { ranges: leftovers }
   });
 
   googleSheetReadCache.delete(`${spreadsheetId}::${String(sheetName || '').trim()}`);
@@ -1273,6 +1434,13 @@ async function saveBookEvents(bookEvents, session = null) {
   XLSX.writeFile(workbook, excelPath);
 }
 
+function usersNeedResync(users, masterRaw, pakshikereRaw) {
+  const names = (rows) => normalizeUserRecords(rows).map((user) => normalizeUsername(user.username)).sort().join('|');
+  const expectedPakshikere = users.filter((user) => normalizeBillTo(user.billTo) === 'PAKSHIKERE');
+  const expectedSagara = users.filter((user) => normalizeBillTo(user.billTo) !== 'PAKSHIKERE');
+  return names(masterRaw) !== names(expectedSagara) || names(pakshikereRaw) !== names(expectedPakshikere);
+}
+
 async function getUsers() {
   const mode = await getStorageMode();
   if (mode === 'google') {
@@ -1280,7 +1448,11 @@ async function getUsers() {
     const pakshikereUsersRaw = await readGoogleRows('Users', { spreadsheetId: PAKSHIKERE_GOOGLE_SHEET_ID });
     const users = dedupeUsersByUsername(normalizeUserRecords([...masterUsersRaw, ...pakshikereUsersRaw]));
     const ensuredUsers = ensureDefaultAdminUser(users);
-    await syncGoogleUserSheets(ensuredUsers.users);
+    // Only rewrite the Users sheets when something actually needs fixing; this used
+    // to rewrite both sheets on every login and admin page load.
+    if (ensuredUsers.changed || usersNeedResync(ensuredUsers.users, masterUsersRaw, pakshikereUsersRaw)) {
+      await syncGoogleUserSheets(ensuredUsers.users);
+    }
     return ensuredUsers.users;
   }
 
@@ -1360,7 +1532,7 @@ function parseBookEventItemsFromRow(row) {
   return [];
 }
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginRateLimit, async (req, res) => {
   try {
     const username = normalizeUsername(req.body?.username);
     const password = String(req.body?.password || '');
@@ -1395,11 +1567,11 @@ app.post('/api/auth/login', async (req, res) => {
       user: sanitizeUser(user)
     });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to login.', details: error.message });
+    return sendServerError(res, 'Failed to login.', error);
   }
 });
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', serializeWrites, async (req, res) => {
   try {
     const username = normalizeUsername(req.body?.username);
     const password = String(req.body?.password || '');
@@ -1436,7 +1608,7 @@ app.post('/api/auth/register', async (req, res) => {
       message: 'User created and waiting for admin approval.'
     });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to register user.', details: error.message });
+    return sendServerError(res, 'Failed to register user.', error);
   }
 });
 
@@ -1449,11 +1621,11 @@ app.get('/api/auth/pending-users', requireAdmin, async (req, res) => {
 
     return res.json(pendingUsers);
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to read pending users.', details: error.message });
+    return sendServerError(res, 'Failed to read pending users.', error);
   }
 });
 
-app.post('/api/auth/approve-user', requireAdmin, async (req, res) => {
+app.post('/api/auth/approve-user', requireAdmin, serializeWrites, async (req, res) => {
   try {
     const username = normalizeUsername(req.body?.username);
     if (!username) {
@@ -1485,7 +1657,7 @@ app.post('/api/auth/approve-user', requireAdmin, async (req, res) => {
     await saveUsers(users);
     return res.json({ message: 'User approved successfully.', user: sanitizeUser(user) });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to approve user.', details: error.message });
+    return sendServerError(res, 'Failed to approve user.', error);
   }
 });
 
@@ -1498,11 +1670,11 @@ app.get('/api/auth/users', requireAdmin, async (req, res) => {
       .sort((a, b) => a.username.localeCompare(b.username));
     return res.json(result);
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to read users.', details: error.message });
+    return sendServerError(res, 'Failed to read users.', error);
   }
 });
 
-app.post('/api/auth/reset-password', requireAdmin, async (req, res) => {
+app.post('/api/auth/reset-password', requireAdmin, serializeWrites, async (req, res) => {
   try {
     const username = normalizeUsername(req.body?.username);
     const newPassword = String(req.body?.newPassword || '');
@@ -1537,11 +1709,11 @@ app.post('/api/auth/reset-password', requireAdmin, async (req, res) => {
     revokeUserSessions(username);
     return res.json({ message: 'Password reset successfully.', user: sanitizeUser(user) });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to reset password.', details: error.message });
+    return sendServerError(res, 'Failed to reset password.', error);
   }
 });
 
-app.post('/api/auth/disable-user', requireAdmin, async (req, res) => {
+app.post('/api/auth/disable-user', requireAdmin, serializeWrites, async (req, res) => {
   try {
     const username = normalizeUsername(req.body?.username);
     if (!username) {
@@ -1571,11 +1743,11 @@ app.post('/api/auth/disable-user', requireAdmin, async (req, res) => {
     revokeUserSessions(username);
     return res.json({ message: 'User disabled successfully.', user: sanitizeUser(user) });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to disable user.', details: error.message });
+    return sendServerError(res, 'Failed to disable user.', error);
   }
 });
 
-app.post('/api/auth/enable-user', requireAdmin, async (req, res) => {
+app.post('/api/auth/enable-user', requireAdmin, serializeWrites, async (req, res) => {
   try {
     const username = normalizeUsername(req.body?.username);
     if (!username) {
@@ -1611,11 +1783,11 @@ app.post('/api/auth/enable-user', requireAdmin, async (req, res) => {
     await saveUsers(users);
     return res.json({ message: 'User enabled successfully.', user: sanitizeUser(user) });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to enable user.', details: error.message });
+    return sendServerError(res, 'Failed to enable user.', error);
   }
 });
 
-app.post('/api/auth/delete-user', requireAdmin, async (req, res) => {
+app.post('/api/auth/delete-user', requireAdmin, serializeWrites, async (req, res) => {
   try {
     const username = normalizeUsername(req.body?.username);
     if (!username) {
@@ -1642,7 +1814,7 @@ app.post('/api/auth/delete-user', requireAdmin, async (req, res) => {
     revokeUserSessions(username);
     return res.json({ message: 'User deleted successfully.', user: sanitizeUser(deleted) });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to delete user.', details: error.message });
+    return sendServerError(res, 'Failed to delete user.', error);
   }
 });
 
@@ -1661,11 +1833,11 @@ app.get('/api/items', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to read item list.', details: error.message });
+    sendServerError(res, 'Failed to read item list.', error);
   }
 });
 
-app.post('/api/items', requireAuth, async (req, res) => {
+app.post('/api/items', requireAuth, serializeWrites, async (req, res) => {
   try {
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
@@ -1688,11 +1860,11 @@ app.post('/api/items', requireAuth, async (req, res) => {
     await saveItemList(normalized, req.session);
     res.json({ message: 'Item List saved successfully.', count: normalized.length });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to save item list.', details: error.message });
+    sendServerError(res, 'Failed to save item list.', error);
   }
 });
 
-app.post('/api/bills', requireAuth, async (req, res) => {
+app.post('/api/bills', requireAuth, serializeWrites, async (req, res) => {
   try {
     const billMode = normalizeBillMode(req.body?.billMode);
     const { bills, billItems, itemList } = await getAllData({
@@ -1750,11 +1922,11 @@ app.post('/api/bills', requireAuth, async (req, res) => {
     await saveBillsAndItems(bills, billItems, req.session, billMode);
     res.status(201).json({ message: 'Bill saved successfully.', billId, addedItems, updatedItems });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to save bill.', details: error.message });
+    sendServerError(res, 'Failed to save bill.', error);
   }
 });
 
-app.put('/api/bills/:billId', requireAuth, async (req, res) => {
+app.put('/api/bills/:billId', requireAuth, serializeWrites, async (req, res) => {
   try {
     const billId = String(req.params.billId || '').trim();
     if (!billId) {
@@ -1842,11 +2014,11 @@ app.put('/api/bills/:billId', requireAuth, async (req, res) => {
     await saveBillsAndItems(bills, nextBillItems, req.session, activeBillMode);
     res.json({ message: 'Bill updated successfully.', billId, addedItems, updatedItems });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update bill.', details: error.message });
+    sendServerError(res, 'Failed to update bill.', error);
   }
 });
 
-app.post('/api/book-events', requireAuth, async (req, res) => {
+app.post('/api/book-events', requireAuth, serializeWrites, async (req, res) => {
   try {
     const { eventDay, eventName, customerName, phoneNumber, address, note, items, saveMode, bookingId: requestedBookingIdRaw } = req.body;
 
@@ -1927,7 +2099,7 @@ app.post('/api/book-events', requireAuth, async (req, res) => {
     await saveBookEvents(bookEvents, req.session);
     res.status(201).json({ message: 'Book event saved successfully.', bookingId, addedItems });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to save book event.', details: error.message });
+    sendServerError(res, 'Failed to save book event.', error);
   }
 });
 
@@ -1942,7 +2114,7 @@ app.get('/api/book-events/next-booking-number', requireAuth, async (req, res) =>
     const nextBookingId = `BE${String(getNextBookEventSequence(bookEvents)).padStart(4, '0')}`;
     res.json({ bookingId: nextBookingId });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to get next booking number.', details: error.message });
+    sendServerError(res, 'Failed to get next booking number.', error);
   }
 });
 
@@ -1959,7 +2131,7 @@ app.get('/api/bills/next-bill-number', requireAuth, async (req, res) => {
     const billId = buildBillId(bills, billMode);
     res.json({ billId });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to get next bill number.', details: error.message });
+    sendServerError(res, 'Failed to get next bill number.', error);
   }
 });
 
@@ -2016,7 +2188,7 @@ app.get('/api/book-events', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to read book events.', details: error.message });
+    sendServerError(res, 'Failed to read book events.', error);
   }
 });
 
@@ -2049,7 +2221,7 @@ app.get('/api/bills', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to read bills.', details: error.message });
+    sendServerError(res, 'Failed to read bills.', error);
   }
 });
 

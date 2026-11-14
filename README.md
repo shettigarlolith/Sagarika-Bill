@@ -1,74 +1,49 @@
-# Store Bill Generator
+# Sagarika Bill
 
-Frontend + backend app to create store bills with:
-- Sl No
-- Item
-- Quantity
-- Amount
-- Total
-- GST
-- Discount
-- Amount Payable
+Billing, event booking and reports for Sagarika Events (Sagara and Pakshikere branches).
 
-The backend stores and reads bills from an Excel file at `data/bills.xlsx`.
+- **Server:** `server.js` (Node + Express), hosted on Vercel at https://sagarikabill.vercel.app
+- **Data:** Google Sheets — one spreadsheet per branch (Bills, NoGSTBills, BillItems, Item List, BookEvent, Users).
+  Excel (`data/bills.xlsx`) is only a local fallback and is never committed.
+- **Web app:** `public/` — also published to GitHub Pages (only this folder).
+- **Android app:** `android-webview/` — a WebView around the Vercel site.
+- **Desktop app:** Electron (`electron-main.js`, `npm run dist:win`).
 
-## Run
+## Try it locally (safe)
 
-1. Install dependencies:
 ```bash
 npm install
+npm run local
 ```
 
-2. Start server:
-```bash
-npm start
-```
+Open http://localhost:3000. This mode **never touches the live Google Sheets**: it stores
+everything in `local-dev/data/` and creates two test logins (`sagaraadmin`, `pakshikereadmin`)
+whose passwords are in `local-dev/test-logins.txt`. Both are git-ignored.
 
-3. Open:
-`http://localhost:3000`
+`npm start` runs the real server and uses Google Sheets if credentials are present.
 
-## Windows Desktop App
+## Settings on Vercel
 
-This project can now run as a Windows desktop app using Electron.
+| Variable | What it is for |
+|---|---|
+| `SAGARIKA_SESSION_SECRET` | **Required.** Long random text used to sign logins. Changing it logs everyone out. |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` (or `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_PRIVATE_KEY`) | Google Sheets access. |
+| `GOOGLE_SHEET_ID`, `PAKSHIKERE_GOOGLE_SHEET_ID` | Optional: override the two spreadsheet IDs. |
+| `SAGARIKA_ADMIN_PASSWORD_SAGARA`, `SAGARIKA_ADMIN_PASSWORD_PAKSHIKERE` | First-time passwords for the two branch admins. |
+| `ALLOWED_ORIGINS` | Optional: extra websites allowed to call the API, comma-separated. |
 
-1. Install dependencies:
-```bash
-npm install
-```
+## Security notes
 
-2. Launch the desktop app in development:
-```bash
-npm run desktop
-```
+- Every data route needs a login. A login ends when the account is disabled, deleted or its
+  password is reset.
+- 8 wrong passwords in 15 minutes for the same username blocks further tries for a while.
+- New and reset passwords must be at least 8 characters.
+- Only the app's own sites (Vercel, GitHub Pages, localhost) may call the API from a browser.
+- Server errors are logged on the server; the browser only gets a short message.
+- Saves run one at a time, and Google Sheets are written before old rows are cleared, so a
+  failed save no longer empties a sheet.
 
-3. Build a Windows installer (`.exe`):
-```bash
-npm run dist:win
-```
+## Interface
 
-Or on Windows, run:
-```bat
-build-windows-installer.bat
-```
-
-That script installs dependencies and creates the installer in the `dist` folder.
-End users only need the generated `Setup.exe`; they do not need Node.js or npm installed.
-
-Desktop builds store `bills.xlsx` in Electron's user data folder, so the app can write data safely on Windows.
-
-## API
-
-- `POST /api/bills` -> save bill in Excel
-- `GET /api/bills` -> read bills from Excel
-
-## GitHub Pages + Backend
-
-`github.io` is static hosting, so `/api/*` routes do not run there.
-
-To use login/admin from GitHub Pages:
-1. Deploy backend (`server.js`) to a Node host (Render/Railway/Vercel).
-2. Edit `public/config.js` and set:
-```js
-window.SAGARIKA_BACKEND_URL = 'https://your-backend-domain';
-```
-3. Push changes and open your GitHub Pages URL.
+`public/ui.css` holds the shared look (light and night mode, phone, tablet and desktop).
+It only affects the screen; printed bills and reports use their own print styles.

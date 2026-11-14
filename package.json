@@ -5,13 +5,14 @@
   "main": "electron-main.js",
   "scripts": {
     "start": "node server.js",
+    "local": "node local-dev/start-local.js",
     "desktop": "electron .",
     "dist:win": "electron-builder --win nsis"
   },
   "dependencies": {
     "express": "^4.19.2",
     "googleapis": "^140.0.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "electron": "^37.2.0",
@@ -34,5 +35,8 @@
     "win": {
       "target": "nsis"
     }
+  },
+  "overrides": {
+    "qs": "^6.16.2"
   }
 }
