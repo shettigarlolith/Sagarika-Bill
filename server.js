@@ -17,10 +17,14 @@ const PORT = process.env.PORT || 3000;
 
 function resolveDataDir() {
   const configuredDir = String(process.env.SAGARIKA_DATA_DIR || '').trim();
-  if (!configuredDir) {
-    return path.join(__dirname, 'data');
+  if (configuredDir) {
+    return path.resolve(configuredDir);
   }
-  return path.resolve(configuredDir);
+  // Vercel's code folder is read-only; the Excel fallback can only use /tmp there.
+  if (process.env.VERCEL) {
+    return path.join(require('os').tmpdir(), 'sagarika-data');
+  }
+  return path.join(__dirname, 'data');
 }
 
 const dataDir = resolveDataDir();
@@ -84,8 +88,14 @@ const defaultItemList = [
   { item: 'Shampoo', price: 120 }
 ];
 
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+// Never let a missing or read-only data folder stop the server from starting:
+// with Google Sheets configured, this folder is not used at all.
+try {
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+} catch (error) {
+  console.warn(`Could not create data folder ${dataDir}: ${error.message}`);
 }
 
 // Vercel sits behind a proxy: use the visitor's address for the login limit.
