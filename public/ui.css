@@ -2250,8 +2250,8 @@
     }
   }
 
-  /* Phones: tab bar at the bottom, slim top bar */
-  @media (max-width: 768px) {
+  /* Phones and tablets (touch screens): tab bar at the bottom, slim top bar */
+  @media (max-width: 768px), (hover: none) and (pointer: coarse) {
     body .app-nav-inner {
       width: calc(100% - 24px);
       height: 56px;
@@ -2310,6 +2310,19 @@
       margin: -2px 0;
     }
 
+    /* Wider tablet screens: keep the five tabs together in the middle */
+    @media (min-width: 769px) {
+      body .app-tabbar {
+        grid-template-columns: repeat(5, minmax(0, 120px));
+        justify-content: center;
+        gap: 8px;
+      }
+
+      body .app-tab {
+        font-size: 12px;
+      }
+    }
+
     body.has-app-shell .container,
     body.has-app-shell .billing-desk-container,
     body.has-app-shell .book-event-container,
@@ -2326,6 +2339,18 @@
       padding-bottom: 10px;
       border-top: 1px solid var(--ui-line);
       box-shadow: 0 -8px 24px -18px rgba(15, 29, 42, 0.35);
+    }
+
+    /* Tablets have room for a gap between the top bar and the page */
+    @media (min-width: 769px) {
+      body.has-app-shell .container,
+      body.has-app-shell .billing-desk-container,
+      body.has-app-shell .book-event-container,
+      body.has-app-shell .report-main-center,
+      body.has-app-shell .items-page-container,
+      body.has-app-shell .welcome-container {
+        margin-top: 24px;
+      }
     }
   }
 }

@@ -19,10 +19,14 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.airbnb.lottie.LottieAnimationView
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var rootView: View
     private lateinit var webView: WebView
     private lateinit var splashOverlay: View
     private lateinit var splashAnimation: LottieAnimationView
@@ -38,6 +42,61 @@ class MainActivity : AppCompatActivity() {
                 printCurrentPage(title)
             }
         }
+    }
+
+    // The page tells us the colour of its top bar, so the strip behind the
+    // status bar matches it in both light and dark mode.
+    private inner class BarsBridge {
+        @JavascriptInterface
+        fun setColor(hex: String?) {
+            val color = try {
+                android.graphics.Color.parseColor(hex ?: return)
+            } catch (error: IllegalArgumentException) {
+                return
+            }
+            runOnUiThread { applyBarColor(color) }
+        }
+    }
+
+    private fun applyBarColor(color: Int) {
+        rootView.setBackgroundColor(color)
+        val luminance = (0.299 * android.graphics.Color.red(color) +
+            0.587 * android.graphics.Color.green(color) +
+            0.114 * android.graphics.Color.blue(color)) / 255
+        val lightBars = luminance > 0.6
+        WindowCompat.getInsetsController(window, rootView).apply {
+            isAppearanceLightStatusBars = lightBars
+            isAppearanceLightNavigationBars = lightBars
+        }
+    }
+
+    private fun injectBarColorHook(view: WebView) {
+        val script = """
+            (function () {
+              if (!window.AndroidBars) return;
+              function toHex(c) {
+                const m = (c || '').match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s/]+([\d.]+))?/);
+                if (!m || (m[4] !== undefined && parseFloat(m[4]) === 0)) return null;
+                return '#' + [m[1], m[2], m[3]].map(function (n) {
+                  return ('0' + parseInt(n, 10).toString(16)).slice(-2);
+                }).join('');
+              }
+              function report() {
+                const nav = document.querySelector('.app-nav');
+                const color = (nav && toHex(getComputedStyle(nav).backgroundColor)) ||
+                  toHex(getComputedStyle(document.body).backgroundColor) ||
+                  toHex(getComputedStyle(document.documentElement).backgroundColor);
+                if (color) window.AndroidBars.setColor(color);
+              }
+              report();
+              setTimeout(report, 400);
+              if (!window.__androidBarsObserver) {
+                window.__androidBarsObserver = new MutationObserver(function () { setTimeout(report, 50); });
+                window.__androidBarsObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+              }
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
     }
 
     private fun injectPrintHook(view: WebView) {
@@ -81,6 +140,18 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Android 15 draws apps under the status bar. Pad the content so the page
+        // starts below the status bar, above the gesture bar, and above the keyboard.
+        rootView = findViewById(R.id.root)
+        ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            view.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, ime.bottom))
+            WindowInsetsCompat.CONSUMED
+        }
+
         webView = findViewById(R.id.webView)
         splashOverlay = findViewById(R.id.splashOverlay)
         splashAnimation = findViewById(R.id.splashAnimation)
@@ -98,6 +169,7 @@ class MainActivity : AppCompatActivity() {
         webView.settings.loadWithOverviewMode = true
 
         webView.addJavascriptInterface(PrintBridge(), "AndroidPrint")
+        webView.addJavascriptInterface(BarsBridge(), "AndroidBars")
         webView.webChromeClient = WebChromeClient()
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -132,6 +204,7 @@ class MainActivity : AppCompatActivity() {
                 if (view != null) {
                     hideOfflineOverlay()
                     injectPrintHook(view)
+                    injectBarColorHook(view)
                     view.postDelayed({ dismissSplash() }, 350)
                 }
             }
