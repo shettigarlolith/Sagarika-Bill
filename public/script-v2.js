@@ -1968,8 +1968,8 @@ function renderPrintTemplate() {
     const values = [
       row ? row.slNo : '',
       row ? row.item : '',
-      row && row.unitPrice !== null ? formatMoney(row.unitPrice) : '',
       row ? row.quantityLabel : '',
+      row && row.unitPrice !== null ? formatMoney(row.unitPrice) : '',
       row ? formatMoney(row.amount) : ''
     ];
     values.forEach((value) => {
