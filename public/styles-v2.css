@@ -1037,8 +1037,15 @@ input[readonly] {
   }
 
   .bg-shape,
-  .container {
+  .container,
+  .app-nav,
+  .app-tabbar,
+  .bill-summary {
     display: none !important;
+  }
+
+  body.has-app-shell {
+    padding: 0 !important;
   }
 
   .print-template {

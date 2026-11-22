@@ -1797,7 +1797,9 @@ function buildPrintRows() {
     const quantityRaw = String(row.querySelector('.quantity').value || '').trim();
     const quantity = toNumericQuantity(quantityRaw);
     const amount = Number(row.querySelector('.amount').value || 0);
-    const unitPrice = Number.isFinite(quantity) && quantity > 0 ? amount / quantity : Number(productPrices[item] || 0);
+    // Without a real quantity (e.g. only "#"), there is no rate to print: leave it blank
+    // instead of showing the Item List price, which may not match the typed amount.
+    const unitPrice = Number.isFinite(quantity) && quantity > 0 ? amount / quantity : null;
     return {
       rowType: 'item',
       slNo: nextItemSlNo++,
@@ -1921,6 +1923,25 @@ function renderPrintTemplate() {
     if (ptSignLine2) ptSignLine2.textContent = 'AUTHORISED SIGNATORY';
   }
   ptCustomerGstNo.textContent = CURRENT_BILL_MODE === 'no-gst' ? '' : gstNoInput.value.trim() || '-';
+
+  // A No GST bill is a plain "BILL": no GSTIN, no customer GST No, no CGST/SGST lines.
+  const isNoGstBill = CURRENT_BILL_MODE === 'no-gst';
+  const printTitleStrip = document.querySelector('#printTemplate .invoice-title-strip');
+  if (printTitleStrip) printTitleStrip.textContent = isNoGstBill ? 'BILL' : 'TAX INVOICE';
+  // visibility (not display) keeps the mobile numbers on the right side of the header.
+  if (ptHeaderGstin?.parentElement) ptHeaderGstin.parentElement.style.visibility = isNoGstBill ? 'hidden' : '';
+  const customerGstCell = ptCustomerGstNo.closest('.line-cell');
+  if (customerGstCell) customerGstCell.style.display = isNoGstBill ? 'none' : '';
+  [ptCgstRate, ptSgstRate].forEach((el) => {
+    const line = el?.closest('.total-line');
+    if (line) line.style.display = isNoGstBill ? 'none' : '';
+  });
+  // With the GST lines gone the totals box has 3 lines, not 5: drop the empty rows,
+  // and let the (empty) bank-details side shrink to the height of the totals.
+  const printTotalsBox = document.querySelector('#printTemplate .bottom-right');
+  if (printTotalsBox) printTotalsBox.style.gridTemplateRows = isNoGstBill ? 'repeat(3, auto)' : '';
+  const printBankBox = document.querySelector('#printTemplate .bottom-left');
+  if (printBankBox) printBankBox.style.minHeight = isNoGstBill ? '0' : '';
   ptAddress.textContent = addressInput.value || '-';
   ptRows.innerHTML = '';
 
@@ -1947,7 +1968,7 @@ function renderPrintTemplate() {
     const values = [
       row ? row.slNo : '',
       row ? row.item : '',
-      row ? formatMoney(row.unitPrice) : '',
+      row && row.unitPrice !== null ? formatMoney(row.unitPrice) : '',
       row ? row.quantityLabel : '',
       row ? formatMoney(row.amount) : ''
     ];
@@ -2526,7 +2547,7 @@ function loadBookingIntoBillForm(booking) {
   eWayInput.value = String(booking.eWay || '').trim();
   addressInput.value = String(booking.address || '').trim();
   billNoteInput.value = noteParts.join('\n');
-  gstInput.value = 18;
+  gstInput.value = CURRENT_BILL_MODE === 'no-gst' ? 0 : 18;
   discountInput.value = 0;
 
   itemsBody.innerHTML = '';
@@ -2816,7 +2837,7 @@ clearSearchBtn.addEventListener('click', () => {
   gstNoInput.value = '';
   eWayInput.value = '';
   addressInput.value = '';
-  gstInput.value = 18;
+  gstInput.value = CURRENT_BILL_MODE === 'no-gst' ? 0 : 18;
   discountInput.value = 0;
   billNoteInput.value = '';
   itemsBody.innerHTML = '';
