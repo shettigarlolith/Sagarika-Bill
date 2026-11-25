@@ -3,6 +3,11 @@ const addItemRowBtn = document.getElementById('addItemRowBtn');
 const saveItemListBtn = document.getElementById('saveItemListBtn');
 const itemStatus = document.getElementById('itemStatus');
 const themeToggleInput = document.getElementById('themeToggle');
+const spellSummary = document.getElementById('spellSummary');
+const spellSummaryText = document.getElementById('spellSummaryText');
+const spellFixAllBtn = document.getElementById('spellFixAllBtn');
+const itemNameSuggestions = document.getElementById('itemNameSuggestions');
+const SPELL_KEEP_KEY = 'sagarika_spell_keep_v1';
 const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
 const THEME_STORAGE_KEY = 'sagarika_theme_v1';
 let isSavingItems = false;
@@ -68,20 +73,224 @@ async function parseJsonResponse(response) {
   }
 }
 
+/* ---------- Spell check (dictionary in item-dictionary.js) ---------- */
+
+function loadKeptNames() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SPELL_KEEP_KEY) || '[]');
+    return new Set(Array.isArray(saved) ? saved : []);
+  } catch {
+    return new Set();
+  }
+}
+
+const keptNames = loadKeptNames();
+
+function rememberKeptName(name) {
+  keptNames.add(name.trim().toLowerCase());
+  try {
+    localStorage.setItem(SPELL_KEEP_KEY, JSON.stringify([...keptNames]));
+  } catch {
+    // Ignore storage failures; the choice still holds until the page reloads.
+  }
+}
+
+function spellSuggestionFor(name) {
+  const value = String(name || '').trim();
+  if (!value || !window.SagarikaSpell || keptNames.has(value.toLowerCase())) {
+    return '';
+  }
+  return window.SagarikaSpell.check(value);
+}
+
+function updateSpellSummary() {
+  const count = itemsEditorBody.querySelectorAll('tr.has-spell-hint').length;
+  spellSummary.hidden = count === 0;
+  spellSummaryText.textContent =
+    count === 1 ? '1 item name may be misspelt. Check the highlighted row.' : `${count} item names may be misspelt. Check the highlighted rows.`;
+  spellFixAllBtn.hidden = count < 2;
+}
+
+function applySpellSuggestion(row, suggestion) {
+  const input = row.querySelector('.item-name');
+  input.value = suggestion;
+  isItemListDirty = true;
+  checkRowSpelling(row);
+  if (meaningInput === input || document.activeElement === input) showMeaning(input);
+}
+
+function checkRowSpelling(row) {
+  const input = row.querySelector('.item-name');
+  const hint = row.querySelector('.spell-hint');
+  const suggestion = spellSuggestionFor(input.value);
+  // Same hint already showing: leave the buttons in place, so a tap that
+  // caused this re-check (by leaving the name box) still reaches them.
+  if (suggestion && suggestion === row.dataset.suggestion && !hint.hidden && hint.childElementCount) {
+    updateSpellSummary();
+    return;
+  }
+  row.classList.toggle('has-spell-hint', Boolean(suggestion));
+  row.dataset.suggestion = suggestion;
+  hint.hidden = !suggestion;
+  hint.replaceChildren();
+  if (suggestion) {
+    const apply = document.createElement('button');
+    apply.type = 'button';
+    apply.className = 'spell-apply';
+    apply.textContent = suggestion;
+    apply.addEventListener('click', () => applySpellSuggestion(row, suggestion));
+
+    const keep = document.createElement('button');
+    keep.type = 'button';
+    keep.className = 'spell-keep';
+    keep.textContent = 'Keep';
+    keep.title = 'Keep this spelling and stop suggesting';
+    keep.addEventListener('click', () => {
+      rememberKeptName(input.value);
+      checkRowSpelling(row);
+    });
+
+    // Pressing a hint button should not take focus away first (that re-checks the row).
+    [apply, keep].forEach((button) => button.addEventListener('pointerdown', (event) => event.preventDefault()));
+    hint.append('Did you mean ', apply, '?', keep);
+  }
+  updateSpellSummary();
+}
+
+function refreshNameSuggestions(extraNames = []) {
+  const seen = new Set();
+  const names = [...extraNames, ...((window.SagarikaSpell && window.SagarikaSpell.names) || [])].filter((name) => {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  itemNameSuggestions.replaceChildren(
+    ...names.map((name) => {
+      const option = document.createElement('option');
+      option.value = name;
+      return option;
+    })
+  );
+}
+
+/* ---------- Grey meaning popup ---------- */
+
+const meaningPopup = document.createElement('div');
+meaningPopup.className = 'meaning-popup';
+meaningPopup.setAttribute('role', 'tooltip');
+meaningPopup.hidden = true;
+document.body.appendChild(meaningPopup);
+let meaningInput = null;
+
+function meaningFor(input) {
+  if (!window.SagarikaSpell || !window.SagarikaSpell.meaning) return { title: '', lines: [] };
+  // While a misspelling is shown, explain the suggested item instead.
+  const suggestion = input.closest('tr')?.dataset.suggestion;
+  const title = suggestion || input.value.trim();
+  return { title, lines: window.SagarikaSpell.meaning(title) };
+}
+
+function placeMeaningPopup(input) {
+  const rect = input.getBoundingClientRect();
+  const width = Math.min(360, window.innerWidth - 24);
+  meaningPopup.style.maxWidth = `${width}px`;
+  const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+  meaningPopup.style.left = `${left + window.scrollX}px`;
+  // Sit just above the box (the spell hint is below it); go below if there is no room above.
+  const height = meaningPopup.offsetHeight;
+  const above = rect.top - height - 10;
+  const top = above > 72 ? above : rect.bottom + 10;
+  meaningPopup.classList.toggle('is-below', !(above > 72));
+  meaningPopup.style.top = `${top + window.scrollY}px`;
+  meaningPopup.style.setProperty('--arrow-left', `${Math.max(16, Math.min(rect.left - left + 24, width - 16))}px`);
+}
+
+function showMeaning(input) {
+  const { title, lines } = meaningFor(input);
+  if (lines.length === 0) {
+    hideMeaning(input);
+    return;
+  }
+  meaningInput = input;
+  const heading = document.createElement('strong');
+  heading.textContent = title;
+  meaningPopup.replaceChildren(heading);
+  lines.forEach((line) => {
+    const p = document.createElement('p');
+    if (line.term) {
+      const term = document.createElement('b');
+      term.textContent = `${line.term}: `;
+      p.append(term);
+    }
+    p.append(line.text);
+    meaningPopup.append(p);
+  });
+  meaningPopup.hidden = false;
+  placeMeaningPopup(input);
+}
+
+function hideMeaning(input) {
+  if (input && meaningInput && input !== meaningInput) return;
+  meaningPopup.hidden = true;
+  meaningInput = null;
+}
+
+window.addEventListener('scroll', () => meaningInput && placeMeaningPopup(meaningInput), { passive: true });
+window.addEventListener('resize', () => meaningInput && placeMeaningPopup(meaningInput));
+
+spellFixAllBtn.addEventListener('click', () => {
+  itemsEditorBody.querySelectorAll('tr.has-spell-hint').forEach((row) => {
+    if (row.dataset.suggestion) applySpellSuggestion(row, row.dataset.suggestion);
+  });
+});
+
 function createRow(entry = { item: '', price: '' }) {
   const tr = document.createElement('tr');
   tr.innerHTML = `
-    <td><input type="text" class="item-name" value="${entry.item || ''}" placeholder="Item name" /></td>
-    <td><input type="number" class="item-price" value="${entry.price ?? ''}" min="0" step="0.01" placeholder="0.00" /></td>
+    <td>
+      <input type="text" class="item-name" placeholder="Item name" list="itemNameSuggestions" autocomplete="off" spellcheck="false" />
+      <div class="spell-hint" hidden></div>
+    </td>
+    <td><input type="number" class="item-price" min="0" step="0.01" placeholder="0.00" /></td>
     <td><button type="button" class="btn btn-danger remove-item">X</button></td>
   `;
+  // Set values as properties so names with quotes or < > show exactly as saved.
+  tr.querySelector('.item-name').value = entry.item || '';
+  tr.querySelector('.item-price').value = entry.price ?? '';
 
   tr.querySelector('.remove-item').addEventListener('click', () => {
     tr.remove();
     isItemListDirty = true;
+    updateSpellSummary();
   });
-  tr.querySelector('.item-name').addEventListener('input', () => {
+  const nameInput = tr.querySelector('.item-name');
+  let typingTimer = null;
+  nameInput.addEventListener('input', () => {
     isItemListDirty = true;
+    // Hide an old hint while typing; check again once they pause.
+    if (tr.classList.contains('has-spell-hint')) {
+      tr.classList.remove('has-spell-hint');
+      tr.dataset.suggestion = '';
+      tr.querySelector('.spell-hint').hidden = true;
+      updateSpellSummary();
+    }
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+      checkRowSpelling(tr);
+      showMeaning(nameInput);
+    }, 600);
+  });
+  nameInput.addEventListener('change', () => checkRowSpelling(tr));
+  nameInput.addEventListener('focus', () => showMeaning(nameInput));
+  nameInput.addEventListener('mouseenter', () => showMeaning(nameInput));
+  nameInput.addEventListener('mouseleave', () => {
+    if (document.activeElement !== nameInput) hideMeaning(nameInput);
+  });
+  nameInput.addEventListener('blur', () => {
+    clearTimeout(typingTimer);
+    checkRowSpelling(tr);
+    hideMeaning(nameInput);
   });
   tr.querySelector('.item-price').addEventListener('input', () => {
     isItemListDirty = true;
@@ -108,6 +317,8 @@ async function loadItems() {
     } else {
       data.forEach((entry) => itemsEditorBody.appendChild(createRow(entry)));
     }
+    refreshNameSuggestions(data.map((entry) => entry.item));
+    itemsEditorBody.querySelectorAll('tr').forEach(checkRowSpelling);
 
     isItemListDirty = false;
     itemStatus.textContent = '';
@@ -304,7 +515,9 @@ window.sagarikaSaveBeforeLeave = async function sagarikaSaveBeforeLeave() {
 };
 
 addItemRowBtn.addEventListener('click', () => {
-  itemsEditorBody.appendChild(createRow());
+  const row = createRow();
+  itemsEditorBody.appendChild(row);
+  row.querySelector('.item-name').focus();
 });
 
 saveItemListBtn.addEventListener('click', saveItems);

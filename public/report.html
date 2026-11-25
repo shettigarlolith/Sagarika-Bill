@@ -344,11 +344,32 @@
           </div>
         </div>
 
-        <div class="report-actions">
-          <button type="button" id="bookingReportBtn" class="btn btn-primary report-action-btn">Booking Report</button>
-          <button type="button" id="billingReportBtn" class="btn btn-secondary report-action-btn">Billing Report</button>
+        <div class="report-controls">
+          <div class="report-actions" role="tablist" aria-label="Report type">
+            <button type="button" id="billingReportBtn" class="btn btn-primary report-action-btn" role="tab" aria-selected="true">Billing</button>
+            <button type="button" id="bookingReportBtn" class="btn btn-secondary report-action-btn" role="tab" aria-selected="false">Bookings</button>
+          </div>
+          <div class="report-filter-row">
+            <div class="report-chips" id="periodChips" role="group" aria-label="Period">
+              <button type="button" class="report-chip" data-period="today">Today</button>
+              <button type="button" class="report-chip" data-period="week">This Week</button>
+              <button type="button" class="report-chip is-active" data-period="month" aria-pressed="true">This Month</button>
+              <button type="button" class="report-chip" data-period="last-month">Last Month</button>
+              <button type="button" class="report-chip" data-period="custom">Custom</button>
+            </div>
+            <div class="report-chips" id="billModeChips" role="group" aria-label="Bill type">
+              <button type="button" class="report-chip is-active" data-mode="with-gst" aria-pressed="true">With GST</button>
+              <button type="button" class="report-chip" data-mode="no-gst">No GST</button>
+            </div>
+          </div>
+          <div class="report-custom-range" id="customRange" hidden>
+            <label>From <input type="date" id="fromDateInput" /></label>
+            <label>To <input type="date" id="toDateInput" /></label>
+            <button type="button" id="applyDateRangeBtn" class="btn btn-primary">Show</button>
+          </div>
+          <p class="report-period-label" id="periodLabel"></p>
         </div>
-
+        <section class="dash-stats report-stats" id="reportStats" aria-label="Summary"></section>
         <p id="reportStatus" class="report-status"></p>
         <div id="reportToolbar" class="report-toolbar" style="display: none;">
           <button type="button" id="printBookingReportBtn" class="btn btn-secondary">Print</button>
@@ -399,32 +420,6 @@
       <div id="printContent" class="print-table-wrap"></div>
     </section>
 
-    <section id="dateRangeModal" class="date-modal" aria-hidden="true">
-      <div class="date-modal-card">
-        <h3 id="dateRangeTitle">Select Date Range</h3>
-        <div class="date-grid">
-          <label id="billingModeField" class="date-grid-full" style="display: none;">
-            Bill Type
-            <select id="billingModeSelect">
-              <option value="with-gst">With GST</option>
-              <option value="no-gst">No GST</option>
-            </select>
-          </label>
-          <label>
-            From Date
-            <input type="date" id="fromDateInput" required />
-          </label>
-          <label>
-            To Date
-            <input type="date" id="toDateInput" required />
-          </label>
-        </div>
-        <div class="date-modal-actions">
-          <button type="button" id="cancelDateRangeBtn" class="btn">Cancel</button>
-          <button type="button" id="applyDateRangeBtn" class="btn btn-primary">OK</button>
-        </div>
-      </div>
-    </section>
 
     <script src="config.js?v=20260307"></script>
     <script>
@@ -441,18 +436,24 @@
       const printBookingReportBtn = document.getElementById('printBookingReportBtn');
       const printHeading = document.getElementById('printHeading');
       const printContent = document.getElementById('printContent');
-      const dateRangeModal = document.getElementById('dateRangeModal');
-      const dateRangeTitle = document.getElementById('dateRangeTitle');
-      const billingModeField = document.getElementById('billingModeField');
-      const billingModeSelect = document.getElementById('billingModeSelect');
+      const periodChips = document.getElementById('periodChips');
+      const billModeChips = document.getElementById('billModeChips');
+      const customRange = document.getElementById('customRange');
+      const periodLabel = document.getElementById('periodLabel');
+      const reportStats = document.getElementById('reportStats');
       const fromDateInput = document.getElementById('fromDateInput');
       const toDateInput = document.getElementById('toDateInput');
-      const cancelDateRangeBtn = document.getElementById('cancelDateRangeBtn');
       const applyDateRangeBtn = document.getElementById('applyDateRangeBtn');
       const BACKEND_BASE_URL = String(window.SAGARIKA_BACKEND_URL || '').trim().replace(/\/+$/, '');
       let bookingReportRange = { from: '', to: '' };
       let activeReportType = '';
       let activeBillingMode = 'with-gst';
+      let activeTab = 'billing';
+      let activePeriod = 'month';
+      const dataCache = {};
+      const CACHE_MS = 60 * 1000;
+      let reportRun = 0;
+      const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 
       function formatBillingModeLabel(mode) {
         return String(mode || '').trim().toLowerCase() === 'no-gst' ? 'No GST' : 'With GST';
@@ -502,6 +503,8 @@
         const raw = String(value || '').trim();
         if (!raw) return '';
         if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+        const dmy = raw.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
+        if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
         const d = new Date(raw);
         if (Number.isNaN(d.getTime())) return '';
         const yyyy = String(d.getFullYear()).padStart(4, '0');
@@ -591,29 +594,150 @@
         }
       }
 
-      function openDateRangeModal(type) {
-        activeReportType = type;
-        dateRangeTitle.textContent = type === 'billing' ? 'Select Billing Date Range' : 'Select Booking Date Range';
-        if (billingModeField) {
-          billingModeField.style.display = type === 'billing' ? 'block' : 'none';
-        }
-        if (billingModeSelect) {
-          billingModeSelect.value = activeBillingMode;
-        }
-        const today = new Date().toISOString().slice(0, 10);
-        if (!fromDateInput.value) {
-          const monthStart = new Date();
-          monthStart.setDate(1);
-          fromDateInput.value = monthStart.toISOString().slice(0, 10);
-        }
-        if (!toDateInput.value) {
-          toDateInput.value = today;
-        }
-        dateRangeModal.setAttribute('aria-hidden', 'false');
+      function localDateKey(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       }
 
-      function closeDateRangeModal() {
-        dateRangeModal.setAttribute('aria-hidden', 'true');
+      function periodRange(period) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        if (period === 'today') {
+          const key = localDateKey(now);
+          return { from: key, to: key };
+        }
+        if (period === 'week') {
+          const mondayOffset = (now.getDay() + 6) % 7;
+          const start = new Date(y, m, now.getDate() - mondayOffset);
+          const end = new Date(y, m, now.getDate() - mondayOffset + 6);
+          return { from: localDateKey(start), to: localDateKey(end) };
+        }
+        if (period === 'last-month') {
+          return { from: localDateKey(new Date(y, m - 1, 1)), to: localDateKey(new Date(y, m, 0)) };
+        }
+        if (period === 'custom') {
+          return { from: String(fromDateInput.value || '').trim(), to: String(toDateInput.value || '').trim() };
+        }
+        return { from: localDateKey(new Date(y, m, 1)), to: localDateKey(new Date(y, m + 1, 0)) };
+      }
+
+      function prettyDate(key, withYear) {
+        const [y, mo, d] = key.split('-').map(Number);
+        return new Date(y, mo - 1, d).toLocaleDateString('en-IN', withYear ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'short' });
+      }
+
+      function prettyRange(from, to) {
+        if (from === to) return prettyDate(from, true);
+        return `${prettyDate(from, from.slice(0, 4) !== to.slice(0, 4))} – ${prettyDate(to, true)}`;
+      }
+
+      function renderStats(cards) {
+        reportStats.innerHTML = cards
+          .map(
+            (card) => `
+              <article class="dash-stat report-stat-${card.tone || 'primary'}">
+                <p class="dash-stat-label">${escapeHtml(card.label)}</p>
+                <p class="dash-stat-value">${escapeHtml(card.value)}</p>
+                <p class="dash-stat-note">${card.note || '&nbsp;'}</p>
+              </article>
+            `
+          )
+          .join('');
+      }
+
+      function renderLoadingStats() {
+        reportStats.innerHTML = Array.from({ length: 4 })
+          .map(() => '<article class="dash-stat is-loading"><p class="dash-stat-label">&nbsp;</p><p class="dash-stat-value">—</p><p class="dash-stat-note">&nbsp;</p></article>')
+          .join('');
+      }
+
+      function billAmounts(row) {
+        const total = Number(row.total || 0) || 0;
+        const gstPercent = Number(row.gst || 0) || 0;
+        const discountPercent = Number(row.discount || 0) || 0;
+        const gstAmount = (total * gstPercent) / 100;
+        const discountAmount = (total * discountPercent) / 100;
+        const payable = Number(row.amountPayable || total + gstAmount - discountAmount) || 0;
+        return { total, gstAmount, discountAmount, payable };
+      }
+
+      function renderBillingStats(rows, mode) {
+        let sales = 0;
+        let gst = 0;
+        let discount = 0;
+        let discountedBills = 0;
+        let biggest = null;
+        rows.forEach((row) => {
+          const a = billAmounts(row);
+          sales += a.payable;
+          gst += a.gstAmount;
+          discount += a.discountAmount;
+          if (a.discountAmount > 0) discountedBills += 1;
+          if (!biggest || a.payable > biggest.amount) biggest = { amount: a.payable, row };
+        });
+        const count = rows.length;
+        const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+        const third =
+          mode === 'no-gst'
+            ? {
+                label: 'Biggest bill',
+                value: biggest ? money.format(biggest.amount) : '—',
+                note: biggest ? `Bill <strong>${escapeHtml(biggest.row.billId || '-')}</strong> · ${escapeHtml(biggest.row.customerName || 'No name')}` : 'No bills yet',
+                tone: 'gold'
+              }
+            : {
+                label: 'GST collected',
+                value: money.format(gst),
+                note: `SGST ${money.format(gst / 2)} · CGST ${money.format(gst / 2)}`,
+                tone: 'gold'
+              };
+        renderStats([
+          { label: 'Total sales', value: money.format(sales), note: `${plural(count, 'bill')} · ${formatBillingModeLabel(mode)}`, tone: 'primary' },
+          { label: 'Bills', value: String(count), note: count ? `Average <strong>${money.format(sales / count)}</strong> per bill` : 'No bills in this period', tone: 'success' },
+          third,
+          { label: 'Discounts given', value: money.format(discount), note: discountedBills ? `On ${plural(discountedBills, 'bill')}` : 'No discounts', tone: 'accent' }
+        ]);
+      }
+
+      function renderBookingStats(rows) {
+        const todayKey = localDateKey(new Date());
+        const upcoming = rows.filter((row) => normalizeDateKey(row.eventDay) >= todayKey);
+        const next = upcoming[0];
+        const byEvent = new Map();
+        rows.forEach((row) => {
+          const name = String(row.event || '').trim() || 'Other';
+          byEvent.set(name, (byEvent.get(name) || 0) + 1);
+        });
+        const top = [...byEvent.entries()].sort((a, b) => b[1] - a[1])[0];
+        const phones = rows.map((row) => normalizePhone(row.phoneNumber)).filter(Boolean);
+        const uniquePhones = new Set(phones);
+        const repeat = phones.length - uniquePhones.size;
+        renderStats([
+          { label: 'Bookings', value: String(rows.length), note: rows.length ? `${byEvent.size} event type${byEvent.size === 1 ? '' : 's'}` : 'No bookings in this period', tone: 'primary' },
+          {
+            label: 'Upcoming',
+            value: String(upcoming.length),
+            note: next ? `Next: <strong>${escapeHtml(next.name || next.event || next.bookingId)}</strong> · ${escapeHtml(prettyDate(normalizeDateKey(next.eventDay)))}` : 'Nothing coming up',
+            tone: 'success'
+          },
+          { label: 'Most booked', value: top ? top[0] : '—', note: top ? `${top[1]} booking${top[1] === 1 ? '' : 's'}` : '&nbsp;', tone: 'gold' },
+          { label: 'Customers', value: String(uniquePhones.size), note: repeat > 0 ? `${repeat} repeat booking${repeat === 1 ? '' : 's'}` : 'All different customers', tone: 'accent' }
+        ]);
+      }
+
+      async function fetchCached(key, path) {
+        const cached = dataCache[key];
+        if (cached && Date.now() - cached.at < CACHE_MS) return cached.data;
+        const response = await authFetch(path);
+        const data = await parseJsonResponse(response);
+        if (!response.ok) {
+          throw new Error((data && (data.error || data.details)) || 'Failed to load report.');
+        }
+        if (!Array.isArray(data)) {
+          throw new Error('Invalid report data.');
+        }
+        dataCache[key] = { data, at: Date.now() };
+        return data;
       }
 
       function renderBookingReport(rows) {
@@ -718,28 +842,23 @@
         return duplicateBillIds.size;
       }
 
-      async function loadBookingReport(fromDate, toDate) {
+      async function loadBookingReport(fromDate, toDate, run = reportRun) {
         reportStatus.textContent = 'Loading booking report...';
         reportStatus.style.color = 'var(--muted)';
         bookingReportWrap.style.display = 'none';
         billingReportWrap.style.display = 'none';
 
-        const response = await authFetch('/api/book-events');
-        const data = await parseJsonResponse(response);
-        if (!response.ok) {
-          throw new Error((data && (data.error || data.details)) || 'Failed to load booking report.');
-        }
-        if (!Array.isArray(data)) {
-          throw new Error('Invalid booking report payload.');
-        }
+        const data = await fetchCached('bookings', '/api/book-events');
+        if (run !== reportRun) return;
 
         const filtered = data
           .filter((row) => {
             const key = normalizeDateKey(row.eventDay);
             return key && key >= fromDate && key <= toDate;
           })
-          .sort((a, b) => String(a.eventDay || '').localeCompare(String(b.eventDay || '')));
+          .sort((a, b) => normalizeDateKey(a.eventDay).localeCompare(normalizeDateKey(b.eventDay)));
 
+        renderBookingStats(filtered);
         if (filtered.length === 0) {
           reportStatus.textContent = `No bookings found from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.`;
           reportStatus.style.color = '#b42a2a';
@@ -758,7 +877,7 @@
         reportStatus.style.color = '#4caf50';
       }
 
-      async function loadBillingReport(fromDate, toDate, billingMode = 'with-gst') {
+      async function loadBillingReport(fromDate, toDate, billingMode = 'with-gst', run = reportRun) {
         reportStatus.textContent = 'Loading billing report...';
         reportStatus.style.color = 'var(--muted)';
         bookingReportWrap.style.display = 'none';
@@ -766,14 +885,8 @@
 
         const normalizedBillingMode = String(billingMode || '').trim().toLowerCase() === 'no-gst' ? 'no-gst' : 'with-gst';
         activeBillingMode = normalizedBillingMode;
-        const response = await authFetch(`/api/bills?billMode=${encodeURIComponent(normalizedBillingMode)}`);
-        const data = await parseJsonResponse(response);
-        if (!response.ok) {
-          throw new Error((data && (data.error || data.details)) || 'Failed to load billing report.');
-        }
-        if (!Array.isArray(data)) {
-          throw new Error('Invalid billing report payload.');
-        }
+        const data = await fetchCached(`bills-${normalizedBillingMode}`, `/api/bills?billMode=${encodeURIComponent(normalizedBillingMode)}`);
+        if (run !== reportRun) return;
 
         const filtered = data
           .filter((row) => {
@@ -786,6 +899,7 @@
             return String(a.billDate || '').localeCompare(String(b.billDate || ''));
           });
 
+        renderBillingStats(filtered, normalizedBillingMode);
         if (filtered.length === 0) {
           reportStatus.textContent = `No ${formatBillingModeLabel(normalizedBillingMode)} bills found from ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}.`;
           reportStatus.style.color = '#b42a2a';
@@ -836,48 +950,104 @@
         applyTheme('light');
       }
 
-      bookingReportBtn.addEventListener('click', () => openDateRangeModal('booking'));
+      function setPressed(container, selector, isActive) {
+        container.querySelectorAll(selector).forEach((button) => {
+          const active = isActive(button);
+          button.classList.toggle('is-active', active);
+          button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+      }
 
-      billingReportBtn.addEventListener('click', () => {
-        openDateRangeModal('billing');
-      });
+      function syncControls() {
+        [
+          [billingReportBtn, activeTab === 'billing'],
+          [bookingReportBtn, activeTab === 'booking']
+        ].forEach(([button, active]) => {
+          button.classList.toggle('btn-primary', active);
+          button.classList.toggle('btn-secondary', !active);
+          button.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        setPressed(periodChips, '[data-period]', (b) => b.dataset.period === activePeriod);
+        setPressed(billModeChips, '[data-mode]', (b) => b.dataset.mode === activeBillingMode);
+        billModeChips.hidden = activeTab !== 'billing';
+        customRange.hidden = activePeriod !== 'custom';
+      }
 
-      cancelDateRangeBtn.addEventListener('click', closeDateRangeModal);
+      function clearReport() {
+        reportStats.innerHTML = '';
+        bookingReportWrap.style.display = 'none';
+        billingReportWrap.style.display = 'none';
+        reportToolbar.style.display = 'none';
+        bookingReportRange = { from: '', to: '' };
+      }
 
-      dateRangeModal.addEventListener('click', (event) => {
-        if (event.target === dateRangeModal) closeDateRangeModal();
-      });
-
-      applyDateRangeBtn.addEventListener('click', async () => {
-        const fromDate = String(fromDateInput.value || '').trim();
-        const toDate = String(toDateInput.value || '').trim();
-
-        if (!fromDate || !toDate) {
-          reportStatus.textContent = 'Please select both From Date and To Date.';
+      async function refreshReport() {
+        syncControls();
+        const run = ++reportRun;
+        const { from, to } = periodRange(activePeriod);
+        reportStatus.textContent = '';
+        if (!from || !to) {
+          clearReport();
+          periodLabel.textContent = 'Pick a From and To date, then tap Show.';
+          return;
+        }
+        if (from > to) {
+          clearReport();
+          periodLabel.textContent = '';
+          reportStatus.textContent = 'From date cannot be after To date.';
           reportStatus.style.color = '#b42a2a';
           return;
         }
-        if (fromDate > toDate) {
-          reportStatus.textContent = 'From Date cannot be after To Date.';
-          reportStatus.style.color = '#b42a2a';
-          return;
-        }
-
-        closeDateRangeModal();
+        periodLabel.textContent = prettyRange(from, to);
+        renderLoadingStats();
+        reportToolbar.style.display = 'none';
         try {
-          if (activeReportType === 'billing') {
-            await loadBillingReport(fromDate, toDate, billingModeSelect ? billingModeSelect.value : 'with-gst');
+          if (activeTab === 'billing') {
+            await loadBillingReport(from, to, activeBillingMode, run);
           } else {
-            await loadBookingReport(fromDate, toDate);
+            await loadBookingReport(from, to, run);
           }
         } catch (error) {
+          if (run !== reportRun) return;
+          reportStats.innerHTML = '';
           reportStatus.textContent = error.message || 'Failed to load report.';
           reportStatus.style.color = '#b42a2a';
           bookingReportWrap.style.display = 'none';
           billingReportWrap.style.display = 'none';
           reportToolbar.style.display = 'none';
         }
+      }
+
+      billingReportBtn.addEventListener('click', () => {
+        activeTab = 'billing';
+        refreshReport();
       });
+
+      bookingReportBtn.addEventListener('click', () => {
+        activeTab = 'booking';
+        refreshReport();
+      });
+
+      periodChips.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-period]');
+        if (!button) return;
+        activePeriod = button.dataset.period;
+        if (activePeriod === 'custom') {
+          const month = periodRange('month');
+          if (!fromDateInput.value) fromDateInput.value = month.from;
+          if (!toDateInput.value) toDateInput.value = localDateKey(new Date());
+        }
+        refreshReport();
+      });
+
+      billModeChips.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-mode]');
+        if (!button) return;
+        activeBillingMode = button.dataset.mode;
+        refreshReport();
+      });
+
+      applyDateRangeBtn.addEventListener('click', refreshReport);
 
       printBookingReportBtn.addEventListener('click', () => {
         if (!bookingReportRange.from || !bookingReportRange.to) {
@@ -892,6 +1062,8 @@
         }
         window.print();
       });
+
+      refreshReport();
     </script>
       <script src="app-shell.js?v=20261114"></script>
   </body>

@@ -1556,7 +1556,8 @@
     font-variant-numeric: tabular-nums;
   }
 
-  body .report-table tbody tr:last-child td {
+  /* Totals row (billing report only; the booking report has no totals) */
+  body #billingReportBody tr:last-child td {
     background: var(--ui-surface-2);
     color: var(--ui-ink);
     font-weight: 600;
@@ -2593,5 +2594,302 @@
 @media screen and (max-width: 1099px) {
   body .bill-summary {
     margin-top: 16px;
+  }
+}
+
+/* ==========================================================================
+   Report page: tabs, period buttons and summary cards (report.html)
+   ========================================================================== */
+@media screen {
+  body .report-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    margin: 4px 0 18px;
+  }
+
+  body .report-controls > *,
+  body .report-filter-row > * {
+    min-width: 0;
+  }
+
+  body .report-controls .report-actions {
+    justify-self: start;
+  }
+
+  body .report-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  body .report-chips {
+    display: inline-flex;
+    gap: 4px;
+    max-width: 100%;
+    padding: 4px;
+    border: 1px solid var(--ui-line);
+    border-radius: 12px;
+    background: var(--ui-surface-2);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  body .report-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  body .report-chip {
+    flex: none;
+    height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--ui-muted);
+    font-family: var(--ui-display);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  body .report-chip:hover {
+    color: var(--ui-ink);
+  }
+
+  body .report-chip.is-active {
+    background: var(--ui-surface);
+    color: var(--ui-primary);
+    box-shadow: var(--ui-shadow-sm);
+  }
+
+  body .report-chip:focus-visible {
+    outline: none;
+    box-shadow: var(--ui-ring);
+  }
+
+  body .report-custom-range {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  body .report-custom-range label {
+    display: grid;
+    gap: 4px;
+    color: var(--ui-muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  body .report-custom-range input {
+    min-width: 160px;
+  }
+
+  body .report-period-label {
+    margin: 0;
+    color: var(--ui-muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  body .report-period-label:empty {
+    display: none;
+  }
+
+  body .report-stats {
+    margin: 0 0 16px;
+  }
+
+  body .report-stat-primary::before { background: var(--ui-primary); }
+  body .report-stat-success::before { background: var(--ui-success); }
+  body .report-stat-gold::before { background: var(--ui-gold); }
+  body .report-stat-accent::before { background: var(--ui-accent); }
+
+  @media (max-width: 768px) {
+    body .report-controls .report-actions {
+      justify-self: stretch;
+      width: auto;
+    }
+
+    body .report-filter-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    body .report-chips {
+      flex-wrap: wrap;
+    }
+
+    body .report-chip {
+      flex: 1 1 auto;
+    }
+
+    body .report-custom-range > * {
+      flex: 1 1 140px;
+    }
+
+    body .report-custom-range input {
+      min-width: 0;
+      width: 100%;
+    }
+  }
+}
+
+/* ==========================================================================
+   Item List: spell check hints (items.js + item-dictionary.js)
+   ========================================================================== */
+@media screen {
+  body .spell-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 10px 14px;
+    border: 1px solid color-mix(in srgb, var(--ui-gold) 35%, transparent);
+    border-radius: var(--ui-radius);
+    background: var(--ui-warning-soft);
+    color: var(--ui-ink);
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+
+  body .spell-summary .btn {
+    min-height: 34px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+
+  body .items-table tr.has-spell-hint .item-name {
+    border-color: var(--ui-gold);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-gold) 18%, transparent);
+  }
+
+  body .spell-hint {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    margin-top: 6px;
+    color: var(--ui-muted);
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+
+  body .spell-hint[hidden] {
+    display: none;
+  }
+
+  body .spell-apply,
+  body .spell-keep {
+    min-height: 28px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  body .spell-apply {
+    border: 1px solid color-mix(in srgb, var(--ui-primary) 40%, transparent);
+    background: var(--ui-primary-soft);
+    color: var(--ui-primary-ink);
+  }
+
+  body .spell-apply:hover {
+    background: var(--ui-primary);
+    color: #fff;
+  }
+
+  body .spell-keep {
+    margin-left: auto;
+    border: 1px solid var(--ui-line);
+    background: transparent;
+    color: var(--ui-muted);
+    font-weight: 600;
+  }
+
+  body .spell-keep:hover {
+    color: var(--ui-ink);
+    border-color: var(--ui-line-strong);
+  }
+}
+
+/* Item List on phones: rows are cards, so the desktop column widths
+   (e.g. the 1% Action column) must not squeeze the cells. */
+@media screen and (max-width: 768px) {
+  body .items-page-card .items-table tbody td:nth-child(n) {
+    width: auto;
+    min-width: 0;
+    text-align: left;
+  }
+
+  body .items-table tbody td input {
+    width: 100%;
+  }
+}
+
+/* Grey meaning popup for item names (items.js) */
+@media screen {
+  body .meaning-popup {
+    --popup-bg: #4b5560;
+    position: absolute;
+    z-index: 80;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: var(--popup-bg);
+    color: #f3f5f7;
+    font-size: 12.5px;
+    line-height: 1.45;
+    box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+  }
+
+  [data-theme='dark'] body .meaning-popup {
+    --popup-bg: #3a4652;
+  }
+
+  body .meaning-popup[hidden] {
+    display: none;
+  }
+
+  body .meaning-popup::after {
+    content: '';
+    position: absolute;
+    left: var(--arrow-left, 24px);
+    bottom: -6px;
+    width: 12px;
+    height: 12px;
+    background: var(--popup-bg);
+    transform: translateX(-50%) rotate(45deg);
+    border-radius: 2px;
+  }
+
+  body .meaning-popup.is-below::after {
+    top: -6px;
+    bottom: auto;
+  }
+
+  body .meaning-popup strong {
+    display: block;
+    margin-bottom: 2px;
+    color: #fff;
+    font-size: 13px;
+  }
+
+  body .meaning-popup p {
+    margin: 0;
+  }
+
+  body .meaning-popup b {
+    color: #fff;
+    font-weight: 600;
   }
 }
